@@ -3,6 +3,12 @@
 #include <regex>
 #include <sstream>
 
+
+#include "tinytiff/tinytiffreader.h"
+
+#include <filesystem>
+namespace fs = std::experimental::filesystem;
+
 using namespace std;
 
 
@@ -93,4 +99,53 @@ std::string timestampString(const std::string & format /*= "%Y_%m_%d_%H_%M_%S"*/
 	std::tm * ptm = std::localtime(&now);
 	std::strftime(buffer, 256, format.c_str(), ptm);
 	return std::string(buffer);
+}
+
+size_t directoryFileCount(const char * path)
+{
+	return std::count_if(
+		fs::directory_iterator(path),
+		fs::directory_iterator(),
+		static_cast<bool(*)(const fs::path&)>(fs::is_regular_file));
+}
+
+bool tiffSize(const char * path, int *x, int *y, int * bytes,  int *frames)
+{
+
+	TinyTIFFReaderFile* tiffr = NULL;
+	tiffr = TinyTIFFReader_open(path);
+
+	if (!tiffr) return false;
+
+	uint32_t width = TinyTIFFReader_getWidth(tiffr);
+	uint32_t height = TinyTIFFReader_getHeight(tiffr);
+
+	*x = width;
+	*y = height;
+
+	*bytes = TinyTIFFReader_getSampleFormat(tiffr);
+
+	if (frames != nullptr) {
+		int cnt = 0;
+		do { cnt++; } while (TinyTIFFReader_readNext(tiffr));
+
+		*frames = cnt;
+	}
+
+	return true;
+}
+
+bool readTiff(const char * path, void * buffer)
+{
+	TinyTIFFReaderFile* tiffr = NULL;
+	tiffr = TinyTIFFReader_open(path);
+	if (!tiffr) return false;
+
+	uint32_t width = TinyTIFFReader_getWidth(tiffr);
+	uint32_t height = TinyTIFFReader_getHeight(tiffr);
+
+	TinyTIFFReader_getSampleData(tiffr, buffer, 0);
+
+	TinyTIFFReader_close(tiffr);
+	return true;
 }

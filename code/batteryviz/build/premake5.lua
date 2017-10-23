@@ -21,6 +21,8 @@ project "batteryviz"
       "../src/**.cpp",
       "../external/imgui/**.cpp",
       "../external/imgui/**.h",        
+      "../external/tinytiff/**.cpp",
+      "../external/tinytiff/**.h",
       "../external/*.cpp",
       "../external/*.h"      
    	}

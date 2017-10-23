@@ -38,3 +38,9 @@ std::string toString(const char * format, Types ... args) {
 }
 
 std::string timestampString(const std::string & format = "%Y_%m_%d_%H_%M_%S");
+
+size_t directoryFileCount(const char * path);
+
+bool tiffSize(const char * path, int * x, int * y, int * bytes, int * frames = nullptr);
+
+bool readTiff(const char * path, void * buffer);

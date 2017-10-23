@@ -13,6 +13,8 @@ class BatteryApp : public App {
 
 public:
 	BatteryApp();
+
+	void renderSlice(Texture & texture, mat3 transform, ivec2 screenPos, ivec2 screenSize);
 	
 protected:
 	virtual void update(double dt) override;
@@ -26,9 +28,11 @@ protected:
 
 	Camera _camera;
 	Texture _volumeTexture;
-	std::shared_ptr<Shader> _volumeShader;
+	std::shared_ptr<Shader> _volumeSliceShader;
 
 	VertexBuffer<VertexData> _quad;
+
+	
 
 
 };

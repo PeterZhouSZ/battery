@@ -36,9 +36,8 @@ protected:
 	Window _window;
 	Input _input;
 
-	
-private:
-	double _lastTime;
+	double _lastTime;	
+private:	
 	bool _terminate;
 
 };
