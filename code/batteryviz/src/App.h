@@ -2,6 +2,8 @@
 
 struct GLFWwindow;
 
+#include "utility/mathtypes.h"
+
 class App {
 	
 	struct Window {
@@ -12,7 +14,8 @@ class App {
 
 	struct Input {
 		bool mouseButtonPressed[8];
-
+		vec2 mouseButtonPressPos[8];
+		vec2 mousePos;
 	};
 
 public:

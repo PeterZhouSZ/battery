@@ -9,6 +9,31 @@
 
 #include <memory>
 
+
+struct FrameBuffer {
+	FrameBuffer() {
+		glGenFramebuffers(1, &_ID);
+	}
+	~FrameBuffer() {
+		glDeleteFramebuffers(1, &_ID);
+	}
+	GLuint ID() const {
+		return _ID;
+	}
+
+private:
+	GLuint _ID;
+};
+
+struct EnterExitVolume {
+	void resize(GLuint w, GLuint h);
+
+	FrameBuffer enterFramebuffer;
+	FrameBuffer exitFramebuffer;
+	Texture enterTexture;
+	Texture exitTexture;
+};
+
 class BatteryApp : public App {
 
 public:
@@ -28,11 +53,16 @@ protected:
 
 	Camera _camera;
 	Texture _volumeTexture;
-	std::shared_ptr<Shader> _volumeSliceShader;
-
-	VertexBuffer<VertexData> _quad;
-
 	
 
+	VertexBuffer<VertexData> _quad;
+	VertexBuffer<VertexData> _cube;
+	EnterExitVolume _enterExit;
+
+	std::unordered_map<std::string, std::shared_ptr<Shader>> _shaders;
+	
+
+private:
+	void reloadShaders();
 
 };

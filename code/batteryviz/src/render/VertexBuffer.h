@@ -122,11 +122,35 @@ public:
 
 	IndexedBuffer(GLenum usage = GL_STATIC_DRAW);
 
-	bool setIndices(typename std::vector<T>::iterator begin,
-					typename std::vector<T>::iterator end, 
-					GLenum indexType);
+	template <typename S>
+	bool setIndices(typename std::vector<S>::iterator begin,
+		typename std::vector<S>::iterator end,
+		GLenum indexType) {
+		if (begin == end)
+			return false;
 
-	virtual bool render(GLenum mode, size_t offset = 0,
+		m_indexCount = std::distance(begin, end);
+
+		m_indexTypeSize = sizeof(GLbyte);
+		if (indexType == GL_UNSIGNED_INT) {
+			m_indexTypeSize = sizeof(GLint);
+		}
+		else if (indexType == GL_UNSIGNED_SHORT) {
+			m_indexTypeSize = sizeof(GLshort);
+		}
+
+		m_indexType = indexType;
+		GLsizei byteSize = static_cast<GLsizei>(m_indexCount) * m_indexTypeSize;
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_indexBuffer);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, byteSize, &begin[0], m_usage);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+		return !GLError(THIS_FUNCTION);
+
+	}
+
+	virtual bool render(GLenum mode = 0xAAAAAA, size_t offset = 0,
 		size_t count = std::numeric_limits<std::size_t>::max()) const;
 private:
 	GLuint m_indexBuffer;

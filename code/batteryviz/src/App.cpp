@@ -110,13 +110,14 @@ void App::render(double dt)
 
 void App::callbackMousePos(GLFWwindow * w, double x, double y)
 {
-
+	_input.mousePos = { x,y };
 }
 
 void App::callbackMouseButton(GLFWwindow * w, int button, int action, int mods)
 {
 	if (action == GLFW_PRESS) {
 		_input.mouseButtonPressed[button] = true;
+		_input.mouseButtonPressPos[button] = _input.mousePos;
 	}
 	else if (action == GLFW_RELEASE) {
 		_input.mouseButtonPressed[button] = false;

@@ -336,6 +336,7 @@ IndexedBuffer<T>::IndexedBuffer(GLenum usage /*= GL_STATIC_DRAW*/)
 	setAttribs(T::vertexAttribArray);
 }
 
+/*
 template <typename T>
 bool IndexedBuffer<T>::setIndices(typename std::vector<T>::iterator begin,
                                   typename std::vector<T>::iterator end,
@@ -362,11 +363,11 @@ bool IndexedBuffer<T>::setIndices(typename std::vector<T>::iterator begin,
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 	return !GLError(THIS_FUNCTION);
-}
+}*/
 
 template <typename T>
 bool IndexedBuffer<T>::render(
-    GLenum mode, size_t offset /*= 0*/,
+    GLenum mode /*=0xAAAAAA*/, size_t offset /*= 0*/,
     size_t count /*= std::numeric_limits<std::size_t>::max()*/) const{
 	
 	glBindVertexArray(m_vao);
@@ -374,6 +375,9 @@ bool IndexedBuffer<T>::render(
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_indexBuffer);
 
 	
+	if (mode == 0xAAAAAA) {
+		mode = m_primitiveType;
+	}
 
 	//Draw all elements
 	if (count == std::numeric_limits<std::size_t>::max())

@@ -2,6 +2,7 @@
 
 #include "BatteryApp.h"
 #include <iostream>
+#include <string>
 
 int main(int argc, char ** argv){	
 
@@ -13,7 +14,7 @@ int main(int argc, char ** argv){
 		}
 
 	}
-	catch (const char * msg) {
+	catch (std::string  msg) {
 		std::cerr << msg << std::endl;
 		getchar();
 		return -1;
