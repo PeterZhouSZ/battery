@@ -10,10 +10,20 @@
 #include <stdexcept>
 #include <filesystem>
 
+#include "imgui.h"
+#include "imgui/imgui_impl_glfw_gl3.h"
+
 namespace fs = std::experimental::filesystem;
 using namespace std;
 
 #define DATA_FOLDER "../../../data/graphite/SL43_C5_1c5bar_Data/"
+
+
+static const std::vector<string> shaderNames = {
+	"volumeslice",
+	"volumeraycast",
+	"position"
+};
 
 
 
@@ -135,6 +145,8 @@ BatteryApp::BatteryApp()
 	resetGL();
 	reloadShaders();
 
+	_sliceMin = { -1,-1,-1 };
+	_sliceMax = { 1,1,1 };
 
 	/*
 		Load data
@@ -176,17 +188,39 @@ BatteryApp::BatteryApp()
 		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 		GL(glBindTexture(GL_TEXTURE_3D, _volumeTexture.ID()));
 		GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_RED, x, y, numSlices, 0, GL_RED, GL_UNSIGNED_BYTE, buffer.data()));		
-		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+
+		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE));
 		GL(glBindTexture(GL_TEXTURE_3D, 0));
 	}
 
 
+	{
+		std::vector<color4> transferVal(16);
+		for (auto & v : transferVal)
+			v = color4(0.5f);
+
+		transferVal[15] = vec4(0.0f);
+		
+
+		_transferTexture = Texture(GL_TEXTURE_1D, 16, 1, 0);
+		glBindTexture(GL_TEXTURE_1D, _transferTexture.ID());
+		glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, transferVal.size(), 0, GL_RGBA, GL_FLOAT, transferVal.data());
+		glBindTexture(GL_TEXTURE_1D, 0);
+	}
+
+
+
+	//gui
+	ImGui_ImplGlfwGL3_Init(_window.handle, false);
 	
 
 }
 
-void BatteryApp::renderSlice(Texture & texture, mat3 transform, ivec2 screenPos, ivec2 screenSize)
+void BatteryApp::renderSlice(Texture & texture, int axis, ivec2 screenPos, ivec2 screenSize, float t)
 {
 	GL(glDisable(GL_CULL_FACE));
 	GL(glViewport(screenPos.x, screenPos.y, screenSize.x, screenSize.y));
@@ -196,8 +230,8 @@ void BatteryApp::renderSlice(Texture & texture, mat3 transform, ivec2 screenPos,
 	
 	//Set uniforms
 	shader["tex"] = texture.bindTo(GL_TEXTURE0);
-	shader["slice"] = float(_lastTime) / 8.0f;
-	shader["R"] = transform; 
+	shader["slice"] = (t + 1) / 2.0f;
+	shader["axis"] = axis; 
 
 	//Render fullscreen quad
 	_quad.render();
@@ -211,61 +245,123 @@ void BatteryApp::update(double dt)
 }
 
 void BatteryApp::render(double dt)
-{	
+{
+
+	if (_window.width == 0 || _window.height == 0) return;
 
 	glClearColor(1, 1, 1, 1);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
 	
-
 	{
 		mat3 R[3] = {
 			mat3(),
-			mat3(glm::rotate(mat4(), glm::radians(90.0f), vec3(0, 1, 0))),
+			mat3(glm::rotate(mat4(), glm::radians(90.0f), vec3(0, 0, 0))),
 			mat3(glm::rotate(mat4(), glm::radians(90.0f), vec3(1, 0, 0)))
 		};
 
 		int yoffset = 0;
 		int ysize = _window.height / 3;
 
-		renderSlice(_volumeTexture, R[0], ivec2(_window.width / 3 * 0, yoffset), ivec2(_window.width / 3, ysize));
-		renderSlice(_volumeTexture, R[1], ivec2(_window.width / 3 * 1, yoffset), ivec2(_window.width / 3, ysize));
-		renderSlice(_volumeTexture, R[2], ivec2(_window.width / 3 * 2, yoffset), ivec2(_window.width / 3, ysize));
+		renderSlice(_volumeTexture, 0, ivec2(_window.width / 3 * 0, yoffset), ivec2(_window.width / 3, ysize),
+			_sliceMin[0]);
+		renderSlice(_volumeTexture, 1, ivec2(_window.width / 3 * 1, yoffset), ivec2(_window.width / 3, ysize),
+			_sliceMin[1]);
+		renderSlice(_volumeTexture, 2, ivec2(_window.width / 3 * 2, yoffset), ivec2(_window.width / 3, ysize),
+			_sliceMin[2]);
 	}
 
 
 	glViewport(0, _window.height / 3, _window.width, (_window.height / 3) * 2);
 	_camera.setWindowDimensions(_window.width, (_window.height / 3) * 2);
-	
+
+	_enterExit.resize(_window.width, _window.height);
 
 	//Render enter/exit texture
 	{
+
 		auto & shader = *_shaders["position"];
 
 		shader.bind();
 		shader["PVM"] = _camera.getPV();
-	
-		
+		shader["minCrop"] = _sliceMin;
+		shader["maxCrop"] = _sliceMax;
+
+		GL(glBindFramebuffer(GL_FRAMEBUFFER, _enterExit.enterFramebuffer.ID()));
+		glClearColor(0, 0, 0, 0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+		glViewport(0,0, _window.width, _window.height);
+
 		glEnable(GL_CULL_FACE);
 		glCullFace(GL_FRONT);
+		_cube.render();
 
-		_cube.render();		
+		GL(glBindFramebuffer(GL_FRAMEBUFFER, _enterExit.exitFramebuffer.ID()));
+		glClearColor(0, 0, 0, 0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+		glViewport(0, 0, _window.width, _window.height);
+
+		glEnable(GL_CULL_FACE);
+		glCullFace(GL_BACK);
+		_cube.render();
+
+		GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 
 		shader.unbind();
 
 	}
+
+	//Raycast
+	{
+		glViewport(0, _window.height / 3, _window.width, (_window.height / 3) * 2);
+		glDisable(GL_CULL_FACE);
+
+		auto & shader = *_shaders["volumeraycast"];
+
+		shader.bind();
+		shader["transferFunc"] = _transferTexture.bindTo(GL_TEXTURE0);
+		shader["volumeTexture"] = _volumeTexture.bindTo(GL_TEXTURE1);
+		shader["enterVolumeTex"] = _enterExit.enterTexture.bindTo(GL_TEXTURE2);
+		shader["exitVolumeTex"] = _enterExit.exitTexture.bindTo(GL_TEXTURE3);
+
+		shader["steps"] = 128;
+		shader["transferOpacity"] = 0.5f;
+
+
+		_quad.render();
+
+		shader.unbind();
 	
+	}
+
+
+
+	ImGui_ImplGlfwGL3_NewFrame();
+
+
+	int w = _window.width * 0.2f;
+	ImGui::SetNextWindowPos(ImVec2(_window.width - w, 0), ImGuiSetCond_Always);
+	ImGui::SetNextWindowSize(ImVec2(w, 2.0f * (_window.height / 3.0f)), ImGuiSetCond_Always);
+	
+	static bool mainOpen = false;
+	ImGui::Begin("Main", &mainOpen);
+
+	ImGui::SliderFloat3("Slice (Min)", reinterpret_cast<float*>(&_sliceMin), -1, 1);
+	ImGui::SliderFloat3("Slice (Max)", reinterpret_cast<float*>(&_sliceMax), -1, 1);
+
+
+	ImGui::End();
+
+
+	ImGui::Render();
+
+
 }
 
 
 
 void BatteryApp::reloadShaders()
 {
-	const std::vector<string> shaderNames = {
-		"volumeslice",
-		//"volumeraycast",
-		"position"
-	};
+	
 
 	for (auto & name : shaderNames) {
 		const auto path = "../src/shaders/" + name + ".shader";
@@ -291,11 +387,11 @@ void BatteryApp::callbackMousePos(GLFWwindow * w, double x, double y)
 {
 	App::callbackMousePos(w, x, y);
 
-	if (_input.mouseButtonPressed[GLFW_MOUSE_BUTTON_1]) {
+	if (_input.mouseButtonPressed[GLFW_MOUSE_BUTTON_2]) {
 
 		auto & cam = _camera;
 
-		auto angle = (_input.mousePos - _input.mouseButtonPressPos[GLFW_MOUSE_BUTTON_1]) / 360.0f;
+		auto angle = (_input.mousePos - _input.mouseButtonPressPos[GLFW_MOUSE_BUTTON_2]) / 360.0f;
 		std::swap(angle.x, angle.y);
 		angle.y = -angle.y;
 
@@ -306,25 +402,28 @@ void BatteryApp::callbackMousePos(GLFWwindow * w, double x, double y)
 		cpos += glm::vec4(cam.getLookat(), 0.0f);
 		cam.setPosition(glm::vec3(cpos.x, cpos.y, cpos.z));
 
-		_input.mouseButtonPressPos[GLFW_MOUSE_BUTTON_1] = _input.mousePos;	
+		_input.mouseButtonPressPos[GLFW_MOUSE_BUTTON_2] = _input.mousePos;	
 	}
 
 }
 
 void BatteryApp::callbackMouseButton(GLFWwindow * w, int button, int action, int mods)
 {
+	
 	App::callbackMouseButton(w, button, action, mods);
+	ImGui_ImplGlfwGL3_MouseButtonCallback(w, button, action, mods);
 }
 
 void BatteryApp::callbackKey(GLFWwindow * w, int key, int scancode, int action, int mods)
 {
 	App::callbackKey(w, key, scancode, action, mods);
 
+	ImGui_ImplGlfwGL3_KeyCallback(w, key, scancode, action, mods);
+
 	if (action == GLFW_RELEASE) {
 		
 		if (key == GLFW_KEY_R)
 			reloadShaders();
-	
 	}
 
 }
@@ -332,6 +431,8 @@ void BatteryApp::callbackKey(GLFWwindow * w, int key, int scancode, int action, 
 void BatteryApp::callbackScroll(GLFWwindow * w, double xoffset, double yoffset)
 {
 	App::callbackScroll(w, xoffset, yoffset);
+
+	ImGui_ImplGlfwGL3_ScrollCallback(w, xoffset, yoffset);
 
 	auto & cam = _camera;
 

@@ -4,16 +4,20 @@
 #pragma VERTEX
 
 
+uniform vec3 minCrop;
+uniform vec3 maxCrop;
 
 in vec3 position;
 out vec3 vposition;
+
 
 uniform mat4 PVM;
 
 void main()
 {	   
-    gl_Position = PVM * vec4(position,1.0);
-    vposition = (position + vec3(1.0))*0.5;
+	vec3 cropped = clamp(position,minCrop,maxCrop) ;
+    gl_Position = PVM * vec4(cropped,1.0);
+    vposition = (cropped + vec3(1.0))*0.5;
 }
 
 
