@@ -11,7 +11,7 @@ void logCerr(const char * label, const char * errtype){
 	std::cerr << label << ": " << errtype << '\n';
 
 }
-
+#ifdef DEBUG
 bool GLError(const char *label /*= ""*/,
 	const std::function<void(const char *label, const char *errtype)>
 	&callback)
@@ -36,5 +36,5 @@ bool GLError(const char *label /*= ""*/,
 
 	return hasErr;
 }
-
+#endif
 

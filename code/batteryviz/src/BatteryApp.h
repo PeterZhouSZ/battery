@@ -7,6 +7,8 @@
 #include "render/Texture.h"
 #include "render/VertexBuffer.h"
 
+#include "Volume.h"
+
 #include <memory>
 
 
@@ -66,9 +68,17 @@ protected:
 	vec3 _sliceMin;
 	vec3 _sliceMax;
 
-	
+	float _blackOpacity;
+	float _whiteOpacity;
+
+	vec3 _quadric;
+
+	Volume<unsigned char> _volume;
 
 private:
 	void reloadShaders();
+
+	
+	void setVolumeTexture(Texture & tex, Volume<unsigned char> & volume);
 
 };

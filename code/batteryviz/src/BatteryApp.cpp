@@ -106,10 +106,9 @@ bool resetGL()
 	glEnable(GL_TEXTURE_2D);
 	glEnable(GL_TEXTURE_3D);
 
-	return !GLError(THIS_FUNCTION);
+	//GL(THIS_FUNCTION);
+	return true;
 }
-
-
 
 
 void EnterExitVolume::resize(GLuint w, GLuint h)
@@ -135,7 +134,6 @@ void EnterExitVolume::resize(GLuint w, GLuint h)
 }
 
 
-
 BatteryApp::BatteryApp()
 	: App("BatteryViz"),
 	_camera(Camera::defaultCamera(_window.width, _window.height)),
@@ -147,10 +145,14 @@ BatteryApp::BatteryApp()
 
 	_sliceMin = { -1,-1,-1 };
 	_sliceMax = { 1,1,1 };
+	_blackOpacity = 0.001;
+	_whiteOpacity = 0.05;
+	_quadric = { 0.617,0.617,0.482 };
 
 	/*
 		Load data
 	*/
+	if(false)
 	{
 		fs::path path(DATA_FOLDER);
 
@@ -167,9 +169,10 @@ BatteryApp::BatteryApp()
 		if (bytes != 1)
 			throw "only uint8 supported right now";
 
-
-
-		std::vector<unsigned char> buffer(numSlices*x*y*bytes);	
+		
+		
+		_volume.resize({ x,y,numSlices },0);
+		auto & buffer = _volume.data;
 
 		int cnt = 0;
 		size_t bytesRead = 0;
@@ -181,21 +184,20 @@ BatteryApp::BatteryApp()
 
 		cout << "Read " << numSlices << " slices. (" << (bytesRead / (1024 * 1024)) << "MB)" << endl;
 
-
 		
-		_volumeTexture = Texture(GL_TEXTURE_3D, x, y, numSlices);
-
-		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-		GL(glBindTexture(GL_TEXTURE_3D, _volumeTexture.ID()));
-		GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_RED, x, y, numSlices, 0, GL_RED, GL_UNSIGNED_BYTE, buffer.data()));		
-		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-
-		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE));
-		GL(glBindTexture(GL_TEXTURE_3D, 0));
+				
+		
 	}
+	else {
+
+		_volume.resize({ 128, 128, 128 }, 0);
+
+
+			
+	}
+
+	_volumeTexture = Texture(GL_TEXTURE_3D, _volume.size.x, _volume.size.y, _volume.size.z);
+	setVolumeTexture(_volumeTexture, _volume);
 
 
 	{
@@ -241,7 +243,27 @@ void BatteryApp::renderSlice(Texture & texture, int axis, ivec2 screenPos, ivec2
 
 void BatteryApp::update(double dt)
 {
-	
+
+	vec3 q = _quadric;
+
+	_volume.clear(0);
+
+	#pragma omp parallel for
+	for (auto x = 0; x < _volume.size.x; x++) {
+		for (auto y = 0; y < _volume.size.x; y++) {
+			for (auto z = 0; z < _volume.size.z; z++) {
+				vec3 pos = vec3(x / float(_volume.size.x), y / float(_volume.size.y), z / float(_volume.size.z)) * 2.0f - vec3(1.0f);
+
+				float v = (glm::pow(glm::abs(pos.x), q.x) + glm::pow(glm::abs(pos.y), q.y) + glm::pow(glm::abs(pos.z), q.z));
+
+				if (v < 1.0f) {
+					_volume.at(x, y, z) = 255;
+				}
+			}
+		}
+	}
+
+	setVolumeTexture(_volumeTexture, _volume);
 }
 
 void BatteryApp::render(double dt)
@@ -325,6 +347,8 @@ void BatteryApp::render(double dt)
 
 		shader["steps"] = 128;
 		shader["transferOpacity"] = 0.5f;
+		shader["blackOpacity"] = _blackOpacity;
+		shader["whiteOpacity"] = _whiteOpacity;
 
 
 		_quad.render();
@@ -348,6 +372,11 @@ void BatteryApp::render(double dt)
 	ImGui::SliderFloat3("Slice (Min)", reinterpret_cast<float*>(&_sliceMin), -1, 1);
 	ImGui::SliderFloat3("Slice (Max)", reinterpret_cast<float*>(&_sliceMax), -1, 1);
 
+	ImGui::InputFloat("White opacity", &_whiteOpacity,0.001f);
+	ImGui::InputFloat("Black opacity", &_blackOpacity, 0.001f);
+
+
+	ImGui::SliderFloat3("Quadric", reinterpret_cast<float*>(&_quadric), 0, 10);
 
 	ImGui::End();
 
@@ -382,6 +411,21 @@ void BatteryApp::reloadShaders()
 
 }
 
+
+
+void BatteryApp::setVolumeTexture(Texture & tex, Volume<unsigned char> & volume)
+{
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	GL(glBindTexture(GL_TEXTURE_3D, tex.ID()));
+	GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_RED, volume.size.x, volume.size.y, volume.size.z, 0, GL_RED, GL_UNSIGNED_BYTE, volume.data.data()));
+	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+
+	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE));
+	GL(glBindTexture(GL_TEXTURE_3D, 0));
+}
 
 void BatteryApp::callbackMousePos(GLFWwindow * w, double x, double y)
 {

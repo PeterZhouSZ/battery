@@ -22,5 +22,7 @@ bool GLError(
     const char *label = "",
     const std::function<void(const char *label, const char *errtype)>
         &callback = &logCerr);
-
+#else
+#define GL(x) x;
+#define GLError(x) false
 #endif

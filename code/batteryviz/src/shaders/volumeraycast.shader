@@ -23,6 +23,9 @@ uniform float transferOpacity;
 uniform vec3 minCrop;
 uniform vec3 maxCrop;
 
+uniform float whiteOpacity = 0.05;
+uniform float blackOpacity = 0.001;
+
 const vec3 lightDir = vec3(1.0,0.0,1.0);
 const float voxelSize = 0.1;
 
@@ -67,7 +70,7 @@ void main(){
 	
 	vec3 ray = -normalize(exitPt-enterPt);
 	//float dt = distance(exitPt,enterPt) / steps;
-	float dt = 0.002;
+	float dt = 0.001;
 	float N = distance(exitPt,enterPt) / dt;
 	vec3 stepVec = ray*dt;
 
@@ -89,9 +92,9 @@ void main(){
 		vec4 color = vec4(0,0,1,1);
 
 		if(volumeVal > 0.5)
-			color = vec4(1.0,0,0,0.05 * dt * 1000);
+			color = vec4(1.0,0,0,whiteOpacity * dt * 1000);
 		else
-			color = vec4(0,0,0,0.01 * dt * 1000);
+			color = vec4(0,0,0,blackOpacity * dt * 1000);
 
 
 		//vec3 Cprev = colorAcc.xyz * colorAcc.a;
