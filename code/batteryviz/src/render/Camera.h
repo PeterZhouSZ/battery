@@ -22,7 +22,7 @@ class Camera{
 		float getFarPlane() const;
 		float getNearPlane() const;
 
-		void setWindowDimensions(int width, int height);
+		void setWindowDimensions(int width, int height);		
 		void setAspectRatio(int width, int height);
 		void setFov(float fov);
 		
@@ -62,6 +62,7 @@ class Camera{
 		float m_znear;
 		float m_zfar;
 
+		
 		int m_windowWidth;
 		int m_windowHeight;
 

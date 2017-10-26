@@ -20,8 +20,7 @@ class BatteryApp : public App {
 
 public:
 	BatteryApp();
-
-	void renderSlice(Texture & texture, int axis, ivec2 screenPos, ivec2 screenSize, float t);
+		
 	
 protected:
 	virtual void update(double dt) override;
@@ -34,20 +33,16 @@ protected:
 
 
 	Camera _camera;
-	Texture _volumeTexture;
-	Texture _transferTexture;
+	
+	
 	
 
 	VertexBuffer<VertexData> _quad;
-	VertexBuffer<VertexData> _cube;
-	EnterExitVolume _enterExit;
-
+	
 	std::unordered_map<std::string, std::shared_ptr<Shader>> _shaders;
 
 
-	vec3 _sliceMin;
-	vec3 _sliceMax;
-
+	
 	float _blackOpacity;
 	float _whiteOpacity;
 
@@ -55,7 +50,7 @@ protected:
 
 	Volume<unsigned char> _volume;
 
-	VolumeRaycaster _volumeRaycaster;
+	std::unique_ptr<VolumeRaycaster> _volumeRaycaster;
 
 	bool _autoUpdate;
 
@@ -63,6 +58,6 @@ private:
 	void reloadShaders();
 
 	
-	void setVolumeTexture(Texture & tex, Volume<unsigned char> & volume);
+	
 
 };

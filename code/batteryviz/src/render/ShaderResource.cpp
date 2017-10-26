@@ -1,6 +1,6 @@
 #include "ShaderResource.h"
 #include <glm/gtc/type_ptr.hpp>
-#include "render/GLError.h"
+#include "render/GLGlobal.h"
 
 
 ShaderResource & ShaderResource::operator=(const std::vector<vec3> & arr)

@@ -18,8 +18,8 @@ struct Shader {
 	static void unbind();
 };
 
-std::shared_ptr<Shader> compileShader(
-							const std::string & code, 
-							std::function<void(const std::string & errorMsg)> errorCallback = {}
-						);
+bool compileShader(Shader * outputShader,
+				   const std::string & code, 
+				   std::function<void(const std::string & errorMsg)> errorCallback = {}
+);
 

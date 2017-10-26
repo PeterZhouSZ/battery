@@ -5,7 +5,7 @@
 #include <cassert>
 
 #include <iostream>
-#include "GLError.h"
+#include "render/GLGlobal.h"
 
 
 
@@ -98,13 +98,13 @@ string annotateLines(const string &str) {
 
 
 
-shared_ptr<Shader> compileShader(const string & code, std::function<void(const string & errorMsg)> errorCallback)
+bool compileShader(Shader * outputShader, const string & code, std::function<void(const string & errorMsg)> errorCallback)
 {
 	
 	auto shaderSources = preprocessShaderCode(code);
 	if (shaderSources.size() == 0) {
 		if(errorCallback) errorCallback("Could not find vertex and fragment shaders.");
-		return nullptr;
+		return false;
 	}
 
 		
@@ -122,7 +122,7 @@ shared_ptr<Shader> compileShader(const string & code, std::function<void(const s
 		glDeleteProgram(programID);
 		programID = 0;
 
-		return nullptr;
+		return false;
 	};
 
 	/*
@@ -237,13 +237,12 @@ shared_ptr<Shader> compileShader(const string & code, std::function<void(const s
 	auto uniforms = getVars(programID, GL_ACTIVE_UNIFORMS);
 	attribs.insert(uniforms.begin(), uniforms.end());
 
-	return make_shared<Shader>(Shader{
+	*outputShader = Shader{
 			programID,			
-			attribs
-			//std::move(getVars(programID, GL_ACTIVE_UNIFORMS)),
-			//std::move(getVars(programID, GL_ACTIVE_ATTRIBUTES))
-	});
+			attribs						
+	};
 
+	return true;
 }
 
 

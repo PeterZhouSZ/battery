@@ -36,42 +36,21 @@ static const std::vector<string> shaderNames = {
 	"position"
 };
 
-
-
-
-
-bool resetGL()
-{
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	glCullFace(GL_BACK);
-	glFrontFace(GL_CCW);
-
-	glEnable(GL_TEXTURE_2D);
-	glEnable(GL_TEXTURE_3D);
-
-	//GL(THIS_FUNCTION);
-	return true;
-}
-
-
-
-
-
 BatteryApp::BatteryApp()
 	: App("BatteryViz"),
 	_camera(Camera::defaultCamera(_window.width, _window.height)),
-	_quad(getQuadVBO()),
-	_cube(getCubeVBO())
+	_quad(getQuadVBO())
 {	
 	resetGL();
 	reloadShaders();
 
-	_sliceMin = { -1,-1,-1 };
-	_sliceMax = { 1,1,1 };
+	_volumeRaycaster = make_unique<VolumeRaycaster>(
+		_shaders["position"],
+		_shaders["volumeraycast"],
+		_shaders["volumeslice"]
+	);
+
+
 	_blackOpacity = 0.001;
 	_whiteOpacity = 0.05;
 	//_quadric = { 0.617,0.617,0.482 };
@@ -114,36 +93,19 @@ BatteryApp::BatteryApp()
 		cout << "Read " << numSlices << " slices. (" << (bytesRead / (1024 * 1024)) << "MB)" << endl;
 
 		
-				
+		
+		_volumeRaycaster->updateVolume(_volume);
 		
 	}
 	else {
 		const int res = 64;
-		_volume.resize({ res, res, res}, 0);
-
+		_volume.resize({ res, res, res}, 0);		
+		_autoUpdate = true;
+		update(0);
+		_autoUpdate = false;
 
 			
 	}
-
-	_volumeTexture = Texture(GL_TEXTURE_3D, _volume.size.x, _volume.size.y, _volume.size.z);
-	setVolumeTexture(_volumeTexture, _volume);
-
-
-	{
-		std::vector<color4> transferVal(16);
-		for (auto & v : transferVal)
-			v = color4(0.5f);
-
-		transferVal[15] = vec4(0.0f);
-		
-
-		_transferTexture = Texture(GL_TEXTURE_1D, 16, 1, 0);
-		glBindTexture(GL_TEXTURE_1D, _transferTexture.ID());
-		glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, transferVal.size(), 0, GL_RGBA, GL_FLOAT, transferVal.data());
-		glBindTexture(GL_TEXTURE_1D, 0);
-	}
-
-
 
 	//gui
 	ImGui_ImplGlfwGL3_Init(_window.handle, false);
@@ -151,30 +113,13 @@ BatteryApp::BatteryApp()
 
 }
 
-void BatteryApp::renderSlice(Texture & texture, int axis, ivec2 screenPos, ivec2 screenSize, float t)
-{
-	GL(glDisable(GL_CULL_FACE));
-	GL(glViewport(screenPos.x, screenPos.y, screenSize.x, screenSize.y));
-	auto &shader = *_shaders["volumeslice"];
 
-	shader.bind();
-	
-	//Set uniforms
-	shader["tex"] = texture.bindTo(GL_TEXTURE0);
-	shader["slice"] = (t + 1) / 2.0f;
-	shader["axis"] = axis; 
-
-	//Render fullscreen quad
-	_quad.render();
-
-	shader.unbind();
-}
 
 void BatteryApp::update(double dt)
 {
 	if (!_autoUpdate) return;
 
-	const int N = 128;
+	const int N = 2;
 	
 	std::array<mat4, N> transforms;
 	
@@ -205,8 +150,7 @@ void BatteryApp::update(double dt)
 
 	std::vector<vec3> quadrics;
 
-	//int N = 64;
-
+	
 	const auto quadricImplicit = [](const vec3 & pos, const vec3 & q) {
 		return (glm::pow(glm::abs(pos.x), q.x) + glm::pow(glm::abs(pos.y), q.y) + glm::pow(glm::abs(pos.z), q.z));
 	};
@@ -233,7 +177,7 @@ void BatteryApp::update(double dt)
 		}
 	}
 
-	setVolumeTexture(_volumeTexture, _volume);
+	_volumeRaycaster->updateVolume(_volume);	
 }
 
 void BatteryApp::render(double dt)
@@ -254,78 +198,16 @@ void BatteryApp::render(double dt)
 		int yoffset = 0;
 		int ysize = _window.height / 3;
 
-		renderSlice(_volumeTexture, 0, ivec2(_window.width / 3 * 0, yoffset), ivec2(_window.width / 3, ysize),
-			_sliceMin[0]);
-		renderSlice(_volumeTexture, 1, ivec2(_window.width / 3 * 1, yoffset), ivec2(_window.width / 3, ysize),
-			_sliceMin[1]);
-		renderSlice(_volumeTexture, 2, ivec2(_window.width / 3 * 2, yoffset), ivec2(_window.width / 3, ysize),
-			_sliceMin[2]);
+		_volumeRaycaster->renderSlice(0, ivec2(_window.width / 3 * 0, yoffset), ivec2(_window.width / 3, ysize));
+		_volumeRaycaster->renderSlice(1, ivec2(_window.width / 3 * 1, yoffset), ivec2(_window.width / 3, ysize));
+		_volumeRaycaster->renderSlice(2, ivec2(_window.width / 3 * 2, yoffset), ivec2(_window.width / 3, ysize));
 	}
 
-
-	glViewport(0, _window.height / 3, _window.width, (_window.height / 3) * 2);
 	_camera.setWindowDimensions(_window.width, (_window.height / 3) * 2);
+	_volumeRaycaster->render(_camera, {
+		0, _window.height / 3, _window.width, (_window.height / 3) * 2
+	}, *_shaders["position"], *_shaders["volumeraycast"]);
 
-	_enterExit.resize(_window.width, _window.height);
-
-	//Render enter/exit texture
-	{
-
-		auto & shader = *_shaders["position"];
-
-		shader.bind();
-		shader["PVM"] = _camera.getPV();
-		shader["minCrop"] = _sliceMin;
-		shader["maxCrop"] = _sliceMax;
-
-		GL(glBindFramebuffer(GL_FRAMEBUFFER, _enterExit.enterFramebuffer.ID()));
-		glClearColor(0, 0, 0, 0);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-		glViewport(0,0, _window.width, _window.height);
-
-		glEnable(GL_CULL_FACE);
-		glCullFace(GL_FRONT);
-		_cube.render();
-
-		GL(glBindFramebuffer(GL_FRAMEBUFFER, _enterExit.exitFramebuffer.ID()));
-		glClearColor(0, 0, 0, 0);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-		glViewport(0, 0, _window.width, _window.height);
-
-		glEnable(GL_CULL_FACE);
-		glCullFace(GL_BACK);
-		_cube.render();
-
-		GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-
-		shader.unbind();
-
-	}
-
-	//Raycast
-	{
-		glViewport(0, _window.height / 3, _window.width, (_window.height / 3) * 2);
-		glDisable(GL_CULL_FACE);
-
-		auto & shader = *_shaders["volumeraycast"];
-
-		shader.bind();
-		shader["transferFunc"] = _transferTexture.bindTo(GL_TEXTURE0);
-		shader["volumeTexture"] = _volumeTexture.bindTo(GL_TEXTURE1);
-		shader["enterVolumeTex"] = _enterExit.enterTexture.bindTo(GL_TEXTURE2);
-		shader["exitVolumeTex"] = _enterExit.exitTexture.bindTo(GL_TEXTURE3);
-
-		shader["steps"] = 128;
-		shader["transferOpacity"] = 0.5f;
-		shader["blackOpacity"] = _blackOpacity;
-		shader["whiteOpacity"] = _whiteOpacity;
-
-
-		_quad.render();
-
-		shader.unbind();
-	
-	}
 
 
 
@@ -339,8 +221,8 @@ void BatteryApp::render(double dt)
 	static bool mainOpen = false;
 	ImGui::Begin("Main", &mainOpen);
 
-	ImGui::SliderFloat3("Slice (Min)", reinterpret_cast<float*>(&_sliceMin), -1, 1);
-	ImGui::SliderFloat3("Slice (Max)", reinterpret_cast<float*>(&_sliceMax), -1, 1);
+//	ImGui::SliderFloat3("Slice (Min)", reinterpret_cast<float*>(&_sliceMin), -1, 1);
+//	ImGui::SliderFloat3("Slice (Max)", reinterpret_cast<float*>(&_sliceMax), -1, 1);
 
 	ImGui::InputFloat("White opacity", &_whiteOpacity,0.001f);
 	ImGui::InputFloat("Black opacity", &_blackOpacity, 0.001f);
@@ -360,7 +242,6 @@ void BatteryApp::render(double dt)
 
 void BatteryApp::reloadShaders()
 {
-	
 
 	for (auto & name : shaderNames) {
 		const auto path = "../src/shaders/" + name + ".shader";
@@ -369,33 +250,24 @@ void BatteryApp::reloadShaders()
 		if (src.length() == 0)
 			throw "Failed to read " + path;
 
-		_shaders[name] = compileShader(src, [&](const string & msg) {
+		if (_shaders.find(name) == _shaders.end()) {
+			_shaders[name] = make_shared<Shader>();
+		}
+
+		bool res = compileShader(&(*_shaders[name]), src, [&](const string & msg) {
 			std::cerr << toString("Failed to compile shader %, error:\n%", name, msg) << std::endl;
 		});
 
-		if (!_shaders[name])
-			throw "Failed to compile " + name;
+		if (res)
+			std::cerr << "Failed to compile " + name;
 	}
 
 	cout << shaderNames.size() << " shaders reloaded" << endl;
-
 }
 
 
 
-void BatteryApp::setVolumeTexture(Texture & tex, Volume<unsigned char> & volume)
-{
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	GL(glBindTexture(GL_TEXTURE_3D, tex.ID()));
-	GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_RED, volume.size.x, volume.size.y, volume.size.z, 0, GL_RED, GL_UNSIGNED_BYTE, volume.data.data()));
-	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
 
-	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE));
-	GL(glBindTexture(GL_TEXTURE_3D, 0));
-}
 
 void BatteryApp::callbackMousePos(GLFWwindow * w, double x, double y)
 {

@@ -1,6 +1,6 @@
 #pragma once
 #include <functional>
-
+#include <GL/glew.h>
 
 #ifdef DEBUG
 
@@ -26,3 +26,6 @@ bool GLError(
 #define GL(x) x;
 #define GLError(x) false
 #endif
+
+
+bool resetGL();

@@ -1,9 +1,7 @@
-#include "GLError.h"
+#include "GLGlobal.h"
+
 #include <GL/glew.h>
-
 #include <iostream>
-
-
 
 
 void logCerr(const char * label, const char * errtype){
@@ -11,6 +9,8 @@ void logCerr(const char * label, const char * errtype){
 	std::cerr << label << ": " << errtype << '\n';
 
 }
+
+
 #ifdef DEBUG
 bool GLError(const char *label /*= ""*/,
 	const std::function<void(const char *label, const char *errtype)>
@@ -36,5 +36,23 @@ bool GLError(const char *label /*= ""*/,
 
 	return hasErr;
 }
+
+bool resetGL()
+{
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glCullFace(GL_BACK);
+	glFrontFace(GL_CCW);
+
+	glEnable(GL_TEXTURE_2D);
+	glEnable(GL_TEXTURE_3D);
+
+	//GL(THIS_FUNCTION);
+	return true;
+}
+
 #endif
 

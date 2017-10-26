@@ -1,40 +1,45 @@
 #pragma once
 #include "render/Texture.h"
 #include "render/Camera.h"
+#include "render/Shader.h"
+#include "render/VertexBuffer.h"
+#include "render/Framebuffer.h"
 
 #include "Volume.h"
 
 
-struct FrameBuffer {
-	FrameBuffer() {
-		glGenFramebuffers(1, &_ID);
-	}
-	~FrameBuffer() {
-		glDeleteFramebuffers(1, &_ID);
-	}
-	GLuint ID() const {
-		return _ID;
-	}
 
-private:
-	GLuint _ID;
-};
 
-struct EnterExitVolume {
-	void resize(GLuint w, GLuint h);
 
-	FrameBuffer enterFramebuffer;
-	FrameBuffer exitFramebuffer;
-	Texture enterTexture;
-	Texture exitTexture;
-};
 
 
 struct VolumeRaycaster {
 
+	struct EnterExitVolume {
+		void resize(GLuint w, GLuint h);
+
+		FrameBuffer enterFramebuffer;
+		FrameBuffer exitFramebuffer;
+		Texture enterTexture;
+		Texture exitTexture;
+	};
+
+	VolumeRaycaster(
+		std::shared_ptr<Shader> shaderPosition,
+		std::shared_ptr<Shader> shaderRaycast,
+		std::shared_ptr<Shader> shaderSlice
+	);
+
 	bool updateVolume(const Volume<unsigned char> & volume);
 
-	void render(const Camera & camera);
+	void render(
+		const Camera & camera,
+		ivec4 viewport,
+		Shader & shaderPosition,
+		Shader & shaderRaycast
+	);
+
+	void renderSlice(int axis, ivec2 screenPos, ivec2 screenSize) const;
 
 private:
 	EnterExitVolume _enterExit;
@@ -44,5 +49,12 @@ private:
 
 	vec3 _sliceMin;
 	vec3 _sliceMax;
+
+	VertexBuffer<VertexData> _cube;
+	VertexBuffer<VertexData> _quad;
+
+	std::shared_ptr<Shader> _shaderPosition;
+	std::shared_ptr<Shader> _shaderRaycast;
+	std::shared_ptr<Shader> _shaderSlice;
 
 };

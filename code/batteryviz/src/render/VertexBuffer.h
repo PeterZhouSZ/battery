@@ -1,6 +1,6 @@
 #pragma once
 #include <GL/glew.h>
-#include "GLError.h"
+#include "render/GLGlobal.h"
 #include "utility/mathtypes.h"
 
 #include <vector>
