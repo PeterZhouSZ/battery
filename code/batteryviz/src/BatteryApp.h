@@ -6,35 +6,15 @@
 #include "render/Shader.h"
 #include "render/Texture.h"
 #include "render/VertexBuffer.h"
+#include "render/VolumeRaycaster.h"
 
 #include "Volume.h"
 
 #include <memory>
 
 
-struct FrameBuffer {
-	FrameBuffer() {
-		glGenFramebuffers(1, &_ID);
-	}
-	~FrameBuffer() {
-		glDeleteFramebuffers(1, &_ID);
-	}
-	GLuint ID() const {
-		return _ID;
-	}
 
-private:
-	GLuint _ID;
-};
 
-struct EnterExitVolume {
-	void resize(GLuint w, GLuint h);
-
-	FrameBuffer enterFramebuffer;
-	FrameBuffer exitFramebuffer;
-	Texture enterTexture;
-	Texture exitTexture;
-};
 
 class BatteryApp : public App {
 
@@ -74,6 +54,10 @@ protected:
 	vec3 _quadric;
 
 	Volume<unsigned char> _volume;
+
+	VolumeRaycaster _volumeRaycaster;
+
+	bool _autoUpdate;
 
 private:
 	void reloadShaders();

@@ -2,6 +2,11 @@
 #include "GLFW/glfw3.h"
 
 #include "utility/IOUtility.h"
+#include "utility/RandomGenerator.h"
+
+#include "render/PrimitivesVBO.h"
+#include "render/VolumeRaycaster.h"
+
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -9,9 +14,15 @@
 #include <iostream>
 #include <stdexcept>
 #include <filesystem>
+#include <array>
 
 #include "imgui.h"
 #include "imgui/imgui_impl_glfw_gl3.h"
+
+
+
+RNGNormal normalDist(0,1);
+RNGUniformFloat uniformDist(0, 1);
 
 namespace fs = std::experimental::filesystem;
 using namespace std;
@@ -27,70 +38,6 @@ static const std::vector<string> shaderNames = {
 
 
 
-/*
-	Other functions, TODO: move to separate files
-*/
-VertexBuffer<VertexData> getQuadVBO() {
-
-	VertexBuffer<VertexData> vbo;
-
-	std::vector<VertexData> data = {
-		VertexData({ -1.0,-1.0,0.1 },{ 0,0,0 },{ 0,0 },{ 0,0,0,0 }),
-		VertexData({ 1.0,-1.0,0.1 },{ 0,0,0 },{ 0,0 },{ 0,0,0,0 }),
-		VertexData({ 1.0,1.0,0.1 },{ 0,0,0 },{ 0,0 },{ 0,0,0,0 }),
-		VertexData({ -1.0,1.0,0.1 },{ 0,0,0 },{ 0,0 },{ 0,0,0,0 })
-	};
-	vbo.setData(data.begin(), data.end());
-	vbo.setPrimitiveType(GL_QUADS);
-
-	return vbo;
-}
-
-VertexBuffer<VertexData> getCubeIVBO() {
-
-	VertexBuffer<VertexData> ivbo;
-		
-
-	const std::vector<VertexData> data = {
-		VertexData({ -1.0f, -1.0f, 1.0f },{ 0,0,0 },{ 0,0 },{ 0,0,0,0 }),
-		VertexData({ 1.0f, -1.0f, 1.0f },{ 0,0,0 },{ 0,0 },{ 0,0,0,0 }),
-		VertexData({ 1.0f, 1.0f, 1.0f },{ 0,0,0 },{ 0,0 },{ 0,0,0,0 }),
-		VertexData({ -1.0f, 1.0f, 1.0f },{ 0,0,0 },{ 0,0 },{ 0,0,0,0 }),
-		VertexData({ -1.0f, -1.0f, -1.0f },{ 0,0,0 },{ 0,0 },{ 0,0,0,0 }),
-		VertexData({ 1.0f, -1.0f, -1.0f },{ 0,0,0 },{ 0,0 },{ 0,0,0,0 }),
-		VertexData({ 1.0f, 1.0f, -1.0f },{ 0,0,0 },{ 0,0 },{ 0,0,0,0 }),
-		VertexData({ -1.0f, 1.0f, -1.0 },{ 0,0,0 },{ 0,0 },{ 0,0,0,0 })
-	};
-
-
-	const std::vector<unsigned int> indices = {
-		0, 1, 2, 2, 3, 0,
-		3, 2, 6, 6, 7, 3,
-		7, 6, 5, 5, 4, 7,
-		4, 0, 3, 3, 7, 4,
-		0, 5, 1, 5, 0, 4,
-		1, 5, 6, 6, 2, 1
-	};		
-
-
-	std::vector<VertexData> tridata;
-
-	for (auto i = 0; i < indices.size(); i += 3) {
-		auto a = indices[i];
-		auto b = indices[i + 1];
-		auto c = indices[i + 2];
-		tridata.push_back(data[a]);
-		tridata.push_back(data[b]);
-		tridata.push_back(data[c]);
-	}
-
-
-	ivbo.setData(tridata.begin(), tridata.end());
-	//ivbo.setIndices<unsigned int>(indices.begin(), indices.end(), GL_UNSIGNED_INT);
-	ivbo.setPrimitiveType(GL_TRIANGLES);	
-
-	return ivbo;
-}
 
 
 bool resetGL()
@@ -111,34 +58,14 @@ bool resetGL()
 }
 
 
-void EnterExitVolume::resize(GLuint w, GLuint h)
-{
-	if (w != enterTexture.size.x || h != enterTexture.size.y) {
-		GL(glBindFramebuffer(GL_FRAMEBUFFER, enterFramebuffer.ID()));
-		GL(glBindTexture(GL_TEXTURE_2D, enterTexture.ID()));
-		GL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_FLOAT, NULL));
-		GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-		GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-		GL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, enterTexture.ID(), 0));
-		GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-	}
-	if (w != exitTexture.size.x || h != exitTexture.size.y) {
-		GL(glBindFramebuffer(GL_FRAMEBUFFER, exitFramebuffer.ID()));
-		GL(glBindTexture(GL_TEXTURE_2D, exitTexture.ID()));
-		GL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_FLOAT, NULL));
-		GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-		GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-		GL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, exitTexture.ID(), 0));
-		GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-	}
-}
+
 
 
 BatteryApp::BatteryApp()
 	: App("BatteryViz"),
 	_camera(Camera::defaultCamera(_window.width, _window.height)),
 	_quad(getQuadVBO()),
-	_cube(getCubeIVBO())
+	_cube(getCubeVBO())
 {	
 	resetGL();
 	reloadShaders();
@@ -147,12 +74,14 @@ BatteryApp::BatteryApp()
 	_sliceMax = { 1,1,1 };
 	_blackOpacity = 0.001;
 	_whiteOpacity = 0.05;
-	_quadric = { 0.617,0.617,0.482 };
+	//_quadric = { 0.617,0.617,0.482 };
+	_quadric = { 0.988,1.605,1.084 };
+	_autoUpdate = false;
 
 	/*
 		Load data
 	*/
-	if(false)
+	if(true)
 	{
 		fs::path path(DATA_FOLDER);
 
@@ -189,8 +118,8 @@ BatteryApp::BatteryApp()
 		
 	}
 	else {
-
-		_volume.resize({ 128, 128, 128 }, 0);
+		const int res = 64;
+		_volume.resize({ res, res, res}, 0);
 
 
 			
@@ -243,21 +172,62 @@ void BatteryApp::renderSlice(Texture & texture, int axis, ivec2 screenPos, ivec2
 
 void BatteryApp::update(double dt)
 {
+	if (!_autoUpdate) return;
+
+	const int N = 128;
+	
+	std::array<mat4, N> transforms;
+	
+	float scaleMu = 0.25f;
+	float scaleSigma = 0.15f;
+	
+
+	for (auto i = 0; i < N; i++) {
+		float scale = scaleMu + normalDist.next() * scaleSigma;
+		vec3 angles = { uniformDist.next(), uniformDist.next(), uniformDist.next() };
+		vec3 offset = { uniformDist.next(), uniformDist.next(), uniformDist.next() };
+		angles *= glm::pi<float>();		
+		offset = (offset* 2.0f) - vec3(1.0f);
+
+		auto M = glm::translate(mat4(), offset) *
+			glm::rotate(mat4(), angles[0], vec3(1, 1, 0)) *
+			glm::rotate(mat4(), angles[1], vec3(0, 1, 0)) *
+			glm::rotate(mat4(), angles[2], vec3(0, 0, 1)) *
+			glm::scale(mat4(), vec3(scale));
+
+		transforms[i] = glm::inverse(M);
+	}
 
 	vec3 q = _quadric;
 
+	mat4 M = glm::translate(mat4(), vec3(-0.5f,0.4f, 0.1f)) * glm::rotate(mat4(), 0.4f, vec3(1,0,0)) * glm::scale(mat4(), vec3(0.2f));
+	mat4 invM = glm::inverse(M);
+
+	std::vector<vec3> quadrics;
+
+	//int N = 64;
+
+	const auto quadricImplicit = [](const vec3 & pos, const vec3 & q) {
+		return (glm::pow(glm::abs(pos.x), q.x) + glm::pow(glm::abs(pos.y), q.y) + glm::pow(glm::abs(pos.z), q.z));
+	};
+
+
 	_volume.clear(0);
 
-	#pragma omp parallel for
+	#pragma omp parallel for schedule(dynamic)
 	for (auto x = 0; x < _volume.size.x; x++) {
 		for (auto y = 0; y < _volume.size.x; y++) {
 			for (auto z = 0; z < _volume.size.z; z++) {
 				vec3 pos = vec3(x / float(_volume.size.x), y / float(_volume.size.y), z / float(_volume.size.z)) * 2.0f - vec3(1.0f);
 
-				float v = (glm::pow(glm::abs(pos.x), q.x) + glm::pow(glm::abs(pos.y), q.y) + glm::pow(glm::abs(pos.z), q.z));
+				for (auto & M : transforms) {
+					vec3 inSpace = vec3(M * vec4(pos, 1));
+					float v = quadricImplicit(inSpace, q);
 
-				if (v < 1.0f) {
-					_volume.at(x, y, z) = 255;
+					if (v < 1.0f) {
+						_volume.at(x, y, z) = 255;
+						break;
+					}
 				}
 			}
 		}
@@ -468,6 +438,9 @@ void BatteryApp::callbackKey(GLFWwindow * w, int key, int scancode, int action, 
 		
 		if (key == GLFW_KEY_R)
 			reloadShaders();
+
+		if (key == GLFW_KEY_SPACE)
+			_autoUpdate = !_autoUpdate;
 	}
 
 }
