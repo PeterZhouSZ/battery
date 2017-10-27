@@ -41,14 +41,20 @@ struct VolumeRaycaster {
 
 	void renderSlice(int axis, ivec2 screenPos, ivec2 screenSize) const;
 
+	vec3 sliceMin;
+	vec3 sliceMax;
+
+	float opacityWhite;
+	float opacityBlack;
+
+
 private:
 	EnterExitVolume _enterExit;
 
 	Texture _volumeTexture;
 	Texture _transferTexture;
 
-	vec3 _sliceMin;
-	vec3 _sliceMax;
+	
 
 	VertexBuffer<VertexData> _cube;
 	VertexBuffer<VertexData> _quad;

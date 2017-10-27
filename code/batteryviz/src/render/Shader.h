@@ -5,6 +5,7 @@
 #include <string>
 #include <unordered_map>
 #include <functional>
+#include <optional>
 
 #include "render/ShaderResource.h"
 
@@ -18,8 +19,6 @@ struct Shader {
 	static void unbind();
 };
 
-bool compileShader(Shader * outputShader,
-				   const std::string & code, 
-				   std::function<void(const std::string & errorMsg)> errorCallback = {}
-);
+std::tuple<bool /*success*/, Shader /*shader*/, std::string /*error msg*/> 
+compileShader(const std::string & code);
 

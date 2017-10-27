@@ -26,31 +26,38 @@ uniform vec3 maxCrop;
 uniform float whiteOpacity = 0.05;
 uniform float blackOpacity = 0.001;
 
+uniform vec3 viewPos;
+
 const vec3 lightDir = vec3(1.0,0.0,1.0);
-const float voxelSize = 0.1;
+//const float voxelSize = 1 / 256.0;
+
+uniform vec3 resolution;
+
+vec3 getGradient(vec3 pt){
+	return vec3(
+		texture(volumeTexture, pt - vec3(resolution.x, 0.0, 0.0)).x - texture(volumeTexture, pt + vec3(resolution.x, 0.0, 0.0)).x,
+ 		texture(volumeTexture, pt - vec3(0.0, resolution.y, 0.0)).x - texture(volumeTexture, pt + vec3(0.0, resolution.y, 0.0)).x,
+ 		texture(volumeTexture, pt - vec3(0.0, 0.0, resolution.z)).x - texture(volumeTexture, pt + vec3(0.0, 0.0, resolution.z)).x
+ 	); 	
+}
 
 vec3 getNormal(vec3 pt){
-	vec3 n = vec3(
-		texture(volumeTexture, pt - vec3(voxelSize, 0.0, 0.0)).x - texture(volumeTexture, pt + vec3(voxelSize, 0.0, 0.0)).x,
- 		texture(volumeTexture, pt - vec3(0.0, voxelSize, 0.0)).x - texture(volumeTexture, pt + vec3(0.0, voxelSize, 0.0)).x,
- 		texture(volumeTexture, pt - vec3(0.0, 0.0, voxelSize)).x - texture(volumeTexture, pt + vec3(0.0, 0.0, voxelSize)).x
- 	);
-
- 	return normalize(n);
+	return normalize(getGradient(pt));
 }
 
 float getLightMagnitude(vec3 pos, vec3 n, vec3 view){
 	
 	float ambient = 0.1;	
-	float diff = max(dot(lightDir,n),ambient);
+	float diff = max(dot(lightDir,n),0);
 	float spec = 0.0;
-	if(diff > ambient){
-		vec3 r = reflect(-lightDir,n);
-		spec = max(dot(r,view),0.0);
-		spec = pow(spec,15.0);
-	}
+	//if(diff > ambient){
+		//vec3 r = reflect(-lightDir,n);
+		//spec = max(dot(r,view),0.0);
+		//spec = pow(spec,15.0);
+	//}
 
-	return 0.01 * spec + 0.99*diff;
+	//return 0.01 * spec + 0.99*diff;
+	return diff;
 
 }
 
@@ -86,17 +93,37 @@ void main(){
 	for(float i=0; i < N; i+=1.0){
 
 		float volumeVal = texture(volumeTexture,pos).r;
+		//float volumeVal = sampleKernel(pos);
+
 		pos += stepVec;
 
 		//vec4 color = texture(transferFunc,volumeVal);
 		vec4 color = vec4(0,0,1,1);
 
-		if(volumeVal > 0.5)
+
+
+		if(volumeVal > 0.5){
 			color = vec4(0.5,0.5,0.5,whiteOpacity * dt * 1000);
-		else
+		}
+		else{
 			color = vec4(0,0,0,blackOpacity * dt * 1000);
+		}
 
 
+
+
+		vec3 gradient = getGradient(pos);
+		float glen = length(gradient);
+
+
+		//color.rgb = vec3(getLightMagnitude(pos, getNormal(pos), viewPos));
+		//if(glen > 0.01)		
+		//	color.rgb *= (getLightMagnitude(pos, getNormal(pos), viewPos));
+
+		//color = vec4(vec3(0), glen*glen*glen*glen * dt);
+		
+		
+ 
 		//vec3 Cprev = colorAcc.xyz * colorAcc.a;
 		//float Aprev = colorAcc.a;
 		//vec3 Ci = color.xyz * color.a;

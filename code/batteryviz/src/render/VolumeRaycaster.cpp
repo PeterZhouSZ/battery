@@ -37,8 +37,8 @@ VolumeRaycaster::VolumeRaycaster(
 	_shaderSlice(std::move(shaderSlice)),
 	_cube(getCubeVBO()),
 	_quad(getQuadVBO()),
-	_sliceMin({ -1,-1,-1 }),
-	_sliceMax({ 1,1,1 }),
+	sliceMin({ -1,-1,-1 }),
+	sliceMax({ 1,1,1 }),
 	_volumeTexture(GL_TEXTURE_3D, 0,0,0)
 {
 	
@@ -52,7 +52,7 @@ VolumeRaycaster::VolumeRaycaster(
 
 		_transferTexture = Texture(GL_TEXTURE_1D, 16, 1, 0);
 		glBindTexture(GL_TEXTURE_1D, _transferTexture.ID());
-		glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, transferVal.size(), 0, GL_RGBA, GL_FLOAT, transferVal.data());
+		glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, static_cast<GLsizei>(transferVal.size()), 0, GL_RGBA, GL_FLOAT, transferVal.data());
 		glBindTexture(GL_TEXTURE_1D, 0);
 	}
 
@@ -94,8 +94,8 @@ void VolumeRaycaster::render(
 
 		shader.bind();
 		shader["PVM"] = camera.getPV();
-		shader["minCrop"] = _sliceMin;
-		shader["maxCrop"] = _sliceMax;
+		shader["minCrop"] = sliceMin;
+		shader["maxCrop"] = sliceMax;
 
 		GL(glBindFramebuffer(GL_FRAMEBUFFER, _enterExit.enterFramebuffer.ID()));
 		glClearColor(0, 0, 0, 0);
@@ -136,8 +136,12 @@ void VolumeRaycaster::render(
 
 		shader["steps"] = 128;
 		shader["transferOpacity"] = 0.5f;
-		shader["blackOpacity"] = 0.004f; //todo
-		shader["whiteOpacity"] = 0.05f;
+		shader["blackOpacity"] = opacityBlack;
+		shader["whiteOpacity"] = opacityWhite;
+
+		shader["resolution"] = vec3(1.0f/_volumeTexture.size.x, 1.0f / _volumeTexture.size.y, 1.0f / _volumeTexture.size.z);
+
+		shader["viewPos"] = camera.getPosition();
 
 
 		_quad.render();
@@ -154,7 +158,7 @@ void VolumeRaycaster::renderSlice(int axis, ivec2 screenPos, ivec2 screenSize) c
 	GL(glViewport(screenPos.x, screenPos.y, screenSize.x, screenSize.y));
 	auto &shader = *_shaderSlice;
 
-	const float t = _sliceMin[axis];
+	const float t = sliceMin[axis];
 
 	shader.bind();
 

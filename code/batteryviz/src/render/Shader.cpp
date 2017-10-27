@@ -97,14 +97,14 @@ string annotateLines(const string &str) {
 }
 
 
-
-bool compileShader(Shader * outputShader, const string & code, std::function<void(const string & errorMsg)> errorCallback)
+//std::optional<Shader> compileShader(const string & code, std::function<void(const string & errorMsg)> errorCallback)
+std::tuple<bool /*success*/, Shader /*shader*/, string /*error msg*/>
+compileShader(const string & code)
 {
 	
 	auto shaderSources = preprocessShaderCode(code);
-	if (shaderSources.size() == 0) {
-		if(errorCallback) errorCallback("Could not find vertex and fragment shaders.");
-		return false;
+	if (shaderSources.size() == 0) {		
+		return { false,{}, "Could not find vertex and fragment shaders." };
 	}
 
 		
@@ -112,8 +112,7 @@ bool compileShader(Shader * outputShader, const string & code, std::function<voi
 	unordered_map<GLenum, GLint> shaderIDs;
 
 	//Cleanup in case of failure
-	auto failFun = [&](const std::string &err) {
-		if(errorCallback) errorCallback(err);
+	auto failFun = [&](const std::string &err)  -> std::tuple<bool, Shader, string> {
 
 		for (auto it : shaderIDs)
 			glDeleteShader(it.second);
@@ -122,7 +121,7 @@ bool compileShader(Shader * outputShader, const string & code, std::function<voi
 		glDeleteProgram(programID);
 		programID = 0;
 
-		return false;
+		return { false,{}, err };
 	};
 
 	/*
@@ -150,8 +149,11 @@ bool compileShader(Shader * outputShader, const string & code, std::function<voi
 			vector<char> buf(maxLength);
 			glGetShaderInfoLog(id, maxLength, &maxLength, reinterpret_cast<GLchar *>(buf.data()));
 					
-			if (errorCallback) errorCallback(annotateLines(it.second));
-			return failFun(shaderEnumToString.find(it.first)->second + "\n" + buf.data());			
+						
+			return failFun(
+				annotateLines(it.second) + 
+				shaderEnumToString.find(it.first)->second + "\n" + buf.data()
+			);
 		}
 
 
@@ -237,12 +239,12 @@ bool compileShader(Shader * outputShader, const string & code, std::function<voi
 	auto uniforms = getVars(programID, GL_ACTIVE_UNIFORMS);
 	attribs.insert(uniforms.begin(), uniforms.end());
 
-	*outputShader = Shader{
-			programID,			
-			attribs						
-	};
 
-	return true;
+	return{ true,
+		Shader{programID,
+		attribs}
+	, "" };
+	
 }
 
 

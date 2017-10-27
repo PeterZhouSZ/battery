@@ -7,9 +7,9 @@ struct GLFWwindow;
 class App {
 	
 	struct Window {
-		int width;
-		int height;
-		GLFWwindow * handle;
+		int width = 0;
+		int height = 0;
+		GLFWwindow * handle = nullptr;
 	};
 
 	struct Input {
@@ -35,6 +35,8 @@ protected:
 	virtual void callbackKey(GLFWwindow * w, int key, int scancode, int action, int mods);
 	virtual void callbackScroll(GLFWwindow * w, double xoffset, double yoffset);
 	virtual void callbackResize(GLFWwindow * w, int width, int height);
+	virtual void callbackChar(GLFWwindow * w, unsigned int code);
+
 
 	Window _window;
 	Input _input;

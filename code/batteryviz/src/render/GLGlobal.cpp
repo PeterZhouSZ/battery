@@ -37,6 +37,8 @@ bool GLError(const char *label /*= ""*/,
 	return hasErr;
 }
 
+#endif
+
 bool resetGL()
 {
 	glEnable(GL_DEPTH_TEST);
@@ -54,5 +56,5 @@ bool resetGL()
 	return true;
 }
 
-#endif
+
 

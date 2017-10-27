@@ -22,12 +22,19 @@ App::App(const char * windowTitle)
 	glfwSetErrorCallback([](int error, const char * desc){
 		throw desc;
 	});
-	glfwInit();				
+	glfwInit();		
+
+
+	int monCount = 0;
+	const GLFWvidmode * mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+	
+	int initW = mode->width * 0.85;
+	int initH = mode->height * 0.85;
 
 	//Window setup	
 	auto & wh = _window.handle;
-	wh = glfwCreateWindow(2275, 1280, windowTitle, NULL, NULL);
-	glfwSetWindowPos(wh, 0, 110);
+	wh = glfwCreateWindow(initW, initH, windowTitle, NULL, NULL);
+	glfwSetWindowPos(wh, initW * 0.1, initH * 0.1);
 	glfwMakeContextCurrent(wh);
 	glfwGetFramebufferSize(wh, &_window.width, &_window.height);
 
@@ -64,6 +71,11 @@ App::App(const char * windowTitle)
 	glfwSetWindowSizeCallback(wh,
 		[](GLFWwindow * w, int width, int heigth) {
 		currentApp->callbackResize(w, width, heigth);
+	});
+
+	glfwSetCharCallback(wh,
+		[](GLFWwindow * w, unsigned int code ) {
+		currentApp->callbackChar(w, code);
 	});
 
 }
@@ -139,5 +151,10 @@ void App::callbackResize(GLFWwindow * w, int width, int height)
 {
 	_window.width = width;
 	_window.height = height;
+}
+
+void App::callbackChar(GLFWwindow * w, unsigned int code)
+{
+
 }
 

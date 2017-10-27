@@ -3,18 +3,21 @@
 #include "App.h"
 
 #include "render/Camera.h"
-#include "render/Shader.h"
-#include "render/Texture.h"
 #include "render/VertexBuffer.h"
 #include "render/VolumeRaycaster.h"
 
+#include "utility/Options.h"
+
 #include "Volume.h"
+
+#include "Ui.h"
 
 #include <memory>
 
 
+struct Shader;
 
-
+#define OPTIONS_FILENAME "options.json"
 
 class BatteryApp : public App {
 
@@ -30,18 +33,16 @@ protected:
 	virtual void callbackMouseButton(GLFWwindow * w, int button, int action, int mods) override;
 	virtual void callbackKey(GLFWwindow * w, int key, int scancode, int action, int mods) override;
 	virtual void callbackScroll(GLFWwindow * w, double xoffset, double yoffset) override;
+	virtual void callbackChar(GLFWwindow * w, unsigned int code) override;
 
+	OptionSet _options;
 
 	Camera _camera;
-	
-	
 	
 
 	VertexBuffer<VertexData> _quad;
 	
 	std::unordered_map<std::string, std::shared_ptr<Shader>> _shaders;
-
-
 	
 	float _blackOpacity;
 	float _whiteOpacity;
@@ -54,8 +55,14 @@ protected:
 
 	bool _autoUpdate;
 
+	friend Ui;
+	Ui _ui;
+
 private:
-	void reloadShaders();
+	/*
+		Throws on first time
+	*/
+	void reloadShaders(bool firstTime);
 
 	
 	

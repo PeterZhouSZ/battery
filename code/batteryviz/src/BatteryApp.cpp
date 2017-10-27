@@ -6,18 +6,19 @@
 
 #include "render/PrimitivesVBO.h"
 #include "render/VolumeRaycaster.h"
-
+#include "render/Shader.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <string>
 #include <iostream>
+#include <fstream>
 #include <stdexcept>
 #include <filesystem>
 #include <array>
 
-#include "imgui.h"
-#include "imgui/imgui_impl_glfw_gl3.h"
+//#include "imgui.h"
+//#include "imgui/imgui_impl_glfw_gl3.h"
 
 
 
@@ -30,6 +31,7 @@ using namespace std;
 #define DATA_FOLDER "../../../data/graphite/SL43_C5_1c5bar_Data/"
 
 
+
 static const std::vector<string> shaderNames = {
 	"volumeslice",
 	"volumeraycast",
@@ -39,10 +41,22 @@ static const std::vector<string> shaderNames = {
 BatteryApp::BatteryApp()
 	: App("BatteryViz"),
 	_camera(Camera::defaultCamera(_window.width, _window.height)),
-	_quad(getQuadVBO())
+	_quad(getQuadVBO()),
+	_ui(*this)
+	
 {	
+
+	
+	{
+		std::ifstream optFile(OPTIONS_FILENAME);
+		if (optFile.good())
+			optFile >> _options;
+		else
+			throw string("Options file not found");
+	}
+
 	resetGL();
-	reloadShaders();
+	reloadShaders(true);
 
 	_volumeRaycaster = make_unique<VolumeRaycaster>(
 		_shaders["position"],
@@ -60,7 +74,7 @@ BatteryApp::BatteryApp()
 	/*
 		Load data
 	*/
-	if(true)
+	if(false)
 	{
 		fs::path path(DATA_FOLDER);
 
@@ -107,8 +121,7 @@ BatteryApp::BatteryApp()
 			
 	}
 
-	//gui
-	ImGui_ImplGlfwGL3_Init(_window.handle, false);
+	
 	
 
 }
@@ -119,9 +132,10 @@ void BatteryApp::update(double dt)
 {
 	if (!_autoUpdate) return;
 
-	const int N = 2;
 	
-	std::array<mat4, N> transforms;
+	const int N = _options["Optim"].get<int>("N");
+		
+	vector<mat4> transforms(N);
 	
 	float scaleMu = 0.25f;
 	float scaleSigma = 0.15f;
@@ -183,12 +197,18 @@ void BatteryApp::update(double dt)
 void BatteryApp::render(double dt)
 {
 
+	
+
 	if (_window.width == 0 || _window.height == 0) return;
 
 	glClearColor(1, 1, 1, 1);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	
-	{
+	float sliceHeight = 0;
+
+	if (_options["Render"].get<bool>("slices")){
+		sliceHeight = 1.0f / 3.0f;
+
 		mat3 R[3] = {
 			mat3(),
 			mat3(glm::rotate(mat4(), glm::radians(90.0f), vec3(0, 0, 0))),
@@ -196,54 +216,36 @@ void BatteryApp::render(double dt)
 		};
 
 		int yoffset = 0;
-		int ysize = _window.height / 3;
+		int ysize = _window.height  * sliceHeight;
 
 		_volumeRaycaster->renderSlice(0, ivec2(_window.width / 3 * 0, yoffset), ivec2(_window.width / 3, ysize));
 		_volumeRaycaster->renderSlice(1, ivec2(_window.width / 3 * 1, yoffset), ivec2(_window.width / 3, ysize));
 		_volumeRaycaster->renderSlice(2, ivec2(_window.width / 3 * 2, yoffset), ivec2(_window.width / 3, ysize));
 	}
 
-	_camera.setWindowDimensions(_window.width, (_window.height / 3) * 2);
+	_camera.setWindowDimensions(_window.width, _window.height  - _window.height * sliceHeight);
 	_volumeRaycaster->render(_camera, {
-		0, _window.height / 3, _window.width, (_window.height / 3) * 2
+		0, _window.height * sliceHeight, _window.width, _window.height - _window.height * sliceHeight
 	}, *_shaders["position"], *_shaders["volumeraycast"]);
 
 
 
-
-	ImGui_ImplGlfwGL3_NewFrame();
-
-
-	int w = _window.width * 0.2f;
-	ImGui::SetNextWindowPos(ImVec2(_window.width - w, 0), ImGuiSetCond_Always);
-	ImGui::SetNextWindowSize(ImVec2(w, 2.0f * (_window.height / 3.0f)), ImGuiSetCond_Always);
-	
-	static bool mainOpen = false;
-	ImGui::Begin("Main", &mainOpen);
-
-//	ImGui::SliderFloat3("Slice (Min)", reinterpret_cast<float*>(&_sliceMin), -1, 1);
-//	ImGui::SliderFloat3("Slice (Max)", reinterpret_cast<float*>(&_sliceMax), -1, 1);
-
-	ImGui::InputFloat("White opacity", &_whiteOpacity,0.001f);
-	ImGui::InputFloat("Black opacity", &_blackOpacity, 0.001f);
-
-
-	ImGui::SliderFloat3("Quadric", reinterpret_cast<float*>(&_quadric), 0, 10);
-
-	ImGui::End();
-
-
-	ImGui::Render();
+	/*
+		UI render and update
+	*/
+	_ui.update(dt);
 
 
 }
 
 
 
-void BatteryApp::reloadShaders()
+void BatteryApp::reloadShaders(bool firstTime)
 {
 
 	for (auto & name : shaderNames) {
+
+
 		const auto path = "../src/shaders/" + name + ".shader";
 		auto src = readFileWithIncludes(path);
 
@@ -254,15 +256,20 @@ void BatteryApp::reloadShaders()
 			_shaders[name] = make_shared<Shader>();
 		}
 
-		bool res = compileShader(&(*_shaders[name]), src, [&](const string & msg) {
-			std::cerr << toString("Failed to compile shader %, error:\n%", name, msg) << std::endl;
-		});
+		auto[ok, shader, error] = compileShader(src);
 
-		if (res)
-			std::cerr << "Failed to compile " + name;
+		if (ok)
+			*_shaders[name] = shader;
+		else{		
+			if (firstTime)
+				throw error;
+			else
+				std::cerr << error << std::endl;
+		}
+			
 	}
 
-	cout << shaderNames.size() << " shaders reloaded" << endl;
+	std::cout << shaderNames.size() << " shaders " + string((firstTime) ? "" : "re")+ "loaded" << endl;
 }
 
 
@@ -297,35 +304,41 @@ void BatteryApp::callbackMouseButton(GLFWwindow * w, int button, int action, int
 {
 	
 	App::callbackMouseButton(w, button, action, mods);
-	ImGui_ImplGlfwGL3_MouseButtonCallback(w, button, action, mods);
+	_ui.callbackMouseButton(w, button, action, mods);
+		
 }
 
 void BatteryApp::callbackKey(GLFWwindow * w, int key, int scancode, int action, int mods)
 {
 	App::callbackKey(w, key, scancode, action, mods);
-
-	ImGui_ImplGlfwGL3_KeyCallback(w, key, scancode, action, mods);
+		
 
 	if (action == GLFW_RELEASE) {
 		
 		if (key == GLFW_KEY_R)
-			reloadShaders();
+			reloadShaders(false);
 
 		if (key == GLFW_KEY_SPACE)
 			_autoUpdate = !_autoUpdate;
 	}
 
+
+	_ui.callbackKey(w, key, scancode, action, mods);
 }
 
 void BatteryApp::callbackScroll(GLFWwindow * w, double xoffset, double yoffset)
 {
 	App::callbackScroll(w, xoffset, yoffset);
-
-	ImGui_ImplGlfwGL3_ScrollCallback(w, xoffset, yoffset);
-
+	
 	auto & cam = _camera;
-
 	auto delta = static_cast<float>(0.1 * yoffset);
 	cam.setPosition(((1.0f - 1.0f*delta) * (cam.getPosition() - cam.getLookat())) + cam.getLookat());
+	
+	_ui.callbackScroll(w, xoffset, yoffset);
+}
 
+void BatteryApp::callbackChar(GLFWwindow * w, unsigned int code)
+{
+	App::callbackChar(w, code);
+	_ui.callbackChar(w, code);
 }

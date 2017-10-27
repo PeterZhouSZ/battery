@@ -104,7 +104,7 @@ std::ostream & operator<<(std::ostream & os, const OptionSet & optSet)
 template <typename T>
 T jsonToVec(const json & j) {
 	T v;
-	for (auto i = 0; i < T::length(); i++)
+	for (auto i = 0; i < v.length(); i++)
 		v[i] = j[i];
 	return v;		
 }
@@ -112,7 +112,7 @@ T jsonToVec(const json & j) {
 template <typename T>
 T jsonToMat(const json & j) {
 	T v;
-	for (auto i = 0; i < T::length()*T::length(); i++)
+	for (auto i = 0; i < v.length()*v.length(); i++)
 		glm::value_ptr(v)[i] = j[i];
 	return v;
 }
