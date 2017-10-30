@@ -254,7 +254,26 @@ void Ui::update(double dt)
 	ImGui::SetNextWindowSize(ImVec2(w, 2.0f * (_app._window.height / 3.0f)), ImGuiSetCond_Always);
 
 	static bool mainOpen = false;
+
+	
+	
+
 	ImGui::Begin("Main", &mainOpen);
+
+	//FPS display
+	{
+		double fps = _app.getFPS();
+		ImVec4 color;
+		if (fps < 30.0)
+			color = ImVec4(1, 0, 0,1);
+		else if (fps < 60.0)
+			color = ImVec4(0, 0.5, 1,1);
+		else
+			color = ImVec4(0, 1, 0, 1);
+
+		ImGui::TextColored(color, "FPS: %f", float(fps));
+	}
+
 
 
 	if (ImGui::Button("Save")) {

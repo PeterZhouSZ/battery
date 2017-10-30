@@ -4,6 +4,8 @@
 #include <GLFW/glfw3.h>
 
 
+#define FPS_AVERAGE_FRAMES 30
+
 static App * currentApp = nullptr;
 
 App::App(const char * windowTitle)
@@ -96,12 +98,28 @@ bool App::run()
 
 	glfwSwapBuffers(_window.handle);
 	_lastTime = currentTime;
+
+	_frameTimeHistory.push_back(dt);
+	if (_frameTimeHistory.size() > FPS_AVERAGE_FRAMES)
+		_frameTimeHistory.pop_front();
+
 	return true;
 }
 
 void App::terminate()
 {
 	_terminate = true;
+}
+
+float App::getFPS() const
+{
+	double sum = 0.0f;
+	for (auto dt : _frameTimeHistory) {
+		sum += dt;
+	}
+
+	return 1.0f / (sum / _frameTimeHistory.size());
+
 }
 
 App::~App()

@@ -1,11 +1,28 @@
 #pragma once
 
-#include <vector>
-#include "utility/mathtypes.h"
+#include <unsupported/Eigen/CXX11/Tensor>
 
+#if defined(BATTERYLIB_EXPORT) // inside DLL
+#   define BLIB_EXPORT   __declspec(dllexport)
+#else // outside DLL
+#   define BLIB_EXPORT   __declspec(dllimport)
+#endif  // XYZLIBRARY_EXPORT
+
+
+template <typename T>
+using Volume = Eigen::Tensor<T, 3>;
+
+
+BLIB_EXPORT Volume<unsigned char> emptyVolume(int size);
+
+//TODO:
+//Mesh to volume (scanline)
+//Volume to mesh (marching cubes)
+//Implicit function to volume
+
+/*
 template<typename T>
 struct Volume {
-
 
 	T & at(const ivec3 & coord) {
 		//todo optim
@@ -29,4 +46,4 @@ struct Volume {
 	
 	ivec3 size;
 	std::vector<T> data;
-};
+};*/

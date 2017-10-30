@@ -1,6 +1,9 @@
 local glfw = os.getenv("GLFW_PATH") -- glfw-3.2.1 
 local glew = os.getenv("GLEW_PATH") -- glew-2.0.0
 local glm = os.getenv("GLM_PATH") --glm 0.9.8
+local eigen = os.getenv("EIGEN_PATH") --eigen 3.3.4
+
+local blib = "../../batterylib" --eigen 3.3.4
 
 solution "batteryviz"
 	configurations { "Debug", "Release" }
@@ -33,17 +36,21 @@ project "batteryviz"
 		"../external/",
 		glew .. "/include",
 		glfw .. "/include",
-		glm		
+		glm,
+		eigen,
+		blib .. "/include"
 	}
 
 	libdirs {
     	glfw .. "/src/%{cfg.buildcfg}/",
-    	glew .. "/lib/%{cfg.buildcfg}/%{cfg.platform}/"    	
+    	glew .. "/lib/%{cfg.buildcfg}/%{cfg.platform}/",
+    	blib .. "/bin/%{cfg.buildcfg}/"
    	}
 
 	links { 	    
 	    "glfw3",	    
-	    "opengl32"	    
+	    "opengl32",
+	    "batterylib"   
 	} 
 
 	defines {

@@ -62,7 +62,10 @@ bool VolumeRaycaster::updateVolume(const Volume<unsigned char> & volume)
 {
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	GL(glBindTexture(GL_TEXTURE_3D, _volumeTexture.ID()));
-	GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_RED, volume.size.x, volume.size.y, volume.size.z, 0, GL_RED, GL_UNSIGNED_BYTE, volume.data.data()));
+	auto dims = volume.dimensions();
+	
+	
+	GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_RED, dims[0], dims[1], dims[2], 0, GL_RED, GL_UNSIGNED_BYTE, volume.data()));
 	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
 	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
 
@@ -71,7 +74,9 @@ bool VolumeRaycaster::updateVolume(const Volume<unsigned char> & volume)
 	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE));
 	GL(glBindTexture(GL_TEXTURE_3D, 0));
 
-	_volumeTexture.size = volume.size;
+
+
+	_volumeTexture.size = {dims[0],dims[1],dims[2]};
 
 	return true;
 }

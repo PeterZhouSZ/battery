@@ -3,6 +3,7 @@
 struct GLFWwindow;
 
 #include "utility/mathtypes.h"
+#include <deque>
 
 class App {
 	
@@ -22,6 +23,8 @@ public:
 	App(const char * windowTitle);	
 	bool run();
 	void terminate();
+
+	float getFPS() const;
 
 	~App();
 
@@ -44,5 +47,8 @@ protected:
 	double _lastTime;	
 private:	
 	bool _terminate;
+
+	std::deque<double> _frameTimeHistory;
+	
 
 };

@@ -20,7 +20,8 @@
 //#include "imgui.h"
 //#include "imgui/imgui_impl_glfw_gl3.h"
 
-
+#define EIGEN_USE_THREADS
+#include <unsupported/Eigen/CXX11/ThreadPool>
 
 RNGNormal normalDist(0,1);
 RNGUniformFloat uniformDist(0, 1);
@@ -92,17 +93,32 @@ BatteryApp::BatteryApp()
 			throw "only uint8 supported right now";
 
 		
-		
-		_volume.resize({ x,y,numSlices },0);
-		auto & buffer = _volume.data;
+		_volume.resize(x, y, numSlices);		
+
+		std::vector<unsigned char> buffer(x*y, 0);
+
+		//auto & buffer = _volume.data();
 
 		int cnt = 0;
 		size_t bytesRead = 0;
+
+		Eigen::Index sliceIndex = 0;
 		for (auto & f : fs::directory_iterator(path)) {
 			size_t index = (cnt++) * (x * y * bytes);
 			bytesRead += x * y * bytes;
-			readTiff(f.path().string().c_str(), buffer.data() + index);				
+			//readTiff(f.path().string().c_str(), buffer.data() + index);				
+			readTiff(f.path().string().c_str(), buffer.data());
+
+			for (Eigen::Index i = 0; i < x; i++) {
+				for (Eigen::Index j = 0; j < y; j++){
+					_volume(i, j, sliceIndex) = buffer[i + j*x];
+				}
+			}
+
+			sliceIndex = 0;
 		}		
+
+		
 
 		cout << "Read " << numSlices << " slices. (" << (bytesRead / (1024 * 1024)) << "MB)" << endl;
 
@@ -113,7 +129,11 @@ BatteryApp::BatteryApp()
 	}
 	else {
 		const int res = 64;
-		_volume.resize({ res, res, res}, 0);		
+
+		_volume = emptyVolume(64);
+		_volume.resize(res,res,res);
+		_volume.setZero();
+		//_volume.resize({ res, res, res}, 0);		
 		_autoUpdate = true;
 		update(0);
 		_autoUpdate = false;
@@ -170,26 +190,47 @@ void BatteryApp::update(double dt)
 	};
 
 
-	_volume.clear(0);
+	
+	_volume.setZero();
+
+	const auto dims = _volume.dimensions();
 
 	#pragma omp parallel for schedule(dynamic)
-	for (auto x = 0; x < _volume.size.x; x++) {
-		for (auto y = 0; y < _volume.size.x; y++) {
-			for (auto z = 0; z < _volume.size.z; z++) {
-				vec3 pos = vec3(x / float(_volume.size.x), y / float(_volume.size.y), z / float(_volume.size.z)) * 2.0f - vec3(1.0f);
+	for (auto x = 0; x < dims[0]; x++) {
+		for (auto y = 0; y < dims[1]; y++) {
+			for (auto z = 0; z < dims[2]; z++) {
+				vec3 pos = vec3(x / float(dims[0]), y / float(dims[1]), z / float(dims[2])) * 2.0f - vec3(1.0f);
 
 				for (auto & M : transforms) {
 					vec3 inSpace = vec3(M * vec4(pos, 1));
 					float v = quadricImplicit(inSpace, q);
 
 					if (v < 1.0f) {
-						_volume.at(x, y, z) = 255;
+						_volume(x, y, z) = 255;
 						break;
 					}
 				}
 			}
 		}
 	}
+	
+	//_volume.convolve()
+
+	//Eigen::SimpleThreadPool tpi(8);
+	//Eigen::ThreadPoolDevice device(&tpi,8);
+
+	/*struct op : Eigen::TensorCustomUnaryOp< {
+
+	};*/
+
+	//_volume.device(device) = _volume.unaryExpr([])
+
+	
+	
+	/*_volume = _volume.unaryExpr([](unsigned char c) { 
+		return 255; 
+	});*/
+
 
 	_volumeRaycaster->updateVolume(_volume);	
 }
