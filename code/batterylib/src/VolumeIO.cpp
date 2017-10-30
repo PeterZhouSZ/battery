@@ -75,8 +75,17 @@ BLIB_EXPORT Volume<unsigned char> blib::loadTiffFolder(const char * folder)
 	int numSlices = static_cast<int>(directoryFileCount(path.string().c_str()));
 
 	int x, y, bytes;
-	if (!tiffSize(fs::directory_iterator(path)->path().string().c_str(), &x, &y, &bytes))
-		throw "Couldn't read tiff file";
+
+	//Find first tiff
+	for (auto & f : fs::directory_iterator(path)) {
+		if (fs::is_directory(f)) continue;		
+
+		if (!tiffSize(f.path().string().c_str(), &x, &y, &bytes))
+			throw "Couldn't read tiff file";
+		else
+			break;
+	}
+	
 
 	if (bytes != 1)
 		throw "only uint8 supported right now";
@@ -88,6 +97,8 @@ BLIB_EXPORT Volume<unsigned char> blib::loadTiffFolder(const char * folder)
 	int cnt = 0;
 	Eigen::Index sliceIndex = 0;
 	for (auto & f : fs::directory_iterator(path)) {
+		if (fs::is_directory(f)) continue;
+
 		size_t index = (cnt++) * (x * y * bytes);		
 		
 		readTiff(f.path().string().c_str(), buffer.data());

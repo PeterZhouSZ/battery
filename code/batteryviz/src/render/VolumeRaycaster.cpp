@@ -3,6 +3,9 @@
 
 #include "render/PrimitivesVBO.h"
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 using namespace blib;
 
 void VolumeRaycaster::EnterExitVolume::resize(GLuint w, GLuint h)
@@ -73,11 +76,14 @@ bool VolumeRaycaster::updateVolume(const Volume<unsigned char> & volume)
 		0, GL_RED, GL_UNSIGNED_BYTE, volume.data()
 	));
 	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR));
 
 	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
 	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
 	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE));
+
+	//GL(glGenerateMipmap(GL_TEXTURE_3D));
+
 	GL(glBindTexture(GL_TEXTURE_3D, 0));
 
 
@@ -103,10 +109,26 @@ void VolumeRaycaster::render(
 	{	
 		auto & shader = shaderPosition;
 
+
+		mat4 M = mat4(1.0f);
+		if (preserveAspectRatio) {
+
+			//include bug for max?
+			int maxDim = (_volumeTexture.size.x > _volumeTexture.size.y) ? _volumeTexture.size.x : _volumeTexture.size.y;
+			maxDim = (maxDim > _volumeTexture.size.z) ? maxDim : _volumeTexture.size.z;
+			
+
+			vec3 scale = vec3(_volumeTexture.size) * (1.0f / static_cast<float>(maxDim));
+			
+			M = glm::scale(mat4(), scale);
+		}
+
+
 		shader.bind();
-		shader["PVM"] = camera.getPV();
+		shader["PVM"] = camera.getPV() * M;
 		shader["minCrop"] = sliceMin;
 		shader["maxCrop"] = sliceMax;
+		
 
 		GL(glBindFramebuffer(GL_FRAMEBUFFER, _enterExit.enterFramebuffer.ID()));
 		glClearColor(0, 0, 0, 0);

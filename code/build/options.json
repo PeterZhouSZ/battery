@@ -7,7 +7,7 @@
     },
     "Render": {
         "opacityBlack": {
-            "data": 0.00100000004749745,
+            "data": 0.00400000018998981,
             "type": 3
         },
         "opacityWhite": {
@@ -29,6 +29,10 @@
                 -1.0
             ],
             "type": 7
+        },
+        "slices": {
+            "data": false,
+            "type": 5
         }
     }
 }

@@ -77,7 +77,7 @@ void main(){
 	
 	vec3 ray = -normalize(exitPt-enterPt);
 	//float dt = distance(exitPt,enterPt) / steps;
-	float dt = 0.01;
+	float dt = 0.005;
 	float N = distance(exitPt,enterPt) / dt;
 	vec3 stepVec = ray*dt;
 

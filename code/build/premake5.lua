@@ -43,7 +43,8 @@ project "batterylib"
 	defines {		
 		"WIN64",
 		"BATTERYLIB_EXPORT",
-		"_CRT_SECURE_NO_WARNINGS"
+		"_CRT_SECURE_NO_WARNINGS",
+		"NOMINMAX"
 	}
 
 	filter "configurations:Debug"
@@ -97,7 +98,8 @@ project "batteryviz"
 		"WIN64",
 		"NO_IMGUIFILESYSTEM", 
 		"GLM_ENABLE_EXPERIMENTAL",
-		"_CRT_SECURE_NO_WARNINGS"
+		"_CRT_SECURE_NO_WARNINGS",
+		"NOMINMAX"
 	}
 
 	filter "configurations:Debug"

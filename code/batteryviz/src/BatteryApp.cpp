@@ -75,7 +75,13 @@ BatteryApp::BatteryApp()
 	/*
 		Load data
 	*/
-	if(false)
+	bool loadDefualt = true;
+#ifdef _DEBUG
+	loadDefualt = false;
+#endif
+
+
+	if(loadDefualt)
 	{
 
 		//propagate exception
@@ -84,10 +90,10 @@ BatteryApp::BatteryApp()
 		
 	}
 	else {
-		const int res = 64;
+		const int res = 128;
 
-		_volume = emptyVolume<unsigned char>(64);
-		_volume.resize(res,res,res);
+		_volume = emptyVolume<unsigned char>(res);
+		//_volume.resize(res,res,res);
 		_volume.setZero();
 		//_volume.resize({ res, res, res}, 0);		
 		_autoUpdate = true;

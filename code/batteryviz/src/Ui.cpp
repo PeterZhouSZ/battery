@@ -5,8 +5,13 @@
 #include "imgui.h"
 #include "imgui/imgui_impl_glfw_gl3.h"
 
+#include "imgui/imgui_file_explorer.h"
+
 #include <glm/gtc/type_ptr.hpp>
 
+#include <batterylib/include/VolumeIO.h>
+
+#include <iostream>
 #include <fstream>
 
 void mayaStyle() {
@@ -235,8 +240,6 @@ bool renderOptionSet(const std::string & name, OptionSet & options, unsigned int
 }
 
 
-
-
 Ui::Ui(BatteryApp & app) : _app(app)
 {
 	//gui
@@ -281,7 +284,9 @@ void Ui::update(double dt)
 	}
 
 
-
+	/*
+		Options
+	*/
 	if (ImGui::Button("Save")) {
 		std::ofstream optFile(OPTIONS_FILENAME);		
 			optFile << _app._options;		
@@ -294,6 +299,7 @@ void Ui::update(double dt)
 
 	renderOptionSet("Options", _app._options, 0);
 
+	
 	ImGui::SliderFloat3("Slice (Min)", reinterpret_cast<float*>(&_app._options["Render"].get<vec3>("sliceMin")), -1, 1);
 	ImGui::SliderFloat3("Slice (Max)", reinterpret_cast<float*>(&_app._options["Render"].get<vec3>("sliceMax")), -1, 1);
 
@@ -306,8 +312,44 @@ void Ui::update(double dt)
 		_app._volumeRaycaster->opacityBlack = _app._options["Render"].get<float>("opacityBlack");
 	}	
 
+	_app._volumeRaycaster->preserveAspectRatio = _app._options["Render"].get<bool>("preserveAspectRatio");
 
 	ImGui::SliderFloat3("Quadric", reinterpret_cast<float*>(&_app._quadric), 0, 10);
+
+
+	/*
+	Volume
+	*/
+	static std::string curDir = "";	
+	std::string filename;
+	std::tie(curDir, filename)= imguiFileExplorer(curDir, ".tif", true);
+
+
+	if (filename != "") {
+		try {
+			_app._volume = blib::loadTiffFolder(curDir.c_str());
+			_app._volumeRaycaster->updateVolume(_app._volume);
+		}
+		catch (const char * ex){
+			std::cerr << ex << std::endl;
+		}
+	}
+
+	
+	if (ImGui::Button("Erode")) {		
+		auto & v = _app._volume;	
+		v = std::move(blib::erode(v));
+		_app._volumeRaycaster->updateVolume(_app._volume);
+	}
+
+	ImGui::SameLine();
+	if (ImGui::Button("Dilate")) {
+		auto & v = _app._volume;
+		v = std::move(blib::dilate(v));
+		_app._volumeRaycaster->updateVolume(_app._volume);
+	}
+
+
 
 	ImGui::End();
 
