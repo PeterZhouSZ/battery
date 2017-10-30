@@ -11,6 +11,11 @@ namespace blib {
 	template <typename T>
 	using Volume = Eigen::Tensor<T, 3>;
 
-	BLIB_EXPORT Volume<unsigned char> emptyVolume(int size);
+	template <typename T>
+	Volume<T> emptyVolume(int size) {
+		Volume<T> v;
+		v.resize(size, size, size);
+		return v;
+	}
 
 }

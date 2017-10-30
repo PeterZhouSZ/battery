@@ -75,7 +75,7 @@ BatteryApp::BatteryApp()
 	/*
 		Load data
 	*/
-	if(true)
+	if(false)
 	{
 
 		//propagate exception
@@ -86,7 +86,7 @@ BatteryApp::BatteryApp()
 	else {
 		const int res = 64;
 
-		_volume = emptyVolume(64);
+		_volume = emptyVolume<unsigned char>(64);
 		_volume.resize(res,res,res);
 		_volume.setZero();
 		//_volume.resize({ res, res, res}, 0);		
