@@ -1,5 +1,6 @@
 #include "Volume.h"
 
+using namespace blib;
 
 Volume<unsigned char> emptyVolume(int size)
 {

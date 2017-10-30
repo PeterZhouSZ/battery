@@ -8,7 +8,7 @@
 
 #include "utility/Options.h"
 
-#include "Volume.h"
+#include "batterylib/include/Volume.h"
 
 #include "Ui.h"
 
@@ -39,8 +39,6 @@ protected:
 
 	Camera _camera;
 	
-
-	VertexBuffer<VertexData> _quad;
 	
 	std::unordered_map<std::string, std::shared_ptr<Shader>> _shaders;
 	
@@ -49,7 +47,7 @@ protected:
 
 	vec3 _quadric;
 
-	Volume<unsigned char> _volume;
+	blib::Volume<unsigned char> _volume;
 
 	std::unique_ptr<VolumeRaycaster> _volumeRaycaster;
 

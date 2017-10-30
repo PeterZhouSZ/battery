@@ -4,9 +4,10 @@
 #include "utility/IOUtility.h"
 #include "utility/RandomGenerator.h"
 
-#include "render/PrimitivesVBO.h"
 #include "render/VolumeRaycaster.h"
 #include "render/Shader.h"
+
+#include <batterylib/include/VolumeIO.h>
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -14,22 +15,23 @@
 #include <iostream>
 #include <fstream>
 #include <stdexcept>
-#include <filesystem>
+
 #include <array>
 
-//#include "imgui.h"
-//#include "imgui/imgui_impl_glfw_gl3.h"
 
-#define EIGEN_USE_THREADS
-#include <unsupported/Eigen/CXX11/ThreadPool>
+//#define EIGEN_USE_THREADS
+//#include <unsupported/Eigen/CXX11/ThreadPool>
 
-RNGNormal normalDist(0,1);
-RNGUniformFloat uniformDist(0, 1);
 
-namespace fs = std::experimental::filesystem;
+#define DATA_FOLDER "../../data/graphite/SL43_C5_1c5bar_Data/"
+#define SHADER_PATH "../batteryviz/src/shaders/"
+
+
 using namespace std;
+using namespace blib;
 
-#define DATA_FOLDER "../../../data/graphite/SL43_C5_1c5bar_Data/"
+RNGNormal normalDist(0, 1);
+RNGUniformFloat uniformDist(0, 1);
 
 
 
@@ -41,8 +43,7 @@ static const std::vector<string> shaderNames = {
 
 BatteryApp::BatteryApp()
 	: App("BatteryViz"),
-	_camera(Camera::defaultCamera(_window.width, _window.height)),
-	_quad(getQuadVBO()),
+	_camera(Camera::defaultCamera(_window.width, _window.height)),	
 	_ui(*this)
 	
 {	
@@ -66,64 +67,19 @@ BatteryApp::BatteryApp()
 	);
 
 
-	_blackOpacity = 0.001;
-	_whiteOpacity = 0.05;
-	//_quadric = { 0.617,0.617,0.482 };
+	_blackOpacity = 0.001f;
+	_whiteOpacity = 0.05f;	
 	_quadric = { 0.988,1.605,1.084 };
 	_autoUpdate = false;
 
 	/*
 		Load data
 	*/
-	if(false)
+	if(true)
 	{
-		fs::path path(DATA_FOLDER);
 
-		if (!fs::is_directory(path))
-			throw "Volume directory not found";
-			
-
-		int numSlices = directoryFileCount(path.string().c_str());
-
-		int x, y, bytes;
-		if (!tiffSize(fs::directory_iterator(path)->path().string().c_str(), &x, &y, &bytes))
-			throw "Couldn't read tiff file";
-
-		if (bytes != 1)
-			throw "only uint8 supported right now";
-
-		
-		_volume.resize(x, y, numSlices);		
-
-		std::vector<unsigned char> buffer(x*y, 0);
-
-		//auto & buffer = _volume.data();
-
-		int cnt = 0;
-		size_t bytesRead = 0;
-
-		Eigen::Index sliceIndex = 0;
-		for (auto & f : fs::directory_iterator(path)) {
-			size_t index = (cnt++) * (x * y * bytes);
-			bytesRead += x * y * bytes;
-			//readTiff(f.path().string().c_str(), buffer.data() + index);				
-			readTiff(f.path().string().c_str(), buffer.data());
-
-			for (Eigen::Index i = 0; i < x; i++) {
-				for (Eigen::Index j = 0; j < y; j++){
-					_volume(i, j, sliceIndex) = buffer[i + j*x];
-				}
-			}
-
-			sliceIndex = 0;
-		}		
-
-		
-
-		cout << "Read " << numSlices << " slices. (" << (bytesRead / (1024 * 1024)) << "MB)" << endl;
-
-		
-		
+		//propagate exception
+		_volume = loadTiffFolder(DATA_FOLDER);				
 		_volumeRaycaster->updateVolume(_volume);
 		
 	}
@@ -257,14 +213,14 @@ void BatteryApp::render(double dt)
 		};
 
 		int yoffset = 0;
-		int ysize = _window.height  * sliceHeight;
+		int ysize = static_cast<int>(_window.height  * sliceHeight);
 
 		_volumeRaycaster->renderSlice(0, ivec2(_window.width / 3 * 0, yoffset), ivec2(_window.width / 3, ysize));
 		_volumeRaycaster->renderSlice(1, ivec2(_window.width / 3 * 1, yoffset), ivec2(_window.width / 3, ysize));
 		_volumeRaycaster->renderSlice(2, ivec2(_window.width / 3 * 2, yoffset), ivec2(_window.width / 3, ysize));
 	}
 
-	_camera.setWindowDimensions(_window.width, _window.height  - _window.height * sliceHeight);
+	_camera.setWindowDimensions(_window.width, _window.height  - static_cast<int>(_window.height * sliceHeight));
 	_volumeRaycaster->render(_camera, {
 		0, _window.height * sliceHeight, _window.width, _window.height - _window.height * sliceHeight
 	}, *_shaders["position"], *_shaders["volumeraycast"]);
@@ -287,7 +243,7 @@ void BatteryApp::reloadShaders(bool firstTime)
 	for (auto & name : shaderNames) {
 
 
-		const auto path = "../src/shaders/" + name + ".shader";
+		const auto path = SHADER_PATH + name + ".shader";
 		auto src = readFileWithIncludes(path);
 
 		if (src.length() == 0)

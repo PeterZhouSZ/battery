@@ -3,6 +3,8 @@
 
 #include "render/PrimitivesVBO.h"
 
+using namespace blib;
+
 void VolumeRaycaster::EnterExitVolume::resize(GLuint w, GLuint h)
 {
 	if (w != enterTexture.size.x || h != enterTexture.size.y) {
@@ -65,7 +67,11 @@ bool VolumeRaycaster::updateVolume(const Volume<unsigned char> & volume)
 	auto dims = volume.dimensions();
 	
 	
-	GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_RED, dims[0], dims[1], dims[2], 0, GL_RED, GL_UNSIGNED_BYTE, volume.data()));
+	GL(glTexImage3D(
+		GL_TEXTURE_3D, 0, GL_RED, 
+		static_cast<GLsizei>(dims[0]), static_cast<GLsizei>(dims[1]), static_cast<GLsizei>(dims[2]),
+		0, GL_RED, GL_UNSIGNED_BYTE, volume.data()
+	));
 	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
 	GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
 

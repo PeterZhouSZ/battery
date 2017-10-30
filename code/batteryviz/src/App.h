@@ -24,7 +24,7 @@ public:
 	bool run();
 	void terminate();
 
-	float getFPS() const;
+	double getFPS() const;
 
 	~App();
 

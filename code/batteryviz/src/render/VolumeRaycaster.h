@@ -5,12 +5,7 @@
 #include "render/VertexBuffer.h"
 #include "render/Framebuffer.h"
 
-#include "Volume.h"
-
-
-
-
-
+#include "batterylib/include/Volume.h"
 
 
 struct VolumeRaycaster {
@@ -30,7 +25,7 @@ struct VolumeRaycaster {
 		std::shared_ptr<Shader> shaderSlice
 	);
 
-	bool updateVolume(const Volume<unsigned char> & volume);
+	bool updateVolume(const blib::Volume<unsigned char> & volume);
 
 	void render(
 		const Camera & camera,

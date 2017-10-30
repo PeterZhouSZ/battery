@@ -145,7 +145,7 @@ struct ImguiInputs {
 private:
 
 	bool renderMatrix(float * M, int dimension) {
-		int ID = reinterpret_cast<int>(M);
+		int ID = static_cast<int>(reinterpret_cast<size_t>(M));
 		ImGui::BeginChildFrame(ID, ImVec2(ImGui::GetColumnWidth() - 17, ImGui::GetItemsLineHeightWithSpacing() * dimension + 5));
 		ImGui::Columns(dimension);
 
@@ -249,9 +249,15 @@ void Ui::update(double dt)
 	ImGui_ImplGlfwGL3_NewFrame();
 
 
-	int w = _app._window.width * 0.2f;
-	ImGui::SetNextWindowPos(ImVec2(_app._window.width - w, 0), ImGuiSetCond_Always);
-	ImGui::SetNextWindowSize(ImVec2(w, 2.0f * (_app._window.height / 3.0f)), ImGuiSetCond_Always);
+	int w = static_cast<int>(_app._window.width * 0.2f);
+	ImGui::SetNextWindowPos(
+		ImVec2(static_cast<float>(_app._window.width - w), 0), 
+		ImGuiSetCond_Always
+	);
+	ImGui::SetNextWindowSize(
+		ImVec2(static_cast<float>(w), 2.0f * (static_cast<float>(_app._window.height) / 3.0f)), 
+		ImGuiSetCond_Always
+	);
 
 	static bool mainOpen = false;
 
