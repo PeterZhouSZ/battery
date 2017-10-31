@@ -2,12 +2,14 @@
 #include "GLFW/glfw3.h"
 
 #include "utility/IOUtility.h"
-#include "utility/RandomGenerator.h"
+
 
 #include "render/VolumeRaycaster.h"
 #include "render/Shader.h"
 
 #include <batterylib/include/VolumeIO.h>
+#include <batterylib/include/RandomGenerator.h>
+
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -17,6 +19,7 @@
 #include <stdexcept>
 
 #include <array>
+#include <numeric>
 
 
 //#define EIGEN_USE_THREADS
@@ -32,6 +35,8 @@ using namespace blib;
 
 RNGNormal normalDist(0, 1);
 RNGUniformFloat uniformDist(0, 1);
+RNGUniformInt uniformDistInt(0, INT_MAX);
+
 
 
 
@@ -75,7 +80,7 @@ BatteryApp::BatteryApp()
 	/*
 		Load data
 	*/
-	bool loadDefualt = true;
+	bool loadDefualt = false;
 #ifdef _DEBUG
 	loadDefualt = false;
 #endif
@@ -90,29 +95,41 @@ BatteryApp::BatteryApp()
 		
 	}
 	else {
-		const int res = 128;
+		const int res = 32;
 
 		_volume = emptyVolume<unsigned char>(res);
 		//_volume.resize(res,res,res);
 		_volume.setZero();
 		//_volume.resize({ res, res, res}, 0);		
 		_autoUpdate = true;
-		update(0);
+	//	update(0);
 		_autoUpdate = false;
 
 			
 	}
 
 	
+	resetSA();
+	_volumeRaycaster->updateVolume(_volume);
 	
 
 }
 
 
 
+
+
 void BatteryApp::update(double dt)
 {
 	if (!_autoUpdate) return;
+
+	_sa.update(_options["Optim"].get<int>("stepsPerFrame"));
+	_volumeRaycaster->updateVolume(_volume);
+
+	std::cout << _sa.currentScore / 1000 << ", P:" << _sa.lastAcceptanceP << ", T: " << _sa.currentTemperature() << "\n";
+
+	return;
+
 
 
 	/*{
@@ -366,4 +383,135 @@ void BatteryApp::callbackChar(GLFWwindow * w, unsigned int code)
 {
 	App::callbackChar(w, code);
 	_ui.callbackChar(w, code);
+}
+
+void BatteryApp::resetSA()
+{
+	/*
+	Init SA
+	*/
+
+	_sa.score = [&](const vector<Transform> & vals) {
+
+
+		vector<Eigen::Affine3f> transforms(vals.size());
+		for (auto i = 0; i < vals.size(); i++) {
+			transforms[i] = vals[i].getAffine().inverse();
+		}
+
+		const auto quadricImplicit = [](const Eigen::Vector3f & pos, const vec3 & q) {
+			return (glm::pow(glm::abs(pos[0]), q.x) + glm::pow(glm::abs(pos[1]), q.y) + glm::pow(glm::abs(pos[2]), q.z));
+		};
+
+
+		_volume.setZero();
+		const auto dims = _volume.dimensions();
+
+		vector<int> collisions(dims[0]);
+
+#pragma omp parallel for schedule(dynamic)
+		for (auto x = 0; x < dims[0]; x++) {
+			int thisColl = 0;
+			for (auto y = 0; y < dims[1]; y++) {
+				for (auto z = 0; z < dims[2]; z++) {
+					Eigen::Vector3f pos =
+						Eigen::Vector3f(x / float(dims[0]), y / float(dims[1]), z / float(dims[2])) * 2.0f
+						- Eigen::Vector3f(1.0f, 1.0f, 1.0f);
+
+					for (auto & M : transforms) {
+
+						auto inSpace = M * pos;
+						float v = quadricImplicit(inSpace, _quadric);
+
+						if (v < 1.0f) {
+							if (_volume(x, y, z) == 255)
+								thisColl++;
+
+							_volume(x, y, z) = 255;
+						}
+					}
+				}
+			}
+
+			collisions[x] = thisColl;
+		}
+
+		int collTotal = std::accumulate(collisions.begin(), collisions.end(), 0);
+
+		int sum = 0;
+		//todo reduce
+		for (auto x = 0; x < dims[0]; x++) {
+			for (auto y = 0; y < dims[1]; y++) {
+				for (auto z = 0; z < dims[2]; z++) {
+					if (_volume(x, y, z) == 255)
+						sum++;
+				}
+			}
+		}
+
+		//return 1.0f;
+		auto totalVoxels = dims[0] * dims[1] * dims[2];
+
+		float score = (1.0 - sum / float(totalVoxels));// +2 * collTotal / float(totalVoxels);
+
+													   //std::cout << "porosity: " << score << "\n";
+
+		score += 10 * collTotal / float(totalVoxels);
+
+
+		return score * 1000;
+
+		//Eigen::Tensor<unsigned char, 0> b = _volume.sum();
+
+	};
+
+	_sa.getNeighbour = [](const vector<Transform> & vals) {
+
+		const float step = 0.01f * 15;
+
+		vector<Transform> newVals = vals;
+
+		using namespace Eigen;
+
+		auto &v = newVals[uniformDistInt.next() % newVals.size()];
+
+		//for (auto & v : newVals) {
+		v.scale += 0.5f * step * Vector3f(normalDist.next(), normalDist.next(), normalDist.next());
+		v.scale = v.scale.cwiseMax(Vector3f{ 0.1f,0.1f,0.1f });
+		v.scale = v.scale.cwiseMin(Vector3f{ 1.0f,1.0f,1.0f });
+
+
+
+		v.translation += step * Vector3f(normalDist.next(), normalDist.next(), normalDist.next());
+		v.translation = v.translation.cwiseMax(Vector3f{ -1,-1,-1 });
+		v.translation = v.translation.cwiseMin(Vector3f{ 1, 1, 1 });
+
+
+
+		Quaternionf q[3];
+		float angleStep = step;
+		q[0] = AngleAxisf(step * normalDist.next(), Vector3f{ 1,0,0 });
+		q[1] = AngleAxisf(step * normalDist.next(), Vector3f{ 0,1,0 });
+		q[2] = AngleAxisf(step * normalDist.next(), Vector3f{ 0,0,1 });
+		v.rotation = v.rotation * q[0] * q[1] * q[2];
+		//}
+
+		return newVals;
+	};
+
+
+	vector<Transform> initVec(_options["Optim"].get<int>("N"));
+
+	for (auto & v : initVec) {
+		v.scale = Eigen::Vector3f(normalDist.next(), normalDist.next(), normalDist.next()) * 0.4f + Eigen::Vector3f(0.2f, 0.2f, 0.2f);
+
+		v.translation = Eigen::Vector3f(normalDist.next(), normalDist.next(), normalDist.next()) * 1.0f;// - Eigen::Vector3f(1.0f,1.0f,1.0f);
+		v.translation = v.translation.cwiseMax(Eigen::Vector3f{ -1,-1,-1 });
+		v.translation = v.translation.cwiseMin(Eigen::Vector3f{ 1, 1, 1 });
+	}
+	_sa.getTemperature = temperatureExp;
+
+	_sa.init(initVec, _options["Optim"].get<int>("maxSteps"));
+
+
 }

@@ -11,6 +11,7 @@
 
 #include <batterylib/include/VolumeIO.h>
 
+
 #include <iostream>
 #include <fstream>
 
@@ -362,6 +363,11 @@ void Ui::update(double dt)
 
 	}
 
+
+
+	if (ImGui::Button("Reset SA")) {
+		_app.resetSA();
+	}
 	
 
 

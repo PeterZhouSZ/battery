@@ -8,7 +8,10 @@
 
 #include "utility/Options.h"
 
-#include "batterylib/include/Volume.h"
+#include <batterylib/include/Volume.h>
+
+#include <batterylib/include/Transform.h>
+#include <batterylib/include/SimulatedAnnealing.h>
 
 #include "Ui.h"
 
@@ -35,6 +38,8 @@ protected:
 	virtual void callbackScroll(GLFWwindow * w, double xoffset, double yoffset) override;
 	virtual void callbackChar(GLFWwindow * w, unsigned int code) override;
 
+	virtual void resetSA();
+
 	OptionSet _options;
 
 	Camera _camera;
@@ -53,8 +58,14 @@ protected:
 
 	bool _autoUpdate;
 
+	blib::SimulatedAnnealing<
+		std::vector<blib::Transform>
+	> _sa;
+	
+
+
 	friend Ui;
-	Ui _ui;
+	Ui _ui;	
 
 private:
 	/*

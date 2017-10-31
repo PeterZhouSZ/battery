@@ -7,6 +7,14 @@
         "diffusivity": {
             "data": 1.0,
             "type": 4
+        },
+        "maxSteps": {
+            "data": 2096,
+            "type": 2
+        },
+        "stepsPerFrame": {
+            "data": 10,
+            "type": 2
         }
     },
     "Render": {
