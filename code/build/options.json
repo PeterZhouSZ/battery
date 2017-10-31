@@ -3,6 +3,10 @@
         "N": {
             "data": 16,
             "type": 2
+        },
+        "diffusivity": {
+            "data": 1.0,
+            "type": 4
         }
     },
     "Render": {

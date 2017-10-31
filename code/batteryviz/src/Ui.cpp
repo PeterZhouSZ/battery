@@ -354,6 +354,14 @@ void Ui::update(double dt)
 		
 	}
 
+	ImGui::SameLine();
+	if (ImGui::Button("Diffuse")) {
+		auto & v = _app._volume;
+		v = std::move(blib::diffuse(v, _app._options["Optim"].get<double>("diffusivity")));
+		_app._volumeRaycaster->updateVolume(_app._volume);
+
+	}
+
 	
 
 

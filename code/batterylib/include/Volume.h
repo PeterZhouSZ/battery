@@ -77,4 +77,40 @@ namespace blib {
 		return vnew;
 	}
 
+	template <typename T>
+	Volume<T> diffuse(const Volume<T> & v, double diffusivity) {
+		Volume<T> vnew = v;
+					
+		const auto dims = v.dimensions();
+
+		//float h[3] = {1.0 / dims[0], 1.0 / dims[1], 1.0 / dims[2] };
+		float h[3] = { 1,1,1 };
+
+
+		#pragma omp parallel for schedule(dynamic)
+		for (__int64 x = 1LL; x < dims[0] - 1LL; x++) {
+			for (__int64 y = 1LL; y < dims[1] - 1LL; y++) {
+				for (__int64 z = 1LL; z < dims[2] - 1LL; z++) {
+					
+					float val = v(x, y, z);
+
+					float ddx = (float(v(x + 1LL, y, z)) - 2.0f * val - float(v(x - 1LL, y, z))) / h[0];
+					float ddy = (float(v(x, y + 1LL, z)) - 2.0f * val - float(v(x, y - 1LL, z))) / h[1];
+					float ddz = (float(v(x, y, z + 1LL)) - 2.0f * val - float(v(x, y, z - 1LL))) / h[2];
+
+
+					float newVal = val + diffusivity * (ddx + ddy + ddz);
+					if (newVal < 0.0f)
+						vnew(x, y, z) = 0;
+					else
+						vnew(x, y, z) = T(newVal);
+				}
+			}
+		}
+
+		return vnew;
+
+	}
+
+
 }

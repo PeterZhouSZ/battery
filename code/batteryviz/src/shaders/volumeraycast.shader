@@ -136,7 +136,7 @@ void main(){
 
 
 
-		if(volumeVal > 0.5){
+		if(volumeVal > 0.1){
 			color = vec4(0.5,0.5,0.5,whiteOpacity * dt * 1000);
 		}
 		else{

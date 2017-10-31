@@ -115,6 +115,13 @@ void BatteryApp::update(double dt)
 	if (!_autoUpdate) return;
 
 
+	/*{
+		auto & v = _volume;
+		v = std::move(blib::diffuse(v, _options["Optim"].get<double>("diffusivity")));
+		_volumeRaycaster->updateVolume(_volume);
+		return;
+	}*/
+
 
 
 
