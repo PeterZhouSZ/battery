@@ -33,11 +33,14 @@ const vec3 lightDir = vec3(1.0,0.0,1.0);
 
 uniform vec3 resolution;
 
+uniform bool showGradient = false;
+
 vec3 getGradient(vec3 pt){
+	vec3 res = resolution*5;
 	return vec3(
-		texture(volumeTexture, pt - vec3(resolution.x, 0.0, 0.0)).x - texture(volumeTexture, pt + vec3(resolution.x, 0.0, 0.0)).x,
- 		texture(volumeTexture, pt - vec3(0.0, resolution.y, 0.0)).x - texture(volumeTexture, pt + vec3(0.0, resolution.y, 0.0)).x,
- 		texture(volumeTexture, pt - vec3(0.0, 0.0, resolution.z)).x - texture(volumeTexture, pt + vec3(0.0, 0.0, resolution.z)).x
+		(texture(volumeTexture, pt - vec3(res.x, 0.0, 0.0)).x - texture(volumeTexture, pt + vec3(res.x, 0.0, 0.0)).x) / res.x,
+ 		(texture(volumeTexture, pt - vec3(0.0, res.y, 0.0)).x - texture(volumeTexture, pt + vec3(0.0, res.y, 0.0)).x) / res.y,
+ 		(texture(volumeTexture, pt - vec3(0.0, 0.0, res.z)).x - texture(volumeTexture, pt + vec3(0.0, 0.0, res.z)).x) / res.z
  	); 	
 }
 
@@ -59,6 +62,37 @@ float getLightMagnitude(vec3 pos, vec3 n, vec3 view){
 	//return 0.01 * spec + 0.99*diff;
 	return diff;
 
+}
+
+vec3 colormapJet(float v, float vmin, float vmax)
+{
+	vec3 c = vec3(1, 1, 1);
+	float dv;
+
+	if (v < vmin)
+		v = vmin;
+	if (v > vmax)
+		v = vmax;
+	dv = vmax - vmin;
+
+	if (v < (vmin + 0.25f * dv)) {
+		c.r = 0;
+		c.g = 4 * (v - vmin) / dv;
+	}
+	else if (v < (vmin + 0.5f * dv)) {
+		c.r = 0;
+		c.b = 1 + 4 * (vmin + 0.25f * dv - v) / dv;
+	}
+	else if (v < (vmin + 0.75f * dv)) {
+		c.r = 4 * (v - vmin - 0.5f * dv) / dv;
+		c.b = 0;
+	}
+	else {
+		c.g = 1 + 4 * (vmin + 0.75f * dv - v) / dv;
+		c.b = 0;
+	}
+
+	return(c);
 }
 
 void main(){
@@ -117,10 +151,26 @@ void main(){
 
 
 		//color.rgb = vec3(getLightMagnitude(pos, getNormal(pos), viewPos));
-		//if(glen > 0.01)		
-		//	color.rgb *= (getLightMagnitude(pos, getNormal(pos), viewPos));
+		if(showGradient){
+			//color.xyz = colormapJet(glen, 0, 500);
+			if(glen > 150.00){
+				color.xyz = colormapJet(glen, 0, 250);
+				color.xyz = vec3(glen/250);
+				color.a *= 0.5;
+			}
+			else {
+				color = vec4(vec3(0,0,0), dt*10);
+			}
+			//	color *= vec4(vec3(0,0,0), glen*0.0002);
+			//else
+			//	color *= vec4(vec3(1,1,1), dt*20);
+		}
 
-		//color = vec4(vec3(0), glen*glen*glen*glen * dt);
+
+			//color.rgb *= (getLightMagnitude(pos, getNormal(pos), viewPos));
+
+		
+
 		
 		
  

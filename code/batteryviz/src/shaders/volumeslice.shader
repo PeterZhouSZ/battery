@@ -22,11 +22,16 @@ void main(){
 
 	vec2 coord = (vposition.xy + vec2(1)) * 0.5;	
 
+
+
 	vec3 coord3D;
-	if(axis == 0)
+	if(axis == 0){
+		coord.x = 1.0 - coord.x;
 		coord3D = vec3(coord, slice);
-	else if(axis == 1)	
-		coord3D = vec3(coord.x, slice, coord.y);
+	}
+	else if(axis == 1){
+		coord3D = vec3(1.0 - coord.x, slice, 1.0 - coord.y);
+	}
 	else if(axis == 2)	
 		coord3D = vec3(slice, coord.x, coord.y);
 

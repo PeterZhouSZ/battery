@@ -7,12 +7,20 @@
     },
     "Render": {
         "opacityBlack": {
-            "data": 0.00400000018998981,
+            "data": 0.00100000004749745,
             "type": 3
         },
         "opacityWhite": {
             "data": 0.0500000007450581,
             "type": 3
+        },
+        "preserveAspectRatio": {
+            "data": true,
+            "type": 5
+        },
+        "showGradient": {
+            "data": false,
+            "type": 5
         },
         "sliceMax": {
             "data": [

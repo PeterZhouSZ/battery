@@ -43,7 +43,7 @@ struct VolumeRaycaster {
 	float opacityBlack;
 
 	bool preserveAspectRatio;
-
+	bool showGradient;
 
 private:
 	EnterExitVolume _enterExit;

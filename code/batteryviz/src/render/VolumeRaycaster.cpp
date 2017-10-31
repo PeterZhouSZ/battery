@@ -44,7 +44,8 @@ VolumeRaycaster::VolumeRaycaster(
 	_quad(getQuadVBO()),
 	sliceMin({ -1,-1,-1 }),
 	sliceMax({ 1,1,1 }),
-	_volumeTexture(GL_TEXTURE_3D, 0,0,0)
+	_volumeTexture(GL_TEXTURE_3D, 0,0,0),
+	showGradient(false)
 {
 	
 	{
@@ -172,7 +173,9 @@ void VolumeRaycaster::render(
 		shader["blackOpacity"] = opacityBlack;
 		shader["whiteOpacity"] = opacityWhite;
 
+
 		shader["resolution"] = vec3(1.0f/_volumeTexture.size.x, 1.0f / _volumeTexture.size.y, 1.0f / _volumeTexture.size.z);
+		shader["showGradient"] = showGradient;
 
 		shader["viewPos"] = camera.getPosition();
 
@@ -191,7 +194,18 @@ void VolumeRaycaster::renderSlice(int axis, ivec2 screenPos, ivec2 screenSize) c
 	GL(glViewport(screenPos.x, screenPos.y, screenSize.x, screenSize.y));
 	auto &shader = *_shaderSlice;
 
-	const float t = sliceMin[axis];
+	float t = sliceMin[axis];
+	if (axis == 0) {
+		t = sliceMin[2];
+	}
+	else if (axis == 1) {
+		t = sliceMin[1];
+	}
+	else if (axis == 2) {
+		t = sliceMin[0];
+	}
+
+	
 
 	shader.bind();
 

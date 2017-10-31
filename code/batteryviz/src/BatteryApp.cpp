@@ -114,8 +114,15 @@ void BatteryApp::update(double dt)
 {
 	if (!_autoUpdate) return;
 
+
+
+
+
 	
-	const int N = _options["Optim"].get<int>("N");
+	
+	//const int N = _options["Optim"].get<int>("N");
+	const int N = 1;
+
 		
 	vector<mat4> transforms(N);
 	
@@ -138,6 +145,14 @@ void BatteryApp::update(double dt)
 
 		transforms[i] = glm::inverse(M);
 	}
+
+	float static t = 0.0f;
+	
+
+	transforms[0] = glm::inverse(glm::rotate(mat4(), t, vec3(0, 1.0, 0)));
+
+	t += float(dt);
+
 
 	vec3 q = _quadric;
 

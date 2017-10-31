@@ -310,9 +310,13 @@ void Ui::update(double dt)
 
 		_app._volumeRaycaster->opacityWhite = _app._options["Render"].get<float>("opacityWhite");
 		_app._volumeRaycaster->opacityBlack = _app._options["Render"].get<float>("opacityBlack");
+
+		_app._volumeRaycaster->preserveAspectRatio = _app._options["Render"].get<bool>("preserveAspectRatio");
+
+		_app._volumeRaycaster->showGradient = _app._options["Render"].get<bool>("showGradient");
 	}	
 
-	_app._volumeRaycaster->preserveAspectRatio = _app._options["Render"].get<bool>("preserveAspectRatio");
+	
 
 	ImGui::SliderFloat3("Quadric", reinterpret_cast<float*>(&_app._quadric), 0, 10);
 
@@ -320,7 +324,7 @@ void Ui::update(double dt)
 	/*
 	Volume
 	*/
-	static std::string curDir = "";	
+	static std::string curDir = "../../data";	
 	std::string filename;
 	std::tie(curDir, filename)= imguiFileExplorer(curDir, ".tif", true);
 
@@ -347,7 +351,10 @@ void Ui::update(double dt)
 		auto & v = _app._volume;
 		v = std::move(blib::dilate(v));
 		_app._volumeRaycaster->updateVolume(_app._volume);
+		
 	}
+
+	
 
 
 
