@@ -38,6 +38,41 @@ RNGUniformFloat uniformDist(0, 1);
 RNGUniformInt uniformDistInt(0, INT_MAX);
 
 
+#include <batterylib/include/OrientationHistogram.h>
+
+void quickTestFunc() {
+
+	for (auto k = 0; k < 256; k++) {
+		OrientHistogram oh(8, 8, 8);
+
+
+		const float pi = glm::pi<float>();
+		const vec3 minO = vec3(-pi);
+		const vec3 maxO = vec3(pi);
+
+
+
+		for (auto i = 0; i < 25000000; i++) {
+			//vec3 dir = { normalDist.next() * pi, normalDist.next() * pi, normalDist.next() * pi };
+			//dir *= 0.5f;
+			//dir += 0.0f;
+			vec3 dir = { uniformDist.next() * pi, uniformDist.next() * pi, uniformDist.next() * pi };
+			dir = 2.0f * dir - vec3(pi);
+			dir = glm::clamp(dir, minO, maxO);
+			oh.add(dir.x, dir.y, dir.z);
+		}
+
+		OrientDistribution od(oh);
+
+		std::cout << od.getMRD({ 0,0,0 }) << ", " << od.getMRD({ -3.14f,-3.14f,-3.14f }) << std::endl;
+		
+
+
+		char breakpt;
+		breakpt = 0;
+
+	}
+}
 
 
 static const std::vector<string> shaderNames = {
@@ -52,6 +87,9 @@ BatteryApp::BatteryApp()
 	_ui(*this)
 	
 {	
+
+	//quickTestFunc();
+
 
 	
 	{
