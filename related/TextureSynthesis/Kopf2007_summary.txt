@@ -1,0 +1,75 @@
+
+
+
+Pre: Kwatra 2005, Wexler 2007
+
+
+Initialization:
+	assign to each voxel in target volume random value from the exemplar
+
+Goal:
+	iterate, minimize energy
+	for isotropic textures - neighbourhood on any 2D slice similar to some neighbourhood of exemplar
+	only 3 orthogonal 2D slices of 3D volume (Wei 2002, Qin and Yang 2007)
+
+
+Global energy:
+	function of (Solid s, Exemplar e)
+	= sum over all voxels( sum over vectorized neighbourhood in each orthogonal axis ( ||s - e{v,i}||^0.8 ))
+	e{v,i} is closest to s neighbourhood (in L2 norm)
+
+Iteration:
+	Alternates between optimization and search phase
+	Optimization phase:
+		update value of each voxel in solid, based on best matching neighbourhoods of neighbouring voxels
+	Search phase:
+		search for best matching exemplar e{v,i} for each voxel from S
+
+	Increase resolution after convergence
+
+
+
+
+Optimization phase:
+	||s-e||^r = ||s-e||^r-2 * ||s-e||^2 = (w * ||s-e||^2)
+
+	minimize:
+		sum over voxels and orthogonal neighbourhood's voxels (w * ||s-e||^2)
+	solution:
+		voxel s = sum over neighbours of solid and exemplar / sum over neighbours of solid
+	preprocess:
+		cluster texels of exemplar using mean-shift algorithm (window size gets reduced as resolution progresses)
+			-> iterative sum over kernel
+		use only those in dominant cluster
+
+
+Search phase:
+	optimize global energy with respect to exemplar neighbourhoods
+	Find best matching exemplar window for every neighbourhood of solid voxel
+
+	Speedup: apply PCA projection to neighborhood vectors in the exemplar (Hertzmann 2001, Liang 2001, Lefebvre and Hoppe 2006). Keep 95% of variance.
+
+	Approximate nearest neighbour libraray (Mount and Arya 2006)
+	Aproxximation (1 + e), e = 2
+
+	Not at every voxel, on a sparser grid (every two in y and z dimensions)
+
+	Existing libraries for kNN search on CUDA
+
+
+Histogram matching:
+	adjust weights in averaging equation to match global histogram better
+	update histogram with every voxel update
+		-> synchronization issue
+
+
+
+
+
+
+
+
+
+
+
+
