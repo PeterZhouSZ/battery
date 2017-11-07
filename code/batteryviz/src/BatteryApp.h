@@ -5,6 +5,7 @@
 #include "render/Camera.h"
 #include "render/VertexBuffer.h"
 #include "render/VolumeRaycaster.h"
+#include "render/GLRenderer.h"
 
 #include "utility/Options.h"
 
@@ -47,9 +48,6 @@ protected:
 	
 	std::unordered_map<std::string, std::shared_ptr<Shader>> _shaders;
 	
-	float _blackOpacity;
-	float _whiteOpacity;
-
 	vec3 _quadric;
 
 	blib::Volume<unsigned char> _volume;
@@ -63,6 +61,7 @@ protected:
 	> _sa;
 	
 
+	RenderList _glRenderer;
 
 	friend Ui;
 	Ui _ui;	

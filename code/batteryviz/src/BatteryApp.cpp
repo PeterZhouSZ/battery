@@ -39,6 +39,7 @@ RNGUniformInt uniformDistInt(0, INT_MAX);
 
 
 #include <batterylib/include/OrientationHistogram.h>
+#include "render/PrimitivesVBO.h"
 
 void quickTestFunc() {
 
@@ -110,8 +111,7 @@ BatteryApp::BatteryApp()
 	);
 
 
-	_blackOpacity = 0.001f;
-	_whiteOpacity = 0.05f;	
+		
 	_quadric = { 0.988,1.605,1.084 };
 	_autoUpdate = false;
 
@@ -277,6 +277,24 @@ void BatteryApp::update(double dt)
 void BatteryApp::render(double dt)
 {
 
+
+	_glRenderer.clear();
+
+	auto vbo = getQuadVBO();
+
+
+	ShaderOptions opts = {
+		{ "k", vec3(1,0,0) }
+	};
+
+	RenderList::RenderItem item = {
+		vbo, opts
+	};
+
+	_glRenderer.add(_shaders["position"], item);
+
+
+	_glRenderer.render();
 	
 
 	if (_window.width == 0 || _window.height == 0) return;
