@@ -60,7 +60,12 @@ BatteryApp::BatteryApp()
 	}
 
 	resetGL();
-	reloadShaders(true);
+	
+	{
+		auto errMsg = loadShaders(_shaders);
+		if (errMsg != "")
+			throw errMsg;
+	}
 
 	_volumeRaycaster = make_unique<VolumeRaycaster>(
 		_shaders[SHADER_POSITION],
@@ -296,33 +301,7 @@ void BatteryApp::render(double dt)
 
 
 
-void BatteryApp::reloadShaders(bool firstTime)
-{	
 
-	for(auto i = 0; i < ShaderType::SHADER_COUNT; i++){
-
-		const auto path = SHADER_PATH + string(g_shaderPaths[i]) + ".shader";
-		auto src = readFileWithIncludes(path);
-
-		if (src.length() == 0)
-			throw "Failed to read " + path;
-
-		if (_shaders[i] == nullptr) {
-			_shaders[i] = make_shared<Shader>();
-		}
-
-		auto[ok, shader, error] = compileShader(src);
-
-		if (ok)
-			*_shaders[i] = shader;
-		else{		
-			if (firstTime)
-				throw error;
-			else
-				std::cerr << error << std::endl;
-		}			
-	}	
-}
 
 
 void BatteryApp::callbackMousePos(GLFWwindow * w, double x, double y)
@@ -364,8 +343,9 @@ void BatteryApp::callbackKey(GLFWwindow * w, int key, int scancode, int action, 
 
 	if (action == GLFW_RELEASE) {
 		
-		if (key == GLFW_KEY_R)
-			reloadShaders(false);
+		if (key == GLFW_KEY_R) {
+			std::cerr << loadShaders(_shaders) << std::endl;			
+		}
 
 		if (key == GLFW_KEY_SPACE)
 			_autoUpdate = !_autoUpdate;

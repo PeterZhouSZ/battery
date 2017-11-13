@@ -1,10 +1,12 @@
 #pragma once
 
+
 #include <array>
 #include <unordered_map>
 #include <memory>
+#include <string>
 
-struct Shader;
+#include "Shader.h"
 
 enum ShaderType  {
 	SHADER_PHONG,
@@ -32,3 +34,8 @@ const std::array<
 	"volumeraycast",
 	"volumeslice"
 };
+
+/*
+	Loads shaders into targetDB and returns any compilation error string encountered. Returns "" on success.
+*/
+std::string loadShaders(ShaderDB & targetDB);

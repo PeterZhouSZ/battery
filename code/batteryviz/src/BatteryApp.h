@@ -68,10 +68,7 @@ protected:
 	Ui _ui;	
 
 private:
-	/*
-		Throws on first time
-	*/
-	void reloadShaders(bool firstTime);
+	
 
 	
 	
