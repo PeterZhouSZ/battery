@@ -1,0 +1,8 @@
+architecture
+
+
+shaders.h ... list of shader types and paths, only const globals
+renderlist.h .. sorts by shader (+ custom stuff, transparency), invokes render method
+
+
+

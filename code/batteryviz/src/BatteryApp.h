@@ -43,25 +43,26 @@ protected:
 
 	OptionSet _options;
 
-	Camera _camera;
+	/*
+		Render
+	*/
+	Camera _camera;	
+	ShaderDB _shaders;
+	std::unique_ptr<VolumeRaycaster> _volumeRaycaster;
+	Scene _scene;
 	
-	
-	std::unordered_map<std::string, std::shared_ptr<Shader>> _shaders;
 	
 	vec3 _quadric;
 
 	blib::Volume<unsigned char> _volume;
-
-	std::unique_ptr<VolumeRaycaster> _volumeRaycaster;
 
 	bool _autoUpdate;
 
 	blib::SimulatedAnnealing<
 		std::vector<blib::Transform>
 	> _sa;
-	
 
-	RenderList _glRenderer;
+	
 
 	friend Ui;
 	Ui _ui;	

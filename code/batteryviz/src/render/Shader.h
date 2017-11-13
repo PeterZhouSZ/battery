@@ -9,7 +9,9 @@
 
 #include "render/ShaderResource.h"
 
-
+using ShaderOptions = std::vector<
+	std::pair<std::string, ShaderResourceValue>
+>;
 
 struct Shader {
 	GLuint id;
@@ -21,4 +23,7 @@ struct Shader {
 
 std::tuple<bool /*success*/, Shader /*shader*/, std::string /*error msg*/> 
 compileShader(const std::string & code);
+
+
+
 

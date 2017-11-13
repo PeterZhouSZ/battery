@@ -27,7 +27,6 @@
 
 
 #define DATA_FOLDER "../../data/graphite/SL43_C5_1c5bar_Data/"
-#define SHADER_PATH "../batteryviz/src/shaders/"
 
 
 using namespace std;
@@ -40,6 +39,7 @@ RNGUniformInt uniformDistInt(0, INT_MAX);
 
 #include <batterylib/include/OrientationHistogram.h>
 #include "render/PrimitivesVBO.h"
+#include "render/Shaders.h"
 
 void quickTestFunc() {
 
@@ -76,11 +76,7 @@ void quickTestFunc() {
 }
 
 
-static const std::vector<string> shaderNames = {
-	"volumeslice",
-	"volumeraycast",
-	"position"
-};
+
 
 BatteryApp::BatteryApp()
 	: App("BatteryViz"),
@@ -91,9 +87,7 @@ BatteryApp::BatteryApp()
 
 	//quickTestFunc();
 
-
-	
-	{
+        {
 		std::ifstream optFile(OPTIONS_FILENAME);
 		if (optFile.good())
 			optFile >> _options;
@@ -105,9 +99,9 @@ BatteryApp::BatteryApp()
 	reloadShaders(true);
 
 	_volumeRaycaster = make_unique<VolumeRaycaster>(
-		_shaders["position"],
-		_shaders["volumeraycast"],
-		_shaders["volumeslice"]
+		_shaders[SHADER_POSITION],
+		_shaders[SHADER_VOLUME_RAYCASTER],
+		_shaders[SHADER_VOLUME_SLICE]
 	);
 
 
@@ -276,25 +270,6 @@ void BatteryApp::update(double dt)
 
 void BatteryApp::render(double dt)
 {
-
-
-	_glRenderer.clear();
-
-	auto vbo = getQuadVBO();
-
-
-	ShaderOptions opts = {
-		{ "k", vec3(1,0,0) }
-	};
-
-	RenderList::RenderItem item = {
-		vbo, opts
-	};
-
-	_glRenderer.add(_shaders["position"], item);
-
-
-	_glRenderer.render();
 	
 
 	if (_window.width == 0 || _window.height == 0) return;
@@ -324,7 +299,7 @@ void BatteryApp::render(double dt)
 	_camera.setWindowDimensions(_window.width, _window.height  - static_cast<int>(_window.height * sliceHeight));
 	_volumeRaycaster->render(_camera, {
 		0, _window.height * sliceHeight, _window.width, _window.height - _window.height * sliceHeight
-	}, *_shaders["position"], *_shaders["volumeraycast"]);
+	}, *_shaders[SHADER_POSITION], *_shaders[SHADER_VOLUME_RAYCASTER]);
 
 
 
@@ -332,42 +307,36 @@ void BatteryApp::render(double dt)
 		UI render and update
 	*/
 	_ui.update(dt);
-
-
 }
 
 
 
 void BatteryApp::reloadShaders(bool firstTime)
-{
+{	
 
-	for (auto & name : shaderNames) {
+	for(auto i = 0; i < ShaderType::SHADER_COUNT; i++){
 
-
-		const auto path = SHADER_PATH + name + ".shader";
+		const auto path = SHADER_PATH + string(g_shaderPaths[i]) + ".shader";
 		auto src = readFileWithIncludes(path);
 
 		if (src.length() == 0)
 			throw "Failed to read " + path;
 
-		if (_shaders.find(name) == _shaders.end()) {
-			_shaders[name] = make_shared<Shader>();
+		if (_shaders[i] == nullptr) {
+			_shaders[i] = make_shared<Shader>();
 		}
 
 		auto[ok, shader, error] = compileShader(src);
 
 		if (ok)
-			*_shaders[name] = shader;
+			*_shaders[i] = shader;
 		else{		
 			if (firstTime)
 				throw error;
 			else
 				std::cerr << error << std::endl;
-		}
-			
-	}
-
-	std::cout << shaderNames.size() << " shaders " + string((firstTime) ? "" : "re")+ "loaded" << endl;
+		}			
+	}	
 }
 
 

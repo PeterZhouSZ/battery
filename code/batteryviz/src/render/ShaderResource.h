@@ -15,6 +15,8 @@ using ShaderResourceValue = std::variant<
 	vec2,vec3,vec4,mat2,mat3,mat4,double,float,int,bool
 >;
 
+
+
 struct ShaderResource {
 	int location;
 	int size;

@@ -27,6 +27,7 @@ project "batterylib"
       libDir .. "src/**.cpp",      
       libDir .. "include/**.h",
       libDir .. "external/**.cpp",
+      libDir .. "external/**.c",
       libDir .. "external/**.h",
    	}
 	
