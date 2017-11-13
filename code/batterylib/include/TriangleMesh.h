@@ -1,3 +1,4 @@
+#pragma once
 #include "Triangle.h"
 
 #include <Eigen/Eigen>

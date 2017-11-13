@@ -1,4 +1,3 @@
-#pragma once
 
 #include "BatteryLibDef.h"
 #include "TriangleMesh.h"
