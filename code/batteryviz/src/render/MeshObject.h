@@ -5,14 +5,19 @@
 
 #include <batterylib/include/TriangleMesh.h>
 
-class MeshObject : SceneObject {
+class MeshObject : public SceneObject {
 
 public:
+
+	MeshObject() = default;
+	~MeshObject() = default;
+
+	MeshObject(blib::TriangleMesh && mesh) : _mesh(mesh), SceneObject() {		
+	}
+
 	const blib::TriangleMesh & getMesh() const;
 
-	blib::TriangleMesh getMesh();
-
-	
+	blib::TriangleMesh getMesh();	
 
 	virtual ShaderOptions getShaderOptions(
 		ShaderType shaderType,

@@ -7,9 +7,9 @@ bool MeshObject::_updateBuffer() const {
   data.reserve(_mesh.size() * 3);
 
   VertexData vd;
-  vd.color[0] = 1.0f;
-  vd.color[1] = 1.0f;
-  vd.color[2] = 1.0f;
+  vd.color[0] = 0.5f;
+  vd.color[1] = 0.5f;
+  vd.color[2] = 0.5f;
   vd.color[3] = 1.0f;
   vd.uv[0] = 0.0f;
   vd.uv[1] = 0.0f;
@@ -23,6 +23,8 @@ bool MeshObject::_updateBuffer() const {
       data.push_back(vd);
     }
   }
+
+  _buffer.setPrimitiveType(GL_TRIANGLES);
 
   return _buffer.setData(data.begin(), data.end());
 }
@@ -40,8 +42,8 @@ ShaderOptions MeshObject::getShaderOptions(ShaderType shaderType,
 
   // Any shaderype, same
 
-  auto M = parentTransform * transform;
-  auto NM = glm::inverse(glm::transpose(glm::mat3(cam.getView() * M)));
+  auto M = parentTransform * getTransform();
+  auto NM = mat4(glm::inverse(glm::transpose(glm::mat3(M))));
 
-  return {{"M", M}, {"NM", NM}, {"PV", cam.getPV()}};
+  return { {"M", M}, {"NM", NM}, {"PV", cam.getPV()}, {"viewPos", cam.getPosition() } };
 }

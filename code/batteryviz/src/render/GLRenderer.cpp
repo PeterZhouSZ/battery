@@ -9,7 +9,7 @@ RenderList getSceneRenderList(const Scene &scene, const ShaderDB &shaders,
   const ShaderType shaderType = SHADER_PHONG;
   const mat4 parentTransform = mat4(1.0f);
 
-  for (auto it : scene) {
+  for (auto it : scene.getObjects()) {
     const auto &obj = *it.second;
 
     RenderList::RenderItem item = {

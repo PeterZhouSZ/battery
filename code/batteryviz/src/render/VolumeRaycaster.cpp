@@ -115,7 +115,7 @@ void VolumeRaycaster::render(const Camera &camera, ivec4 viewport,
 
     GL(glBindFramebuffer(GL_FRAMEBUFFER, _enterExit.enterFramebuffer.ID()));
     glClearColor(0, 0, 0, 0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     glViewport(0, 0, viewport[2], viewport[3]);
 
     glEnable(GL_CULL_FACE);
@@ -124,7 +124,7 @@ void VolumeRaycaster::render(const Camera &camera, ivec4 viewport,
 
     GL(glBindFramebuffer(GL_FRAMEBUFFER, _enterExit.exitFramebuffer.ID()));
     glClearColor(0, 0, 0, 0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     glViewport(0, 0, viewport[2], viewport[3]);
 
     glEnable(GL_CULL_FACE);

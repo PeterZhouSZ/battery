@@ -30,6 +30,10 @@
             "data": true,
             "type": 5
         },
+        "scene": {
+            "data": false,
+            "type": 5
+        },
         "showGradient": {
             "data": false,
             "type": 5
@@ -52,6 +56,10 @@
         },
         "slices": {
             "data": false,
+            "type": 5
+        },
+        "volume": {
+            "data": true,
             "type": 5
         }
     }

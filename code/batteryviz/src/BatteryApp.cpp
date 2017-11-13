@@ -4,6 +4,9 @@
 #include "utility/IOUtility.h"
 
 
+
+#include "render/MeshObject.h"
+
 #include "render/VolumeRaycaster.h"
 #include "render/Shader.h"
 
@@ -21,11 +24,6 @@
 #include <array>
 #include <numeric>
 
-
-//#define EIGEN_USE_THREADS
-//#include <unsupported/Eigen/CXX11/ThreadPool>
-
-
 #define DATA_FOLDER "../../data/graphite/SL43_C5_1c5bar_Data/"
 
 
@@ -41,40 +39,6 @@ RNGUniformInt uniformDistInt(0, INT_MAX);
 #include "render/PrimitivesVBO.h"
 #include "render/Shaders.h"
 
-void quickTestFunc() {
-
-	for (auto k = 0; k < 256; k++) {
-		OrientHistogram oh(8, 8, 8);
-
-
-		const float pi = glm::pi<float>();
-		const vec3 minO = vec3(-pi);
-		const vec3 maxO = vec3(pi);
-
-
-
-		for (auto i = 0; i < 25000000; i++) {
-			//vec3 dir = { normalDist.next() * pi, normalDist.next() * pi, normalDist.next() * pi };
-			//dir *= 0.5f;
-			//dir += 0.0f;
-			vec3 dir = { uniformDist.next() * pi, uniformDist.next() * pi, uniformDist.next() * pi };
-			dir = 2.0f * dir - vec3(pi);
-			dir = glm::clamp(dir, minO, maxO);
-			oh.add(dir.x, dir.y, dir.z);
-		}
-
-		OrientDistribution od(oh);
-
-		std::cout << od.getMRD({ 0,0,0 }) << ", " << od.getMRD({ -3.14f,-3.14f,-3.14f }) << std::endl;
-		
-
-
-		char breakpt;
-		breakpt = 0;
-
-	}
-}
-
 
 
 
@@ -85,9 +49,9 @@ BatteryApp::BatteryApp()
 	
 {	
 
-	//quickTestFunc();
 
-        {
+
+	{
 		std::ifstream optFile(OPTIONS_FILENAME);
 		if (optFile.good())
 			optFile >> _options;
@@ -103,8 +67,7 @@ BatteryApp::BatteryApp()
 		_shaders[SHADER_VOLUME_RAYCASTER],
 		_shaders[SHADER_VOLUME_SLICE]
 	);
-
-
+	
 		
 	_quadric = { 0.988,1.605,1.084 };
 	_autoUpdate = false;
@@ -119,12 +82,9 @@ BatteryApp::BatteryApp()
 
 
 	if(loadDefualt)
-	{
-
-		//propagate exception
+	{		
 		_volume = loadTiffFolder(DATA_FOLDER);				
-		_volumeRaycaster->updateVolume(_volume);
-		
+		_volumeRaycaster->updateVolume(_volume);		
 	}
 	else {
 		const int res = 32;
@@ -135,10 +95,16 @@ BatteryApp::BatteryApp()
 		//_volume.resize({ res, res, res}, 0);		
 		_autoUpdate = true;
 	//	update(0);
-		_autoUpdate = false;
-
-			
+		_autoUpdate = false;			
 	}
+
+
+	/*
+		Scene init
+	*/
+
+	auto sphereObj = make_shared<MeshObject>(blib::generateSphere());
+	_scene.addObject("sphere", sphereObj);
 
 	
 	resetSA();
@@ -277,8 +243,12 @@ void BatteryApp::render(double dt)
 	glClearColor(1, 1, 1, 1);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	
-	float sliceHeight = 0;
+	
 
+	/*
+		Volume slices
+	*/
+	float sliceHeight = 0;
 	if (_options["Render"].get<bool>("slices")){
 		sliceHeight = 1.0f / 3.0f;
 
@@ -296,12 +266,27 @@ void BatteryApp::render(double dt)
 		_volumeRaycaster->renderSlice(2, ivec2(_window.width / 3 * 2, yoffset), ivec2(_window.width / 3, ysize));
 	}
 
-	_camera.setWindowDimensions(_window.width, _window.height  - static_cast<int>(_window.height * sliceHeight));
-	_volumeRaycaster->render(_camera, {
-		0, _window.height * sliceHeight, _window.width, _window.height - _window.height * sliceHeight
-	}, *_shaders[SHADER_POSITION], *_shaders[SHADER_VOLUME_RAYCASTER]);
 
 
+
+
+	/*
+		Gl renderer
+	*/
+	if (_options["Render"].get<bool>("scene")) {
+		auto renderList = getSceneRenderList(_scene, _shaders, _camera);
+		renderList.render();
+	}
+
+	/*
+	Volume raycaster
+	*/
+	if (_options["Render"].get<bool>("volume")) {
+		_camera.setWindowDimensions(_window.width, _window.height - static_cast<int>(_window.height * sliceHeight));
+		_volumeRaycaster->render(_camera, {
+			0, _window.height * sliceHeight, _window.width, _window.height - _window.height * sliceHeight
+		}, *_shaders[SHADER_POSITION], *_shaders[SHADER_VOLUME_RAYCASTER]);
+	}
 
 	/*
 		UI render and update
@@ -338,9 +323,6 @@ void BatteryApp::reloadShaders(bool firstTime)
 		}			
 	}	
 }
-
-
-
 
 
 void BatteryApp::callbackMousePos(GLFWwindow * w, double x, double y)
