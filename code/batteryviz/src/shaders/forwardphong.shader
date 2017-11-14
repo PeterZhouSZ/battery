@@ -106,7 +106,7 @@ uniform vec3 viewPos;
 void main(){
 
 	Material mat;
-	mat.diffuse = vec3(0.7);
+	mat.diffuse = vec3(0.4);
 	mat.ambient = vec3(0.1);
 	mat.specular = vec3(0.1);
 	mat.shininess = 0.8;
@@ -121,11 +121,12 @@ void main(){
 	light[1].color = vec3(0.5);
 	light[1].ambient = 1.0;
 	
+	vec3 N = normalize(fs_in.normal);
 
 	vec3 viewDir =  normalize(fs_in.pos - viewPos);
 
-	vec3 color = phong(light[0], mat, fs_in.pos, viewDir, fs_in.normal) 
-				+ phong(light[1], mat, fs_in.pos, viewDir, fs_in.normal);
+	vec3 color = phong(light[0], mat, fs_in.pos, viewDir, N) 
+				+ phong(light[1], mat, fs_in.pos, viewDir, N);
 	
 	
 	fragColor = vec4(color,1);

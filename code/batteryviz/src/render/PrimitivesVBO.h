@@ -5,3 +5,5 @@
 VertexBuffer<VertexData> getQuadVBO();
 
 VertexBuffer<VertexData> getCubeVBO();
+
+VertexBuffer<VertexData> getSphereVBO();

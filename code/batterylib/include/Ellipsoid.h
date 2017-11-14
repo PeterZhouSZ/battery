@@ -1,8 +1,8 @@
 #pragma once
 
 #include "BatteryLibDef.h"
-
 #include "Transform.h"
+#include "RandomGenerator.h"
 
 #include <Eigen/Eigen>
 
@@ -16,22 +16,30 @@ namespace blib {
 
 
 	struct Ellipsoid {
+
+		static const float theta_min;
+		static const float theta_max;
+		static const float theta_range;
+		static const float phi_min;
+		static const float phi_max;
+		static const float phi_range;
+
 		EllipsoidParam param;
 		Transform transform;
 
-		float & a();
-		float & b();
-		float & c();
+		BLIB_EXPORT float & a();
+		BLIB_EXPORT float & b();
+		BLIB_EXPORT float & c();
 
-		float a() const;
-		float b() const;
-		float c() const;
+		BLIB_EXPORT float a() const;
+		BLIB_EXPORT float b() const;
+		BLIB_EXPORT float c() const;
 
-		Eigen::Vector3f surfacePoint(float theta, float phi) const;
+		BLIB_EXPORT Eigen::Vector3f surfacePoint(float theta, float phi) const;
 
-		float volume() const;
+		BLIB_EXPORT float volume() const;
 
-		float surfaceAreaApproximation() const;
+		BLIB_EXPORT float surfaceAreaApproximation() const;
 
 		bool isOblate(const float eps) const;
 		bool isProlate(const float eps) const;
@@ -39,10 +47,12 @@ namespace blib {
 		/*
 			Point has to be in ellipsoids space (inverse of transform)
 		*/
-		bool isPointIn(const Eigen::Vector3f & pt);
+		BLIB_EXPORT bool isPointIn(const Eigen::Vector3f & pt) const;
 
 
-		bool isPointInGlobal(const Eigen::Vector3f & pt);
+		BLIB_EXPORT bool isPointInGlobal(const Eigen::Vector3f & pt) const;
+
+		BLIB_EXPORT Eigen::Affine3f getSphereTransform() const;
 
 		
 		
@@ -50,5 +60,14 @@ namespace blib {
 	};
 
 	
+
+	bool ellipsoidEllipsoidMonteCarlo(
+		const Ellipsoid & a, 
+		const Ellipsoid & b, 
+		RNGUniformFloat & randomGenerator,
+		int sampleCount = 16
+		);
+
+
 
 }

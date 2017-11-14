@@ -18,6 +18,10 @@
         }
     },
     "Render": {
+        "ellipsoids": {
+            "data": true,
+            "type": 5
+        },
         "opacityBlack": {
             "data": 0.00100000004749745,
             "type": 3

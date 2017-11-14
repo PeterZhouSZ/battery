@@ -1,5 +1,7 @@
 #include "PrimitivesVBO.h"
 
+#include <batterylib/include/TriangleMesh.h>
+
 VertexBuffer<VertexData> getQuadVBO()
 {
 	VertexBuffer<VertexData> vbo;
@@ -60,5 +62,44 @@ VertexBuffer<VertexData> getCubeVBO()
 	ivbo.setPrimitiveType(GL_TRIANGLES);
 
 	return ivbo;
+}
+
+VertexBuffer<VertexData> getSphereVBO()
+{
+
+
+	VertexBuffer<VertexData> vbo;
+	auto mesh = blib::generateSphere(1.0f, 32, 16);
+	
+	
+
+	
+	std::vector<VertexData> data;
+	data.reserve(mesh.size() * 3);
+
+	VertexData vd;
+	vd.color[0] = 0.5f;
+	vd.color[1] = 0.5f;
+	vd.color[2] = 0.5f;
+	vd.color[3] = 1.0f;
+	vd.uv[0] = 0.0f;
+	vd.uv[1] = 0.0f;
+
+	for (auto t : mesh) {
+		const auto N = t.normal();
+		memcpy(&vd.normal, N.data(), N.SizeAtCompileTime * sizeof(float));
+
+		for (auto v : t.v) {
+			memcpy(&vd.pos, v.data(), v.SizeAtCompileTime * sizeof(float));
+			data.push_back(vd);
+		}
+	}
+
+	vbo.setPrimitiveType(GL_TRIANGLES);
+
+	vbo.setData(data.begin(), data.end());
+
+	return vbo;
+
 }
 

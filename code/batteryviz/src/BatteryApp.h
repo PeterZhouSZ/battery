@@ -10,6 +10,7 @@
 #include "utility/Options.h"
 
 #include <batterylib/include/Volume.h>
+#include <batterylib/include/Ellipsoid.h>
 
 #include <batterylib/include/Transform.h>
 #include <batterylib/include/SimulatedAnnealing.h>
@@ -61,6 +62,12 @@ protected:
 	blib::SimulatedAnnealing<
 		std::vector<blib::Transform>
 	> _sa;
+
+
+	blib::SimulatedAnnealing<
+		std::vector<blib::Ellipsoid>
+	> _saEllipsoid;
+
 
 	
 

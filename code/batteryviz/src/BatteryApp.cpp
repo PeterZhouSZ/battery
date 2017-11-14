@@ -126,10 +126,11 @@ void BatteryApp::update(double dt)
 {
 	if (!_autoUpdate) return;
 
-	_sa.update(_options["Optim"].get<int>("stepsPerFrame"));
+	//_sa.update(_options["Optim"].get<int>("stepsPerFrame"));
+	_saEllipsoid.update(_options["Optim"].get<int>("stepsPerFrame"));
 	_volumeRaycaster->updateVolume(_volume);
 
-	std::cout << _sa.currentScore / 1000 << ", P:" << _sa.lastAcceptanceP << ", T: " << _sa.currentTemperature() << "\n";
+	//std::cout << _sa.currentScore / 1000 << ", P:" << _sa.lastAcceptanceP << ", T: " << _sa.currentTemperature() << "\n";
 
 	return;
 
@@ -280,7 +281,29 @@ void BatteryApp::render(double dt)
 	*/
 	if (_options["Render"].get<bool>("scene")) {
 		auto renderList = getSceneRenderList(_scene, _shaders, _camera);
-		renderList.render();
+		renderList.render();	
+	}
+
+	if (_options["Render"].get<bool>("ellipsoids")) {
+
+		RenderList rl;
+
+		static auto vbo = getSphereVBO();
+
+		for (auto & e : _saEllipsoid.state) {
+
+			auto T = e.getSphereTransform();
+			mat4 M = *reinterpret_cast<const mat4*>(T.data());
+			mat4 NM = mat4(glm::transpose(glm::inverse(mat3(M))));
+
+			ShaderOptions so = { { "M", M },{ "NM", NM },{ "PV", _camera.getPV() },{ "viewPos", _camera.getPosition() } };
+			RenderList::RenderItem item = {	vbo, so};		
+			rl.add(_shaders[SHADER_PHONG], item);
+		}
+
+		rl.render();
+
+		
 	}
 
 	/*
@@ -374,9 +397,136 @@ void BatteryApp::callbackChar(GLFWwindow * w, unsigned int code)
 
 void BatteryApp::resetSA()
 {
+
+
+
+	_saEllipsoid.score = [&](const vector<Ellipsoid> & vals) {
+
+		vector<Eigen::Affine3f> transforms(vals.size());
+		for (auto i = 0; i < vals.size(); i++) {
+			transforms[i] = vals[i].transform.getAffine().inverse();
+		}
+
+		_volume.setZero();
+		const auto dims = _volume.dimensions();
+
+		vector<int> collisions(dims[0]);
+
+		#pragma omp parallel for schedule(dynamic)
+		for (auto x = 0; x < dims[0]; x++) {
+			int thisColl = 0;
+			for (auto y = 0; y < dims[1]; y++) {
+				for (auto z = 0; z < dims[2]; z++) {
+					Eigen::Vector3f pos =
+						Eigen::Vector3f(x / float(dims[0]), y / float(dims[1]), z / float(dims[2])) * 2.0f
+						- Eigen::Vector3f(1.0f, 1.0f, 1.0f);
+
+					for (auto i = 0; i < vals.size(); i++) {
+
+						auto inSpace = transforms[i] * pos;
+						
+						if (vals[i].isPointIn(inSpace)) {
+							if (_volume(x, y, z) == 255)
+								thisColl++;
+
+							_volume(x, y, z) = 255;
+						}
+					}
+				}
+			}
+
+			collisions[x] = thisColl;
+		}
+
+		int collTotal = std::accumulate(collisions.begin(), collisions.end(), 0);
+
+		int sum = 0;
+		//todo reduce
+		for (auto x = 0; x < dims[0]; x++) {
+			for (auto y = 0; y < dims[1]; y++) {
+				for (auto z = 0; z < dims[2]; z++) {
+					if (_volume(x, y, z) == 255)
+						sum++;
+				}
+			}
+		}
+
+		//return 1.0f;
+		auto totalVoxels = dims[0] * dims[1] * dims[2];
+
+		float score = (1.0 - sum / float(totalVoxels));// +2 * collTotal / float(totalVoxels);
+
+													   //std::cout << "porosity: " << score << "\n";
+
+		score += 10 * collTotal / float(totalVoxels);
+
+
+		return score * 1000;		
+	};
+
+	_saEllipsoid.getNeighbour = [](const vector<Ellipsoid> & vals) {
+
+		const float step = 0.01f * 15;
+
+		vector<Ellipsoid> newVals = vals;
+
+		using namespace Eigen;
+
+		auto &v = newVals[uniformDistInt.next() % newVals.size()].transform;
+
+		//for (auto & v : newVals) {
+		v.scale += 0.5f * step * Vector3f(normalDist.next(), normalDist.next(), normalDist.next());
+		v.scale = v.scale.cwiseMax(Vector3f{ 0.1f,0.1f,0.1f });
+		v.scale = v.scale.cwiseMin(Vector3f{ 1.0f,1.0f,1.0f });
+
+
+
+		v.translation += step * Vector3f(normalDist.next(), normalDist.next(), normalDist.next());
+		v.translation = v.translation.cwiseMax(Vector3f{ -1,-1,-1 });
+		v.translation = v.translation.cwiseMin(Vector3f{ 1, 1, 1 });
+
+
+
+		Quaternionf q[3];
+		float angleStep = step;
+		q[0] = AngleAxisf(step * normalDist.next(), Vector3f{ 1,0,0 });
+		q[1] = AngleAxisf(step * normalDist.next(), Vector3f{ 0,1,0 });
+		q[2] = AngleAxisf(step * normalDist.next(), Vector3f{ 0,0,1 });
+		v.rotation = v.rotation * q[0] * q[1] * q[2];
+		//}
+
+		return newVals;
+	};
+
+	vector<Ellipsoid> initVec(_options["Optim"].get<int>("N"));
+
+	const float initScale = 0.1f;
+
+	for (auto & v : initVec) {
+
+		v.param = { 1,1,4 };
+		
+		auto & T = v.transform;
+		T.scale = Eigen::Vector3f(normalDist.next(), normalDist.next(), normalDist.next()) * 0.4f + Eigen::Vector3f(initScale, initScale, initScale);
+
+		T.translation = Eigen::Vector3f(normalDist.next(), normalDist.next(), normalDist.next()) * 1.0f;// - Eigen::Vector3f(1.0f,1.0f,1.0f);
+		T.translation = T.translation.cwiseMax(Eigen::Vector3f{ -1,-1,-1 });
+		T.translation = T.translation.cwiseMin(Eigen::Vector3f{ 1, 1, 1 });
+
+	}
+	_saEllipsoid.getTemperature = temperatureExp;
+
+	_saEllipsoid.init(initVec, _options["Optim"].get<int>("maxSteps"));
+
+	return;
+	/*
+	********************************************************************************************
+	*/
+
 	/*
 	Init SA
 	*/
+/*
 
 	_sa.score = [&](const vector<Transform> & vals) {
 
@@ -498,7 +648,7 @@ void BatteryApp::resetSA()
 	}
 	_sa.getTemperature = temperatureExp;
 
-	_sa.init(initVec, _options["Optim"].get<int>("maxSteps"));
+	_sa.init(initVec, _options["Optim"].get<int>("maxSteps"));*/
 
 
 }

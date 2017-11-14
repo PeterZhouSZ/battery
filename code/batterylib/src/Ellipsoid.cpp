@@ -1,10 +1,18 @@
 #include "Ellipsoid.h"
 
+
 using namespace blib;
 
 const float pi = static_cast<float>(std::acos(-1.0));
 
 
+
+const float blib::Ellipsoid::theta_min = -pi / 2.0f;
+const float blib::Ellipsoid::theta_max = pi / 2.0f;
+const float blib::Ellipsoid::theta_range = blib::Ellipsoid::theta_max - blib::Ellipsoid::theta_min;
+const float blib::Ellipsoid::phi_min = -pi;
+const float blib::Ellipsoid::phi_max = pi;
+const float blib::Ellipsoid::phi_range = blib::Ellipsoid::phi_max - blib::Ellipsoid::phi_min;
 
 float blib::Ellipsoid::a() const { return param[0]; }
 float &blib::Ellipsoid::a() { return param[0]; }
@@ -17,7 +25,7 @@ float &blib::Ellipsoid::c() { return param[2]; }
 
 Eigen::Vector3f blib::Ellipsoid::surfacePoint(float theta, float phi) const
 {
-	return {
+	return transform.getAffine() * Eigen::Vector3f{
 		a() * cos(theta) * cos(phi),
 		b() * cos(theta) * sin(phi),
 		c() * sin(theta)
@@ -49,13 +57,44 @@ float blib::Ellipsoid::surfaceAreaApproximation() const
 
 }
 
-bool blib::Ellipsoid::isPointIn(const Eigen::Vector3f &pt) {
+bool blib::Ellipsoid::isPointIn(const Eigen::Vector3f &pt) const {
 	float v = pt[0] * pt[0] / (a() * a()) + pt[1] * pt[1] / (b() * b()) +
             pt[2] * pt[2] / (c() * c());
 
 	return v < 1.0f;
 }
 
-bool blib::Ellipsoid::isPointInGlobal(const Eigen::Vector3f &pt) {
+bool blib::Ellipsoid::isPointInGlobal(const Eigen::Vector3f &pt) const {
 	return isPointIn(transform.applyToPointInverse(pt));
+}
+
+
+Eigen::Affine3f blib::Ellipsoid::getSphereTransform() const
+{
+	return transform.getAffine() * Eigen::Scaling(param);
+}
+
+//////////////
+
+
+bool blib::ellipsoidEllipsoidMonteCarlo(
+	const Ellipsoid & a, 
+	const Ellipsoid & b, 
+	RNGUniformFloat & randomGenerator, 
+	int sampleCount /*= 16 */)
+{
+	const auto phiFunc = [&](){
+		return randomGenerator.next() * Ellipsoid::phi_range - Ellipsoid::phi_min;
+	};
+
+	const auto thetaFunc = [&]() {
+		return randomGenerator.next() * Ellipsoid::theta_range - Ellipsoid::theta_min;
+	};
+
+	for (auto i = 0; i < sampleCount; i++) {		
+		if (b.isPointInGlobal(a.surfacePoint(thetaFunc(), phiFunc())))
+			return true;
+	}
+
+	return false;
 }
