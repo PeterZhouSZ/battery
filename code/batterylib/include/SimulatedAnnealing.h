@@ -13,7 +13,8 @@ namespace blib {
 	BLIB_EXPORT float temperatureLinear(float fraction);
 	BLIB_EXPORT float temperatureQuadratic(float fraction);
 	BLIB_EXPORT float temperatureExp(float fraction);
-
+	
+	
 	
 	template <typename T>
 	struct SimulatedAnnealing {
@@ -24,9 +25,7 @@ namespace blib {
 		std::function<T(const T &)> getNeighbour;
 
 		std::function<float(float fraction)> getTemperature = temperatureLinear;
-		std::function<float(float state, float newState, float temp)> acceptance = defaultAcceptance;
-
-		std::function<void(SimulatedAnnealing<T> & sa)> showState;
+		std::function<float(float state, float newState, float temp)> acceptance = defaultAcceptance;		
 
 		T initState;
 		T state;
@@ -86,7 +85,7 @@ namespace blib {
 				float temperature = currentTemperature();
 				float P = acceptance(currentScore, newScore, temperature);
 				lastAcceptanceP = P;
-				//if(newScore != FLT_MAX && newScore <= currentScore){
+			
 				if (newScore != FLT_MAX && P >= randomUniform()) {
 					state = std::move(newState);
 					currentScore = newScore;
@@ -111,5 +110,42 @@ namespace blib {
 	};
 
 }
+
+
+/*
+
+Templated, compile-time version (not finished)
+
+*/
+//SimulatedAnnealing<T>(2048, scoreFunc(), tempFunc(), acceptFunc());
+
+/*template <typename T>
+using SAScoreFun = float(const T &);
+
+using SATempFun = float(float);
+using SAAcceptFun = float(float, float, float);
+
+template <typename T, SAScoreFun scoreFun, SATempFun temperatureFun, SAAcceptFun acceptFun>
+struct SA {
+
+SA(T && initialState, size_t maxSteps) :
+_currentState(std::move(initialState)),
+_maxSteps(maxSteps),
+_currentStep(0),
+_currentScore
+{
+
+}
+
+float temperature() const {
+return temperatureFun(_currentStep / static_cast<float>(_maxSteps));
+}
+
+private:
+T _currentState;
+T _currentScore;
+const size_t _maxSteps;
+size_t _currentStep;
+};*/
 
 

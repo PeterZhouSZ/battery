@@ -13,34 +13,43 @@ namespace blib {
 
 	template <typename E, typename D, class ...TArgs >
 	struct RandomGenerator {
+		
+		/*
+			Forwards distribution parameters
+		*/
 		RandomGenerator(TArgs && ... args)
-			: distribtion(std::forward<TArgs>(args)...)
+			: _distribtion(std::forward<TArgs>(args)...)
 		{}
 
+		/*
+			Copy assignment sans mutex
+		*/
 		RandomGenerator& operator = (const RandomGenerator &g) {
-			engine = g.engine;
-			distribtion = g.distribtion;
+			_engine = g._engine;
+			_distribtion = g._distribtion;
 			return *this;
 		}
 
+		/*
+			Copy constructor sans mutex
+		*/
 		RandomGenerator(const RandomGenerator &g) {
-			engine = g.engine;
-			distribtion = g.distribtion;
-		}
+			_engine = g._engine;
+			_distribtion = g._distribtion;
+		}			
 
-		E engine;
-		D distribtion;
-
+		/*
+			Returns next value from the random generator
+		*/
 		typedef typename D::result_type result_type;
-
-
-
 		result_type next() {
 			std::lock_guard<std::mutex> lock(_mutex);
-			return distribtion(engine);
+			return _distribtion(_engine);
 		}
 	private:
 		std::mutex _mutex;
+		E _engine;
+		D _distribtion;
 	};
 
 	using RNGNormal = RandomGenerator<
@@ -54,6 +63,10 @@ namespace blib {
 	using RNGUniformFloat = RandomGenerator<
 		std::default_random_engine,
 		std::uniform_real_distribution<float>,
+		float, float>;	
+	using RNGLogNormal = RandomGenerator<
+		std::default_random_engine,
+		std::lognormal_distribution<float>,
 		float, float>;
 
 
@@ -68,6 +81,9 @@ namespace blib {
 			exec(index - 1, args ...);
 	}
 
+	/*
+		Randomly chooses between passed functions and executes one
+	*/
 	template<typename ... Largs>
 	void choose(RNGUniformInt & rnd, Largs ... args) {
 		int index = rnd.next() % (sizeof...(args));
@@ -76,7 +92,9 @@ namespace blib {
 
 
 
-
+	/*
+		Returns -1 or 1, 50% chance
+	*/
 	BLIB_EXPORT int randomBi(RNGUniformInt & rnd);
 
 }
