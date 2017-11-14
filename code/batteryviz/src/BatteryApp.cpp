@@ -439,6 +439,20 @@ void BatteryApp::resetSA()
 		}
 
 		int collTotal = std::accumulate(collisions.begin(), collisions.end(), 0);
+/*
+
+		int collisions = 0;
+		int pairs = 0;
+		for (auto i = 0; i < vals.size(); i++) {
+			auto & ei = vals[i];
+			for (auto j = i; j < vals.size(); j++) {
+				auto & ej = vals[i];
+				pairs++;
+				if (blib::ellipsoidEllipsoidMonteCarlo(ei, ej, uniformDist,128)) {
+					collisions++;
+				}
+			}
+		}*/
 
 		int sum = 0;
 		//todo reduce
@@ -459,6 +473,7 @@ void BatteryApp::resetSA()
 													   //std::cout << "porosity: " << score << "\n";
 
 		score += 10 * collTotal / float(totalVoxels);
+		//score += (collisions / static_cast<float>(pairs)) * 10;
 
 
 		return score * 1000;		

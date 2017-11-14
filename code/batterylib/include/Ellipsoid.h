@@ -61,7 +61,7 @@ namespace blib {
 
 	
 
-	bool ellipsoidEllipsoidMonteCarlo(
+	BLIB_EXPORT bool ellipsoidEllipsoidMonteCarlo(
 		const Ellipsoid & a, 
 		const Ellipsoid & b, 
 		RNGUniformFloat & randomGenerator,
