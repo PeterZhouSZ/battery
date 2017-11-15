@@ -23,8 +23,7 @@ namespace blib {
 		static const float phi_min;
 		static const float phi_max;
 		static const float phi_range;
-
-		EllipsoidParam param;
+		
 		Transform transform;
 
 		BLIB_EXPORT float & a();
@@ -52,9 +51,7 @@ namespace blib {
 
 		BLIB_EXPORT bool isPointInGlobal(const Eigen::Vector3f & pt) const;
 
-		BLIB_EXPORT Eigen::Affine3f getSphereTransform() const;
-
-		
+			
 		
 
 	};

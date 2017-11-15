@@ -292,7 +292,7 @@ void BatteryApp::render(double dt)
 
 		for (auto & e : _saEllipsoid.state) {
 
-			auto T = e.getSphereTransform();
+			auto T = e.transform.getAffine();
 			mat4 M = *reinterpret_cast<const mat4*>(T.data());
 			mat4 NM = mat4(glm::transpose(glm::inverse(mat3(M))));
 
@@ -518,9 +518,7 @@ void BatteryApp::resetSA()
 	const float initScale = 0.1f;
 
 	for (auto & v : initVec) {
-
-		v.param = { 1,1,4 };
-		
+						
 		auto & T = v.transform;
 		T.scale = Eigen::Vector3f(
 			normalDist.next(), normalDist.next(), normalDist.next()

@@ -14,14 +14,14 @@ const float blib::Ellipsoid::phi_min = -pi;
 const float blib::Ellipsoid::phi_max = pi;
 const float blib::Ellipsoid::phi_range = blib::Ellipsoid::phi_max - blib::Ellipsoid::phi_min;
 
-float blib::Ellipsoid::a() const { return param[0]; }
-float &blib::Ellipsoid::a() { return param[0]; }
+float blib::Ellipsoid::a() const { return transform.scale[0]; }
+float &blib::Ellipsoid::a() { return transform.scale[0]; }
 
-float blib::Ellipsoid::b() const { return param[1]; }
-float &blib::Ellipsoid::b() { return param[1]; }
+float blib::Ellipsoid::b() const { return transform.scale[1]; }
+float &blib::Ellipsoid::b() { return transform.scale[1]; }
 
-float blib::Ellipsoid::c() const { return param[2]; }
-float &blib::Ellipsoid::c() { return param[2]; }
+float blib::Ellipsoid::c() const { return transform.scale[2]; }
+float &blib::Ellipsoid::c() { return transform.scale[2]; }
 
 Eigen::Vector3f blib::Ellipsoid::surfacePoint(float theta, float phi) const
 {
@@ -34,9 +34,9 @@ Eigen::Vector3f blib::Ellipsoid::surfacePoint(float theta, float phi) const
 
 float blib::Ellipsoid::volume() const {
 	return (4.0f / 3.0f) * pi * 
-		a() * transform.scale[0] * 
-		b() * transform.scale[1] * 
-		c() * transform.scale[2];
+		a() *
+		b() *
+		c();
 }
 
 float blib::Ellipsoid::surfaceAreaApproximation() const
@@ -46,9 +46,9 @@ float blib::Ellipsoid::surfaceAreaApproximation() const
 
 	const float p = 1.6075f;
 
-	auto ap = pow(a() * transform.scale[0], p);
-	auto bp = pow(b() * transform.scale[1], p);
-	auto cp = pow(c() * transform.scale[2], p);
+	auto ap = pow(a(), p);
+	auto bp = pow(b(), p);
+	auto cp = pow(c(), p);
 
 	return 4.0f * pi * pow(
 		(ap*bp + ap*cp + bp*cp) / 3.0f,
@@ -69,10 +69,7 @@ bool blib::Ellipsoid::isPointInGlobal(const Eigen::Vector3f &pt) const {
 }
 
 
-Eigen::Affine3f blib::Ellipsoid::getSphereTransform() const
-{
-	return transform.getAffine() * Eigen::Scaling(param);
-}
+
 
 //////////////
 
