@@ -22,6 +22,10 @@
             "data": true,
             "type": 5
         },
+        "ellipsoidsBounds": {
+            "data": true,
+            "type": 5
+        },
         "opacityBlack": {
             "data": 0.00100000004749745,
             "type": 3
@@ -52,7 +56,7 @@
         },
         "sliceMin": {
             "data": [
-                -1.0,
+                -0.429000020027161,
                 -1.0,
                 -1.0
             ],

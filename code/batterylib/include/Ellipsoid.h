@@ -3,6 +3,7 @@
 #include "BatteryLibDef.h"
 #include "Transform.h"
 #include "RandomGenerator.h"
+#include "AABB.h"
 
 #include <Eigen/Eigen>
 
@@ -52,7 +53,7 @@ namespace blib {
 		BLIB_EXPORT bool isPointInGlobal(const Eigen::Vector3f & pt) const;
 
 			
-		
+		BLIB_EXPORT AABB aabb() const;
 
 	};
 

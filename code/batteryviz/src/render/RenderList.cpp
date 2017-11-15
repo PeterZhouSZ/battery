@@ -9,6 +9,8 @@ void RenderList::add(const std::shared_ptr<Shader> &shaderPtr,
 
 void RenderList::render() {
 
+	glPushAttrib(GL_POLYGON_BIT);
+
   for (auto it : _shaderToQueue) {
     auto &shader = *it.first;
     const auto &queue = it.second;
@@ -26,10 +28,14 @@ void RenderList::render() {
             },
             shaderOpt.second);
       }
+	  	  
+	  glPolygonMode(GL_FRONT_AND_BACK, item.polygonMode);
 
       item.vbo.render();
     }
 
     shader.unbind();
   }
+
+  glPopAttrib();
 }

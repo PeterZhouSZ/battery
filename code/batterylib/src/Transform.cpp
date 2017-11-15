@@ -16,6 +16,11 @@ Affine3f blib::Transform::getInverseAffine() const
 		* Translation3f(-translation);
 }
 
+Eigen::Matrix3f blib::Transform::getRotation() const
+{
+	return rotation.toRotationMatrix();
+}
+
 Eigen::Vector3f blib::Transform::applyToPointInverse(const Eigen::Vector3f & point) const
 {
 	return getInverseAffine() * point;

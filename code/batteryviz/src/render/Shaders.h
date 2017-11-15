@@ -10,6 +10,7 @@
 
 enum ShaderType  {
 	SHADER_PHONG,
+	SHADER_FLAT,
 	SHADER_POSITION,
 	SHADER_VOLUME_RAYCASTER,
 	SHADER_VOLUME_SLICE,
@@ -30,6 +31,7 @@ const std::array<
 	ShaderType::SHADER_COUNT
 > g_shaderPaths = {
 	"forwardphong",
+	"flat",
 	"position",
 	"volumeraycast",
 	"volumeslice"

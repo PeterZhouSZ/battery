@@ -71,6 +71,36 @@ bool blib::Ellipsoid::isPointInGlobal(const Eigen::Vector3f &pt) const {
 
 
 
+blib::AABB blib::Ellipsoid::aabb() const
+{
+	//https://tavianator.com/exact-bounding-boxes-for-spheres-ellipsoids/
+
+	const auto & t = transform;
+
+	
+
+	const Eigen::Vector3f rsq = t.scale.cwiseProduct(t.scale);
+	const auto R = t.getRotation();
+
+	/*const Eigen::Map<const Eigen::RowVector3f> r0(R.data(), 3);
+	const Eigen::Map<const Eigen::RowVector3f> r1(R.data() + 3, 3);
+	const Eigen::Map<const Eigen::RowVector3f> r2(R.data() + 6, 3);*/	
+
+
+	
+	const Eigen::Vector3f det = {
+		sqrt(rsq.dot(R.row(0).cwiseProduct(R.row(0)))),
+		sqrt(rsq.dot(R.row(1).cwiseProduct(R.row(1)))),
+		sqrt(rsq.dot(R.row(2).cwiseProduct(R.row(2)))),
+	};
+
+	return {
+		t.translation - det,
+		t.translation + det
+	};
+
+}
+
 //////////////
 
 

@@ -9,6 +9,7 @@ struct RenderList {
 	struct RenderItem {
 		const VertexBuffer<VertexData> & vbo;
 		const ShaderOptions shaderOptions;
+		const GLenum polygonMode = GL_FILL;
 	};
 
 	void clear();

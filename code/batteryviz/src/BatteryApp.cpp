@@ -288,22 +288,49 @@ void BatteryApp::render(double dt)
 
 		RenderList rl;
 
-		static auto vbo = getSphereVBO();
+		static auto vboSphere = getSphereVBO();	
 
 		for (auto & e : _saEllipsoid.state) {
-
 			auto T = e.transform.getAffine();
-			mat4 M = *reinterpret_cast<const mat4*>(T.data());
-			mat4 NM = mat4(glm::transpose(glm::inverse(mat3(M))));
+			{
+				mat4 M = *reinterpret_cast<const mat4*>(T.data());
+				mat4 NM = mat4(glm::transpose(glm::inverse(mat3(M))));
 
-			ShaderOptions so = { { "M", M },{ "NM", NM },{ "PV", _camera.getPV() },{ "viewPos", _camera.getPosition() } };
-			RenderList::RenderItem item = {	vbo, so};		
-			rl.add(_shaders[SHADER_PHONG], item);
+				ShaderOptions so = { { "M", M },{ "NM", NM },{ "PV", _camera.getPV() },{ "viewPos", _camera.getPosition() } };
+				RenderList::RenderItem item = { vboSphere, so };
+				rl.add(_shaders[SHADER_PHONG], item);
+			}
+		}
+
+		rl.render();		
+	}
+
+	if (_options["Render"].get<bool>("ellipsoidsBounds")) {
+		RenderList rl;
+
+		static auto vboCube = getCubeVBO();
+
+		for (auto & e : _saEllipsoid.state) {
+			auto bounds = e.aabb();
+			
+			Transform boxT;
+			//Cube VBO is from -1 to 1
+			boxT.scale = (bounds.max - bounds.min);
+			boxT.translation = (bounds.max + bounds.min) * 0.5f;
+
+
+			mat4 M = *reinterpret_cast<const mat4*>(boxT.getAffine().data()) *
+				glm::scale(mat4(), vec3(0.5f));
+			ShaderOptions so = { { "M", M },{ "NM", M },{ "PV", _camera.getPV() },
+				{ "useUniformColor", true },{ "uniformColor", vec4(1,0,0,1) }
+			};
+			RenderList::RenderItem item = { vboCube, so, GL_LINE };
+			rl.add(_shaders[SHADER_FLAT], item);
+			
 		}
 
 		rl.render();
-
-		
+	
 	}
 
 	/*
