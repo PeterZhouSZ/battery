@@ -522,7 +522,13 @@ void BatteryApp::resetSA()
 		v.param = { 1,1,4 };
 		
 		auto & T = v.transform;
-		T.scale = Eigen::Vector3f(normalDist.next(), normalDist.next(), normalDist.next()) * 0.4f + Eigen::Vector3f(initScale, initScale, initScale);
+		T.scale = Eigen::Vector3f(
+			normalDist.next(), normalDist.next(), normalDist.next()
+		) * 0.4f 
+			+ Eigen::Vector3f(initScale, initScale, initScale);
+
+		T.scale = T.scale.cwiseMax(initScale / 2.0f);
+		T.scale = T.scale.cwiseMin(initScale * 2.0f);
 
 		T.translation = Eigen::Vector3f(normalDist.next(), normalDist.next(), normalDist.next()) * 1.0f;// - Eigen::Vector3f(1.0f,1.0f,1.0f);
 		T.translation = T.translation.cwiseMax(Eigen::Vector3f{ -1,-1,-1 });
