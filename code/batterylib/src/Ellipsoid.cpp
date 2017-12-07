@@ -21,7 +21,26 @@ float blib::Ellipsoid::b() const { return transform.scale[1]; }
 float &blib::Ellipsoid::b() { return transform.scale[1]; }
 
 float blib::Ellipsoid::c() const { return transform.scale[2]; }
+
+
+
 float &blib::Ellipsoid::c() { return transform.scale[2]; }
+
+Eigen::Vector3f blib::Ellipsoid::longestAxis() const
+{
+	if (a() > b()) {
+		if (a() > b())
+			return a() * Eigen::Vector3f::UnitX();
+		else
+			return b() * Eigen::Vector3f::UnitY();
+	}
+	
+	if (b() > c())
+		return b() * Eigen::Vector3f::UnitY();
+	else
+		return c() * Eigen::Vector3f::UnitZ();	
+	
+}
 
 Eigen::Vector3f blib::Ellipsoid::surfacePoint(float theta, float phi) const
 {

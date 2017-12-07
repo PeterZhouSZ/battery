@@ -35,6 +35,8 @@ namespace blib {
 		BLIB_EXPORT float b() const;
 		BLIB_EXPORT float c() const;
 
+		BLIB_EXPORT Eigen::Vector3f longestAxis() const;
+
 		BLIB_EXPORT Eigen::Vector3f surfacePoint(float theta, float phi) const;
 
 		BLIB_EXPORT float volume() const;
