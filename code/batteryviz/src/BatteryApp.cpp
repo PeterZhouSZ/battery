@@ -126,118 +126,11 @@ void BatteryApp::update(double dt)
 {
 	if (!_autoUpdate) return;
 
-	//_sa.update(_options["Optim"].get<int>("stepsPerFrame"));
+	
 	_saEllipsoid.update(_options["Optim"].get<int>("stepsPerFrame"));
-	_volumeRaycaster->updateVolume(_volume);
-
-	//std::cout << _sa.currentScore / 1000 << ", P:" << _sa.lastAcceptanceP << ", T: " << _sa.currentTemperature() << "\n";
+	_volumeRaycaster->updateVolume(_volume);	
 
 	return;
-
-
-
-	/*{
-		auto & v = _volume;
-		v = std::move(blib::diffuse(v, _options["Optim"].get<double>("diffusivity")));
-		_volumeRaycaster->updateVolume(_volume);
-		return;
-	}*/
-
-
-
-
-	
-	
-	//const int N = _options["Optim"].get<int>("N");
-	const int N = 1;
-
-		
-	vector<mat4> transforms(N);
-	
-	float scaleMu = 0.25f;
-	float scaleSigma = 0.15f;
-	
-
-	for (auto i = 0; i < N; i++) {
-		float scale = scaleMu + normalDist.next() * scaleSigma;
-		vec3 angles = { uniformDist.next(), uniformDist.next(), uniformDist.next() };
-		vec3 offset = { uniformDist.next(), uniformDist.next(), uniformDist.next() };
-		angles *= glm::pi<float>();		
-		offset = (offset* 2.0f) - vec3(1.0f);
-
-		auto M = glm::translate(mat4(), offset) *
-			glm::rotate(mat4(), angles[0], vec3(1, 1, 0)) *
-			glm::rotate(mat4(), angles[1], vec3(0, 1, 0)) *
-			glm::rotate(mat4(), angles[2], vec3(0, 0, 1)) *
-			glm::scale(mat4(), vec3(scale));
-
-		transforms[i] = glm::inverse(M);
-	}
-
-	float static t = 0.0f;
-	
-
-	transforms[0] = glm::inverse(glm::rotate(mat4(), t, vec3(0, 1.0, 0)));
-
-	t += float(dt);
-
-
-	vec3 q = _quadric;
-
-	mat4 M = glm::translate(mat4(), vec3(-0.5f,0.4f, 0.1f)) * glm::rotate(mat4(), 0.4f, vec3(1,0,0)) * glm::scale(mat4(), vec3(0.2f));
-	mat4 invM = glm::inverse(M);
-
-	std::vector<vec3> quadrics;
-
-	
-	const auto quadricImplicit = [](const vec3 & pos, const vec3 & q) {
-		return (glm::pow(glm::abs(pos.x), q.x) + glm::pow(glm::abs(pos.y), q.y) + glm::pow(glm::abs(pos.z), q.z));
-	};
-
-
-	
-	_volume.setZero();
-
-	const auto dims = _volume.dimensions();
-
-	#pragma omp parallel for schedule(dynamic)
-	for (auto x = 0; x < dims[0]; x++) {
-		for (auto y = 0; y < dims[1]; y++) {
-			for (auto z = 0; z < dims[2]; z++) {
-				vec3 pos = vec3(x / float(dims[0]), y / float(dims[1]), z / float(dims[2])) * 2.0f - vec3(1.0f);
-
-				for (auto & M : transforms) {
-					vec3 inSpace = vec3(M * vec4(pos, 1));
-					float v = quadricImplicit(inSpace, q);
-
-					if (v < 1.0f) {
-						_volume(x, y, z) = 255;
-						break;
-					}
-				}
-			}
-		}
-	}
-	
-	//_volume.convolve()
-
-	//Eigen::SimpleThreadPool tpi(8);
-	//Eigen::ThreadPoolDevice device(&tpi,8);
-
-	/*struct op : Eigen::TensorCustomUnaryOp< {
-
-	};*/
-
-	//_volume.device(device) = _volume.unaryExpr([])
-
-	
-	
-	/*_volume = _volume.unaryExpr([](unsigned char c) { 
-		return 255; 
-	});*/
-
-
-	_volumeRaycaster->updateVolume(_volume);	
 }
 
 void BatteryApp::render(double dt)
@@ -506,195 +399,80 @@ void BatteryApp::resetSA()
 		return score * 1000;		
 	};
 
-	_saEllipsoid.getNeighbour = [](const vector<Ellipsoid> & vals) {
+	_saEllipsoid.getNeighbour = [&](const vector<Ellipsoid> & vals) {
 
-		const float step = 0.01f * 15;
+		const float step = _options["Optim"]["SA"].get<float>("neighbourStep");
 
 		vector<Ellipsoid> newVals = vals;
 
 		using namespace Eigen;
 
 		auto &v = newVals[uniformDistInt.next() % newVals.size()].transform;
+		
+		if (_options["Optim"]["SA"].get<bool>("doScale")){
+			v.scale += 0.5f * step * Vector3f(normalDist.next(), normalDist.next(), normalDist.next());
+			v.scale = v.scale.cwiseMax(Vector3f{ 0.1f,0.1f,0.1f });
+			v.scale = v.scale.cwiseMin(Vector3f{ 1.0f,1.0f,1.0f });
+		}
+		
+		if (_options["Optim"]["SA"].get<bool>("doTranslate")) {
+			v.translation += step * Vector3f(normalDist.next(), normalDist.next(), normalDist.next());
+			v.translation = v.translation.cwiseMax(Vector3f{ -1,-1,-1 });
+			v.translation = v.translation.cwiseMin(Vector3f{ 1, 1, 1 });
+		}
 
-		//for (auto & v : newVals) {
-		v.scale += 0.5f * step * Vector3f(normalDist.next(), normalDist.next(), normalDist.next());
-		v.scale = v.scale.cwiseMax(Vector3f{ 0.1f,0.1f,0.1f });
-		v.scale = v.scale.cwiseMin(Vector3f{ 1.0f,1.0f,1.0f });
+		if (_options["Optim"]["SA"].get<bool>("doRotate")) {			
+			Quaternionf q[3];
+			float angleStep = step;
+			q[0] = AngleAxisf(step * normalDist.next(), Vector3f{ 1,0,0 });
+			q[1] = AngleAxisf(step * normalDist.next(), Vector3f{ 0,1,0 });
+			q[2] = AngleAxisf(step * normalDist.next(), Vector3f{ 0,0,1 });
+			v.rotation = v.rotation * q[0] * q[1] * q[2];			
+		}
 
-
-
-		v.translation += step * Vector3f(normalDist.next(), normalDist.next(), normalDist.next());
-		v.translation = v.translation.cwiseMax(Vector3f{ -1,-1,-1 });
-		v.translation = v.translation.cwiseMin(Vector3f{ 1, 1, 1 });
-
-
-
-		Quaternionf q[3];
-		float angleStep = step;
-		q[0] = AngleAxisf(step * normalDist.next(), Vector3f{ 1,0,0 });
-		q[1] = AngleAxisf(step * normalDist.next(), Vector3f{ 0,1,0 });
-		q[2] = AngleAxisf(step * normalDist.next(), Vector3f{ 0,0,1 });
-		v.rotation = v.rotation * q[0] * q[1] * q[2];
-		//}
 
 		return newVals;
 	};
 
-	vector<Ellipsoid> initVec(_options["Optim"].get<int>("N"));
+	vector<Ellipsoid> initVec(_options["Optim"]["SA"].get<int>("N"));
 
-	const float initScale = 0.1f;
+	
+	const Eigen::Vector3f alignmentAxis = Eigen::Vector3f::UnitX();
+	const float MRD = _options["Optim"]["SA"].get<float>("MRD");
+	const float MRDDelta = _options["Optim"]["SA"].get<float>("MRDDeltaRad");
+	const float scaleInit = _options["Optim"]["SA"].get<float>("scaleInit");
+	const float scaleMultMin = _options["Optim"]["SA"].get<float>("scaleMultMin");
+	const float scaleMultMax = _options["Optim"]["SA"].get<float>("scaleMultMax");	
 
 	for (auto & v : initVec) {
 						
-		auto & T = v.transform;
-		T.scale = Eigen::Vector3f(
-			normalDist.next(), normalDist.next(), normalDist.next()
-		) * 0.4f 
-			+ Eigen::Vector3f(initScale, initScale, initScale);
+		auto & T = v.transform;	
 
-		T.scale = T.scale.cwiseMax(initScale / 2.0f);
-		T.scale = T.scale.cwiseMin(initScale * 2.0f);
+		T.scale = Eigen::Vector3f(scaleInit, scaleInit, scaleInit) + 
+			Eigen::Vector3f(
+				0, 1.0f + normalDist.next(), 0
+			);
+		
+		T.scale = T.scale.cwiseMax(scaleInit * scaleMultMin);
+		T.scale = T.scale.cwiseMin(scaleInit * scaleMultMax);
 
 		T.translation = Eigen::Vector3f(normalDist.next(), normalDist.next(), normalDist.next()) * 1.0f;// - Eigen::Vector3f(1.0f,1.0f,1.0f);
 		T.translation = T.translation.cwiseMax(Eigen::Vector3f{ -1,-1,-1 });
 		T.translation = T.translation.cwiseMin(Eigen::Vector3f{ 1, 1, 1 });
 
+		//;
+
+		auto targetAxis = randomOrientation(uniformDist, MRD, alignmentAxis, MRDDelta, true);
+		auto longestAxis = v.longestAxis().normalized();
+		auto rotAxis = longestAxis.cross(targetAxis);
+		float angle = acos(targetAxis.dot(longestAxis));
+		T.rotation = Eigen::AngleAxisf(angle, rotAxis);		
+	
 	}
+
 	_saEllipsoid.getTemperature = temperatureExp;
 
 	_saEllipsoid.init(initVec, _options["Optim"].get<int>("maxSteps"));
-
-	return;
-	/*
-	********************************************************************************************
-	*/
-
-	/*
-	Init SA
-	*/
-/*
-
-	_sa.score = [&](const vector<Transform> & vals) {
-
-
-		vector<Eigen::Affine3f> transforms(vals.size());
-		for (auto i = 0; i < vals.size(); i++) {
-			transforms[i] = vals[i].getAffine().inverse();
-		}
-
-		const auto quadricImplicit = [](const Eigen::Vector3f & pos, const vec3 & q) {
-			return (glm::pow(glm::abs(pos[0]), q.x) + glm::pow(glm::abs(pos[1]), q.y) + glm::pow(glm::abs(pos[2]), q.z));
-		};
-
-
-		_volume.setZero();
-		const auto dims = _volume.dimensions();
-
-		vector<int> collisions(dims[0]);
-
-#pragma omp parallel for schedule(dynamic)
-		for (auto x = 0; x < dims[0]; x++) {
-			int thisColl = 0;
-			for (auto y = 0; y < dims[1]; y++) {
-				for (auto z = 0; z < dims[2]; z++) {
-					Eigen::Vector3f pos =
-						Eigen::Vector3f(x / float(dims[0]), y / float(dims[1]), z / float(dims[2])) * 2.0f
-						- Eigen::Vector3f(1.0f, 1.0f, 1.0f);
-
-					for (auto & M : transforms) {
-
-						auto inSpace = M * pos;
-						float v = quadricImplicit(inSpace, _quadric);
-
-						if (v < 1.0f) {
-							if (_volume(x, y, z) == 255)
-								thisColl++;
-
-							_volume(x, y, z) = 255;
-						}
-					}
-				}
-			}
-
-			collisions[x] = thisColl;
-		}
-
-		int collTotal = std::accumulate(collisions.begin(), collisions.end(), 0);
-
-		int sum = 0;
-		//todo reduce
-		for (auto x = 0; x < dims[0]; x++) {
-			for (auto y = 0; y < dims[1]; y++) {
-				for (auto z = 0; z < dims[2]; z++) {
-					if (_volume(x, y, z) == 255)
-						sum++;
-				}
-			}
-		}
-
-		//return 1.0f;
-		auto totalVoxels = dims[0] * dims[1] * dims[2];
-
-		float score = (1.0 - sum / float(totalVoxels));// +2 * collTotal / float(totalVoxels);
-
-													   //std::cout << "porosity: " << score << "\n";
-
-		score += 10 * collTotal / float(totalVoxels);
-
-
-		return score * 1000;
-
-		//Eigen::Tensor<unsigned char, 0> b = _volume.sum();
-
-	};
-
-	_sa.getNeighbour = [](const vector<Transform> & vals) {
-
-		const float step = 0.01f * 15;
-
-		vector<Transform> newVals = vals;
-
-		using namespace Eigen;
-
-		auto &v = newVals[uniformDistInt.next() % newVals.size()];
-
-		//for (auto & v : newVals) {
-		v.scale += 0.5f * step * Vector3f(normalDist.next(), normalDist.next(), normalDist.next());
-		v.scale = v.scale.cwiseMax(Vector3f{ 0.1f,0.1f,0.1f });
-		v.scale = v.scale.cwiseMin(Vector3f{ 1.0f,1.0f,1.0f });
-
-
-
-		v.translation += step * Vector3f(normalDist.next(), normalDist.next(), normalDist.next());
-		v.translation = v.translation.cwiseMax(Vector3f{ -1,-1,-1 });
-		v.translation = v.translation.cwiseMin(Vector3f{ 1, 1, 1 });
-
-
-
-		Quaternionf q[3];
-		float angleStep = step;
-		q[0] = AngleAxisf(step * normalDist.next(), Vector3f{ 1,0,0 });
-		q[1] = AngleAxisf(step * normalDist.next(), Vector3f{ 0,1,0 });
-		q[2] = AngleAxisf(step * normalDist.next(), Vector3f{ 0,0,1 });
-		v.rotation = v.rotation * q[0] * q[1] * q[2];
-		//}
-
-		return newVals;
-	};
-
-
-	vector<Transform> initVec(_options["Optim"].get<int>("N"));
-
-	for (auto & v : initVec) {
-		v.scale = Eigen::Vector3f(normalDist.next(), normalDist.next(), normalDist.next()) * 0.4f + Eigen::Vector3f(0.2f, 0.2f, 0.2f);
-
-		v.translation = Eigen::Vector3f(normalDist.next(), normalDist.next(), normalDist.next()) * 1.0f;// - Eigen::Vector3f(1.0f,1.0f,1.0f);
-		v.translation = v.translation.cwiseMax(Eigen::Vector3f{ -1,-1,-1 });
-		v.translation = v.translation.cwiseMin(Eigen::Vector3f{ 1, 1, 1 });
-	}
-	_sa.getTemperature = temperatureExp;
-
-	_sa.init(initVec, _options["Optim"].get<int>("maxSteps"));*/
-
+	
 
 }

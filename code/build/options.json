@@ -1,8 +1,46 @@
 {
     "Optim": {
-        "N": {
-            "data": 16,
-            "type": 2
+        "SA": {
+            "MRD": {
+                "data": 10.0,
+                "type": 3
+            },
+            "MRDDeltaRad": {
+                "data": 0.150000005960464,
+                "type": 3
+            },
+            "N": {
+                "data": 32,
+                "type": 2
+            },
+            "doRotate": {
+                "data": false,
+                "type": 5
+            },
+            "doScale": {
+                "data": true,
+                "type": 5
+            },
+            "doTranslate": {
+                "data": true,
+                "type": 5
+            },
+            "neighbourStep": {
+                "data": 0.150000005960464,
+                "type": 3
+            },
+            "scaleInit": {
+                "data": 0.400000005960464,
+                "type": 3
+            },
+            "scaleMultMax": {
+                "data": 2.0,
+                "type": 3
+            },
+            "scaleMultMin": {
+                "data": 0.5,
+                "type": 3
+            }
         },
         "diffusivity": {
             "data": 1.0,
@@ -56,7 +94,7 @@
         },
         "sliceMin": {
             "data": [
-                -0.429000020027161,
+                -1.0,
                 -1.0,
                 -1.0
             ],
