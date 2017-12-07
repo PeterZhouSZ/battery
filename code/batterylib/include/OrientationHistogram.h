@@ -3,6 +3,8 @@
 #include <vector>
 #include <Eigen/Eigen>
 
+#include "RandomGenerator.h"
+
 namespace blib {
 
 
@@ -13,6 +15,9 @@ namespace blib {
 			unsigned int bucketsRoll
 		);
 
+		/*
+			orientation in euler angles
+		*/
 		BLIB_EXPORT void add(const Eigen::Vector3f & orientation);
 		BLIB_EXPORT void add(float yaw, float pitch, float roll);
 
@@ -36,5 +41,17 @@ namespace blib {
 		const Eigen::Vector3f _sizeF;	
 		const float _totalValues;
 	};
+
+	/*
+		Returns a vector that is (MRD) times likely to be aligned within deltaRad to axis than uniformly distributed.
+	*/
+	BLIB_EXPORT Eigen::Vector3f randomOrientation(
+		RNGUniformFloat & rnd,
+		float MRD,
+		const Eigen::Vector3f & axis,
+		float deltaRad,
+		bool symmetric = true
+	);
+	
 
 }

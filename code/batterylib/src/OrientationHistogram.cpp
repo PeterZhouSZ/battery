@@ -1,6 +1,7 @@
 #include "OrientationHistogram.h"
 
 #include <unsupported/Eigen/EulerAngles>
+#include <Eigen/Geometry>
 #include <numeric>
 
 using namespace Eigen;
@@ -74,4 +75,73 @@ float blib::OrientDistribution::getMRD(float yaw, float pitch, float roll) const
 	return getMRD({ yaw,pitch,roll });
 }
 
+
+/*
+	planeN must be normalized
+*/
+std::pair<Eigen::Vector3f, Eigen::Vector3f> vectorToPlaneBasis(const Eigen::Vector3f & planeN)
+{
+	const Vector3f v0 = planeN;
+	Vector3f v1 = v0;
+	Vector3f v2;
+	{		
+		int i = 0;
+		Vector3f absv0 = v0.cwiseAbs();
+		if (absv0.x() < absv0.y()) {
+			i = (absv0.x() < absv0.z()) ? 0 : 2;
+		}
+		else {
+			i = (absv0.y() < absv0.z()) ? 1 : 2;
+		}	
+
+		v1 = v0;
+		v1[i] = 1.0f;
+
+		v1 = v1.normalized();
+		v2 = v0.cross(v1).normalized();
+		v1 = v2.cross(v0).normalized();		
+
+		assert(!isnan(v2[0]) && !isinf(v2[0]));
+	}
+
+	return { v1, v2 };	
+}
+
+Eigen::Vector3f blib::randomOrientation(RNGUniformFloat & rnd, float MRD, const Eigen::Vector3f & axis, float deltaRad, bool symmetric)
+{
+
+	//Get normal plane basis
+	Vector3f a, b;
+	std::tie(a,b) = vectorToPlaneBasis(axis);
+
+	//Random rotation axis, orthogonal to axis
+	Vector3f rotAxis = (rnd.next() * a + rnd.next() * b).normalized();
+	
+	
+	float rotAngle = 0.0f;
+
+	//Aligned within +/-deltaRad
+	if (rnd.next() > 1.0f / MRD) {		
+		rotAngle = rnd.next() * deltaRad * 2 - deltaRad;
+
+		if (symmetric && rnd.next() < 0.5f)
+			rotAngle += pi;
+	}
+	//Misaligned (uniformly distributed outside deltaRad)
+	else {		
+		if (symmetric) {
+			float range = (pi - 2 * deltaRad);
+			rotAngle = rnd.next() * range + deltaRad;
+			if (rnd.next() < 0.5f) {
+				rotAngle += pi;
+			}			
+		}
+		else {
+			float range = (2.0f * pi - 2 * deltaRad);
+			rotAngle = rnd.next() * range + deltaRad;
+		}		
+	}
+
+	return (Eigen::AngleAxisf(rotAngle, rotAxis) * axis);
+}
 
