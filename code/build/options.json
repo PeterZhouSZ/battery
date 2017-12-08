@@ -2,7 +2,7 @@
     "Optim": {
         "SA": {
             "MRD": {
-                "data": 10.0,
+                "data": 1.0,
                 "type": 3
             },
             "MRDDeltaRad": {
@@ -30,7 +30,7 @@
                 "type": 3
             },
             "scaleInit": {
-                "data": 0.400000005960464,
+                "data": 0.100000001490116,
                 "type": 3
             },
             "scaleMultMax": {

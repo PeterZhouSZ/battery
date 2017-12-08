@@ -462,7 +462,7 @@ void BatteryApp::resetSA()
 
 		//;
 
-		auto targetAxis = randomOrientation(uniformDist, MRD, alignmentAxis, MRDDelta, true);
+		auto targetAxis = randomOrientationGauss(normalDist,uniformDist, MRD, alignmentAxis, MRDDelta, true);
 		auto longestAxis = v.longestAxis().normalized();
 		auto rotAxis = longestAxis.cross(targetAxis);
 		float angle = acos(targetAxis.dot(longestAxis));

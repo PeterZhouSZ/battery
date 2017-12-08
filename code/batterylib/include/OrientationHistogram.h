@@ -45,11 +45,20 @@ namespace blib {
 	/*
 		Returns a vector that is (MRD) times likely to be aligned within deltaRad to axis than uniformly distributed.
 	*/
-	BLIB_EXPORT Eigen::Vector3f randomOrientation(
+	BLIB_EXPORT Eigen::Vector3f randomOrientationDiscrete(
 		RNGUniformFloat & rnd,
 		float MRD,
 		const Eigen::Vector3f & axis,
 		float deltaRad,
+		bool symmetric = true
+	);
+
+	BLIB_EXPORT Eigen::Vector3f randomOrientationGauss(
+		RNGNormal & rndNormal,
+		RNGUniformFloat & rndUniform,
+		float MRD,
+		const Eigen::Vector3f & axis,
+		float sigma,
 		bool symmetric = true
 	);
 	

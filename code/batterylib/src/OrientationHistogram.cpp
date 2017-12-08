@@ -107,7 +107,7 @@ std::pair<Eigen::Vector3f, Eigen::Vector3f> vectorToPlaneBasis(const Eigen::Vect
 	return { v1, v2 };	
 }
 
-Eigen::Vector3f blib::randomOrientation(RNGUniformFloat & rnd, float MRD, const Eigen::Vector3f & axis, float deltaRad, bool symmetric)
+Eigen::Vector3f blib::randomOrientationDiscrete(RNGUniformFloat & rnd, float MRD, const Eigen::Vector3f & axis, float deltaRad, bool symmetric)
 {
 
 	//Get normal plane basis
@@ -143,5 +143,30 @@ Eigen::Vector3f blib::randomOrientation(RNGUniformFloat & rnd, float MRD, const 
 	}
 
 	return (Eigen::AngleAxisf(rotAngle, rotAxis) * axis);
+}
+
+Eigen::Vector3f blib::randomOrientationGauss(
+	RNGNormal & rndNormal,
+	RNGUniformFloat & rndUniform,
+	float MRD, 
+	const Eigen::Vector3f & axis, 
+	float MRDDelta, //unused
+	bool symmetric /*= true */)
+{
+	static float sqrtpi = sqrtf(pi / 2.0f);
+	
+	float sigma = sqrtpi / MRD;
+
+	//Get normal plane basis
+	Vector3f a, b;
+	std::tie(a, b) = vectorToPlaneBasis(axis);
+
+	//Random rotation axis, orthogonal to axis
+	Vector3f rotAxis = (rndUniform.next() * a + rndUniform.next() * b).normalized();
+
+	float rotAngle = rndNormal.next() * sigma; //not sure if correct?
+
+	return (Eigen::AngleAxisf(rotAngle, rotAxis) * axis);
+
 }
 
