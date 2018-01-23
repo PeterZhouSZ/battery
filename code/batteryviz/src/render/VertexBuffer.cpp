@@ -96,8 +96,8 @@ VertexBuffer<T>::~VertexBuffer()
 	glDeleteVertexArrays(1, &m_vao);
 	glDeleteBuffers(1, &m_buffer);
 	glDeleteBuffers(1, &m_indexBuffer);
-
-	GLError(THIS_LINE);
+	//TODO fix this destructor
+	//GLError(THIS_LINE);
 	m_buffer = 0;
 	m_vao = 0;
 }

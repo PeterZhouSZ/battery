@@ -1,0 +1,1 @@
+cuda-memcheck ..\bin\Debug\batteryviz.exe

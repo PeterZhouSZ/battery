@@ -61,10 +61,10 @@ size_t directoryFileCount(const char * path)
 }
 
 
-BLIB_EXPORT Volume<unsigned char> blib::loadTiffFolder(const char * folder)
+
+VolumeChannel blib::loadTiffFolder(const char * folder)
 {
-	
-	Volume<unsigned char> volume;
+		
 
 	fs::path path(folder);
 
@@ -90,32 +90,26 @@ BLIB_EXPORT Volume<unsigned char> blib::loadTiffFolder(const char * folder)
 	if (bytes != 1)
 		throw "only uint8 supported right now";
 	
-	volume.resize(x, y, numSlices);
 
-	std::vector<unsigned char> buffer(x*y, 0);	
+	VolumeChannel volume({ x,y,numSlices }, TYPE_UCHAR, false) ;
 
-	int cnt = 0;
-	Eigen::Index sliceIndex = 0;
+	uchar * ptr = (uchar*)volume.getCurrentPtr().getCPU();
+
+	
+
+	
+	uint sliceIndex = 0;
 	for (auto & f : fs::directory_iterator(path)) {
-		if (fs::is_directory(f)) continue;
-
-		size_t index = (cnt++) * (x * y * bytes);		
+		if (fs::is_directory(f)) continue;		
 		
-		readTiff(f.path().string().c_str(), buffer.data());
-
-		for (Eigen::Index i = 0; i < x; i++) {
-			for (Eigen::Index j = 0; j < y; j++) {
-				volume(i, j, sliceIndex) = buffer[i + j*x];
-			}
-		}
+		readTiff(f.path().string().c_str(), ptr + (sliceIndex * x * y));
 
 		sliceIndex++;
 	}	
 
+	volume.getCurrentPtr().commit();
+
 	return volume;
-
-
-
 }
 
 

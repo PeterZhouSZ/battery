@@ -8,9 +8,11 @@
 #include "batterylib/include/Volume.h"
 
 
+
 struct VolumeRaycaster {
 
 	struct EnterExitVolume {
+		EnterExitVolume();
 		void resize(GLuint w, GLuint h);
 
 		FrameBuffer enterFramebuffer;
@@ -25,7 +27,8 @@ struct VolumeRaycaster {
 		std::shared_ptr<Shader> shaderSlice
 	);
 
-	bool updateVolume(const blib::Volume<unsigned char> & volume);
+	
+	bool setVolume(const blib::Volume & volume, int channel);
 
 	void render(
 		const Camera & camera,
@@ -45,11 +48,17 @@ struct VolumeRaycaster {
 	bool preserveAspectRatio;
 	bool showGradient;
 
+	void setTransferJet();
+	void setTransferGray();
+
 private:
 	EnterExitVolume _enterExit;
 
-	Texture _volumeTexture;
+	
 	Texture _transferTexture;
+
+	GLuint _volTexture;
+	ivec3 _volDim;
 
 	
 

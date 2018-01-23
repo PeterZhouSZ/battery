@@ -57,19 +57,19 @@
     },
     "Render": {
         "ellipsoids": {
-            "data": true,
+            "data": false,
             "type": 5
         },
         "ellipsoidsBounds": {
-            "data": true,
+            "data": false,
             "type": 5
         },
         "opacityBlack": {
-            "data": 0.00100000004749745,
+            "data": 0.0363339334726334,
             "type": 3
         },
         "opacityWhite": {
-            "data": 0.0500000007450581,
+            "data": 0.100000001490116,
             "type": 3
         },
         "preserveAspectRatio": {

@@ -1,7 +1,7 @@
 #include "Texture.h"
 #include <cassert>
 
-#include "render/GLGlobal.h"
+#include <batterylib/include/GLGlobal.h>
 
 Texture::Texture(GLenum type /*= GL_TEXTURE_2D*/, GLuint width /*= 0*/, GLuint height /*= 0*/, GLuint depth /*= 0*/) : 
 	type(type), 

@@ -332,8 +332,10 @@ void Ui::update(double dt)
 
 	if (filename != "") {
 		try {
-			_app._volume = blib::loadTiffFolder(curDir.c_str());
-			_app._volumeRaycaster->updateVolume(_app._volume);
+			auto id = _app._volume->emplaceChannel(
+				blib::loadTiffFolder(curDir.c_str())
+			);
+			_app._volumeRaycaster->setVolume(*_app._volume, id);			
 		}
 		catch (const char * ex){
 			std::cerr << ex << std::endl;
@@ -341,27 +343,6 @@ void Ui::update(double dt)
 	}
 
 	
-	if (ImGui::Button("Erode")) {		
-		auto & v = _app._volume;	
-		v = std::move(blib::erode(v));
-		_app._volumeRaycaster->updateVolume(_app._volume);
-	}
-
-	ImGui::SameLine();
-	if (ImGui::Button("Dilate")) {
-		auto & v = _app._volume;
-		v = std::move(blib::dilate(v));
-		_app._volumeRaycaster->updateVolume(_app._volume);
-		
-	}
-
-	ImGui::SameLine();
-	if (ImGui::Button("Diffuse")) {
-		auto & v = _app._volume;
-		v = std::move(blib::diffuse(v, _app._options["Optim"].get<double>("diffusivity")));
-		_app._volumeRaycaster->updateVolume(_app._volume);
-
-	}
 
 
 

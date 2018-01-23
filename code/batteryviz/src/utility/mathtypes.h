@@ -1,23 +1,24 @@
 #pragma once
-#include <glm/glm.hpp>
-#include <glm/gtc/constants.hpp>
+
+#include <batterylib/include/Types.h>
+
+using vec2 = blib::vec2;
+using vec3 = blib::vec3;
+using vec4 = blib::vec4;
+
+using color3 = blib::vec3;
+using color4 = blib::vec4;
+
+using ivec2 = blib::ivec2;
+using ivec3 = blib::ivec3;
+using ivec4 = blib::ivec4;
+
+using mat3 = blib::mat3;
+using mat2 = blib::mat2;
+using mat4 = blib::mat4;
 
 
-using vec2 = glm::vec2;
-using vec3 = glm::vec3;
-using vec4 = glm::vec4;
-
-using color3 = glm::vec3;
-using color4 = glm::vec4;
-
-using ivec2 = glm::ivec2;
-using ivec3 = glm::ivec3;
-using ivec4 = glm::ivec4;
-
-using mat3 = glm::mat3;
-using mat2 = glm::mat2;
-using mat4 = glm::mat4;
-
+#define PI blib::pi()
 
 
 

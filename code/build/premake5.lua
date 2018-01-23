@@ -3,6 +3,9 @@ local glew = os.getenv("GLEW_PATH") -- glew-2.0.0
 local glm = os.getenv("GLM_PATH") --glm 0.9.8
 local eigen = os.getenv("EIGEN_PATH") --eigen 3.3.4
 
+cuda_version = "9.0"
+include("C:/libs/cudapremake/premake-cuda/cuda.lua")
+
 --local blib = "../../batterylib" 
 local vizDir = "../batteryviz/"
 local libDir = "../batterylib/"
@@ -25,6 +28,8 @@ project "batterylib"
   	files {   	   
       libDir .. "src/**.h", 
       libDir .. "src/**.cpp",      
+      libDir .. "src/**.cuh",
+      libDir .. "src/**.cu",
       libDir .. "include/**.h",
       libDir .. "external/**.cpp",
       libDir .. "external/**.c",
@@ -33,15 +38,25 @@ project "batterylib"
 	
 	includedirs {
 		libDir .. "src/",		
+		libDir .. "src/cuda/",		
 		libDir .. "include/",
 		libDir .. "external/",		
+		glew .. "/include",		
+		glm,
 		eigen	
 	}
 
-	libdirs {}
-	links {} 
+	libdirs {
+		glew .. "/lib/%{cfg.buildcfg}/%{cfg.platform}/"
+	}
+
+	links {
+		"opengl32",
+		"cudart"
+	} 
 
 	defines {		
+		"GLEW_STATIC", 
 		"WIN64",
 		"BATTERYLIB_EXPORT",
 		"_CRT_SECURE_NO_WARNINGS",
@@ -50,11 +65,13 @@ project "batterylib"
 
 	filter "configurations:Debug"
     	defines { "DEBUG" }
-    	flags { "Symbols" }        	
+    	flags { "Symbols" }
+    	links {"glew32sd"}        	
 
 	filter "configurations:Release"
 		defines { "NDEBUG" }
 		optimize "On"		
+		links {"glew32s"}
 
 
 project "batteryviz"

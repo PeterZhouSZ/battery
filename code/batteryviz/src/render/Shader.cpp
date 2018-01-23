@@ -5,7 +5,7 @@
 #include <cassert>
 
 #include <iostream>
-#include "render/GLGlobal.h"
+#include <batterylib/include/GLGlobal.h>
 
 
 

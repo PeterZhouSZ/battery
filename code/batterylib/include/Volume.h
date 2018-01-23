@@ -1,10 +1,69 @@
 #pragma once
 
 #include "BatteryLibDef.h"
-
+#include "Types.h"
 
 #pragma warning(disable:4554)  
 #include <unsupported/Eigen/CXX11/Tensor>
+
+#include "DataPtr.h"
+#include <array>
+
+namespace blib{
+
+	struct VolumeChannel {
+
+		BLIB_EXPORT VolumeChannel(ivec3 dim, PrimitiveType type, bool doubleBuffered = true);
+		const ivec3 dim;
+		const PrimitiveType type;
+
+		BLIB_EXPORT Texture3DPtr & getCurrentPtr();
+		BLIB_EXPORT Texture3DPtr & getNextPtr();
+		BLIB_EXPORT const Texture3DPtr & getCurrentPtr() const;
+		BLIB_EXPORT const Texture3DPtr & getNextPtr() const;
+
+		BLIB_EXPORT void swapBuffers();
+		
+		
+		
+
+	private:		
+		bool _doubleBuffered;
+		uchar _current;
+		std::array<Texture3DPtr, 2> _ptr;
+		
+	};
+
+	struct Volume {
+		BLIB_EXPORT Volume();
+
+		BLIB_EXPORT void addChannel(ivec3 dim, PrimitiveType type);
+		BLIB_EXPORT size_t emplaceChannel(VolumeChannel && channel) {
+			_channels.emplace_back(std::move(channel));
+			return _channels.size() - 1;
+		}
+		BLIB_EXPORT VolumeChannel & getChannel(uint index);
+		BLIB_EXPORT const VolumeChannel & getChannel(uint index) const;
+
+		
+		BLIB_EXPORT void erode(uint channel);
+		BLIB_EXPORT void heat(uint channel);
+
+		BLIB_EXPORT void diffuse(
+			uint diffusivityChannel,
+			uint concetrationChannel
+			);
+
+		
+
+	private:
+		std::vector<VolumeChannel> _channels;
+		
+	};	
+
+}
+
+/*
 
 namespace blib {
 
@@ -114,3 +173,5 @@ namespace blib {
 
 
 }
+*/
+

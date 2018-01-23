@@ -55,7 +55,10 @@ protected:
 	
 	vec3 _quadric;
 
-	blib::Volume<unsigned char> _volume;
+	
+	
+	std::unique_ptr<blib::Volume> _volume;
+
 
 	bool _autoUpdate;
 

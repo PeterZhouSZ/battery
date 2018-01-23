@@ -98,53 +98,36 @@ vec3 colormapJet(float v, float vmin, float vmax)
 void main(){
 
 
-	//vec2 planePos = vec2(vposition.x+1.0,vposition.y+1.0) * 0.5f;	
+	
 	vec2 planePos = (vposition.xy + vec2(1)) * 0.5;
 	vec3 enterPt = texture(enterVolumeTex,planePos).xyz;
-	vec3 exitPt = texture(exitVolumeTex,planePos).xyz;	
-	
+	vec3 exitPt = texture(exitVolumeTex,planePos).xyz;		
 
+	//Outside of bounding box
 	if(enterPt == vec3(0.0f)) {				
 		fragColor = vec4(0,0,0,0);
 		return;
 	}
 	
-	vec3 ray = -normalize(exitPt-enterPt);
-	//float dt = distance(exitPt,enterPt) / steps;
+	vec3 ray = -normalize(exitPt-enterPt);	
 	float dt = 0.005;
 	float N = distance(exitPt,enterPt) / dt;
 	vec3 stepVec = ray*dt;
 
-	vec3 pos = exitPt;//enterPt;
+	vec3 pos = exitPt;
 	fragColor = vec4(vec3(0.0),0.0);
 
 
 	vec4 colorAcc = vec4(0);
 	float alphaAcc = 0;
-
-
 	
 	for(float i=0; i < N; i+=1.0){
 
 		float volumeVal = texture(volumeTexture,pos).r;
-		//float volumeVal = sampleKernel(pos);
-
 		pos += stepVec;
 
-		//vec4 color = texture(transferFunc,volumeVal);
-		vec4 color = vec4(0,0,1,1);
-
-
-
-		if(volumeVal > 0.1){
-			color = vec4(0.5,0.5,0.5,whiteOpacity * dt * 1000);
-		}
-		else{
-			color = vec4(0,0,0,blackOpacity * dt * 1000);
-		}
-
-
-
+		vec4 color = texture(transferFunc,volumeVal);
+		
 
 		vec3 gradient = getGradient(pos);
 		float glen = length(gradient);

@@ -1,5 +1,6 @@
 #pragma once
 #include <functional>
+#include "BatteryLibDef.h"
 #include <GL/glew.h>
 
 #ifdef DEBUG
@@ -16,9 +17,9 @@
 
 #define GL(x) x; GLError(THIS_LINE)
 
-void logCerr(const char * label, const char * errtype);
+BLIB_EXPORT void logCerr(const char * label, const char * errtype);
 
-bool GLError(
+BLIB_EXPORT bool GLError(
     const char *label = "",
     const std::function<void(const char *label, const char *errtype)>
         &callback = &logCerr);
@@ -28,4 +29,4 @@ bool GLError(
 #endif
 
 
-bool resetGL();
+BLIB_EXPORT bool resetGL();

@@ -16,6 +16,8 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+
+
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -50,6 +52,8 @@ BatteryApp::BatteryApp()
 {	
 
 
+	
+
 
 	{
 		std::ifstream optFile(OPTIONS_FILENAME);
@@ -60,6 +64,10 @@ BatteryApp::BatteryApp()
 	}
 
 	resetGL();
+
+
+	
+
 	
 	{
 		auto errMsg = loadShaders(_shaders);
@@ -85,24 +93,22 @@ BatteryApp::BatteryApp()
 	loadDefualt = false;
 #endif
 
+	loadDefualt = true;
 
-	if(loadDefualt)
-	{		
-		_volume = loadTiffFolder(DATA_FOLDER);				
-		_volumeRaycaster->updateVolume(_volume);		
+	_volume = make_unique<blib::Volume>();
+	if(loadDefualt){			
+		_volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
+		
 	}
 	else {
-		const int res = 32;
-
-		_volume = emptyVolume<unsigned char>(res);
-		//_volume.resize(res,res,res);
-		_volume.setZero();
-		//_volume.resize({ res, res, res}, 0);		
-		_autoUpdate = true;
-	//	update(0);
-		_autoUpdate = false;			
+		int testRes = 128;		
+		//Add empty channel
+		_volume->addChannel({ testRes,testRes,testRes }, TYPE_FLOAT);	
+		
 	}
 
+	_volumeRaycaster->setVolume(*_volume, 0);
+	
 
 	/*
 		Scene init
@@ -112,8 +118,10 @@ BatteryApp::BatteryApp()
 	_scene.addObject("sphere", sphereObj);
 
 	
-	resetSA();
-	_volumeRaycaster->updateVolume(_volume);
+	//resetSA();
+//	_volumeRaycaster->updateVolume(_volume);
+
+	
 	
 
 }
@@ -127,8 +135,15 @@ void BatteryApp::update(double dt)
 	if (!_autoUpdate) return;
 
 	
-	_saEllipsoid.update(_options["Optim"].get<int>("stepsPerFrame"));
-	_volumeRaycaster->updateVolume(_volume);	
+	//_saEllipsoid.update(_options["Optim"].get<int>("stepsPerFrame"));
+	//_volumeRaycaster->updateVolume(_volume);	
+
+	for (auto i = 0; i < _options["Optim"].get<int>("stepsPerFrame"); i++) {
+		_volume->heat(0);
+		_volume->getChannel(0).swapBuffers();
+	}
+	_volumeRaycaster->setVolume(*_volume, 0);
+
 
 	return;
 }
@@ -230,6 +245,9 @@ void BatteryApp::render(double dt)
 	Volume raycaster
 	*/
 	if (_options["Render"].get<bool>("volume")) {
+				
+		_volumeRaycaster->setTransferGray();
+
 		_camera.setWindowDimensions(_window.width, _window.height - static_cast<int>(_window.height * sliceHeight));
 		_volumeRaycaster->render(_camera, {
 			0, _window.height * sliceHeight, _window.width, _window.height - _window.height * sliceHeight
@@ -320,6 +338,7 @@ void BatteryApp::resetSA()
 
 
 
+/*
 	_saEllipsoid.score = [&](const vector<Ellipsoid> & vals) {
 
 		vector<Eigen::Affine3f> transforms(vals.size());
@@ -359,20 +378,7 @@ void BatteryApp::resetSA()
 		}
 
 		int collTotal = std::accumulate(collisions.begin(), collisions.end(), 0);
-/*
 
-		int collisions = 0;
-		int pairs = 0;
-		for (auto i = 0; i < vals.size(); i++) {
-			auto & ei = vals[i];
-			for (auto j = i; j < vals.size(); j++) {
-				auto & ej = vals[i];
-				pairs++;
-				if (blib::ellipsoidEllipsoidMonteCarlo(ei, ej, uniformDist,128)) {
-					collisions++;
-				}
-			}
-		}*/
 
 		int sum = 0;
 		//todo reduce
@@ -473,6 +479,6 @@ void BatteryApp::resetSA()
 	_saEllipsoid.getTemperature = temperatureExp;
 
 	_saEllipsoid.init(initVec, _options["Optim"].get<int>("maxSteps"));
-	
+	*/
 
 }

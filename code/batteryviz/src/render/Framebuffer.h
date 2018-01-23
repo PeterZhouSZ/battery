@@ -1,5 +1,5 @@
 #pragma once
-#include "render/GLGlobal.h"
+#include <batterylib/include/GLGlobal.h>
 
 struct FrameBuffer {
 	FrameBuffer();
