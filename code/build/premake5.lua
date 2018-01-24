@@ -4,7 +4,7 @@ local glm = os.getenv("GLM_PATH") --glm 0.9.8
 local eigen = os.getenv("EIGEN_PATH") --eigen 3.3.4
 
 cuda_version = "9.0"
-include("C:/libs/cudapremake/premake-cuda/cuda.lua")
+include("premake-cuda/cuda.lua")
 
 --local blib = "../../batterylib" 
 local vizDir = "../batteryviz/"
