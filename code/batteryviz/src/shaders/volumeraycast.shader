@@ -123,7 +123,7 @@ void main(){
 	
 	for(float i=0; i < N; i+=1.0){
 
-		float volumeVal = texture(volumeTexture,pos).r;
+		float volumeVal = texture(volumeTexture,pos).r;		
 		pos += stepVec;
 
 		vec4 color = texture(transferFunc,volumeVal);

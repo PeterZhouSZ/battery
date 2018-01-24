@@ -120,11 +120,24 @@ BatteryApp::BatteryApp()
 			auto & c = _volume->getChannel(batteryID);
 			uchar * arr = (uchar *)c.getCurrentPtr().getCPU();
 
+			std::vector<vec3> pos = {
+				vec3(0.5f),
+				vec3(0.25f),
+				vec3(0.75f),
+				vec3(0.75f,0.1f,1.0f)
+			};
+			std::vector<float> rad = {
+				0.15f, 0.15f, 0.15f, 0.2f
+			};
+
 			for (auto i = 0; i < res; i++) {
 				for (auto j = 0; j < res; j++) {
 					for (auto k = 0; k < res; k++) {
-						if (glm::length(vec3(i, j, k) / float(res) - vec3(0.5f, 0.5f, 0.5f)) < 0.15f)
-							arr[i + j*res + k*res*res] = 255;
+
+						for (auto x = 0; x < pos.size(); x++) {
+							if (glm::length(vec3(i, j, k) / float(res) - pos[x]) < rad[x])
+								arr[i + j*res + k*res*res] = 255;
+						}
 					}
 				}
 			}
@@ -184,8 +197,12 @@ void BatteryApp::update(double dt)
 			_volume->diffuse(
 				CHANNEL_BATTERY,
 				CHANNEL_CONCETRATION,
-				1.0e-10f,
-				1.0e-7f
+				//0.005f,
+				//0.001f
+				//1.0e-10f, //abhas's
+				//1.0e-7f
+				1.0e-7f,
+				1.0e-10f
 			);
 			_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();
 		}

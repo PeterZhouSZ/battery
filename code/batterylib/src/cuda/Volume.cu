@@ -1,4 +1,6 @@
 #include "Volume.cuh"
+#include <stdio.h>
+
 
 #define VOLUME_VOX					\
 uint3 vox = make_uint3(			\
@@ -213,23 +215,23 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 
 	
 	//Priority x > y > z (instead of 27 boundary values, just use 6)	
-	Dir d = DIR_NONE;
+	Dir dir = DIR_NONE;
 	if (vox.x < 0) 		
-		d = X_NEG;	
+		dir = X_NEG;	
 	else if (vox.x >= res.x) 
-		d = X_POS;
+		dir = X_POS;
 	else if (vox.y < 0)
-		d = Y_NEG;
+		dir = Y_NEG;
 	else if (vox.y >= res.y)
-		d = Y_POS;
+		dir = Y_POS;
 	else if (vox.z < 0)
-		d = Z_NEG;
+		dir = Z_NEG;
 	else if (vox.z >= res.z)
-		d = Z_POS;
+		dir = Z_POS;
 	
 
-	if (d != DIR_NONE) {
-		ndx[tid.x][tid.y][tid.z] = params.boundaryValues[d];
+	if (dir != DIR_NONE) {
+		ndx[tid.x][tid.y][tid.z] = params.boundaryValues[dir];
 	}
 	else {
 		surf3Dread(
@@ -242,9 +244,10 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 
 	//If zero grad boundary cond, copy value from neighbour (after sync!)
 	if (ndx[tid.x][tid.y][tid.z] == BOUNDARY_ZERO_GRADIENT) {		
-		int3 neighVec = -dirVec(d);
+		int3 neighVec = -dirVec(dir);
 		ndx[tid.x][tid.y][tid.z] = ndx[tid.x + neighVec.x][tid.y + neighVec.y][tid.z + neighVec.z];
 	}
+	//TODO: test what is faster -> double read from global memory, or copy within shared with extra threadsync
 
 	__syncthreads();
 
@@ -262,38 +265,49 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 	
 	uchar mask = 0;
 	surf3Dread(&mask, params.mask, vox.x * sizeof(uchar), vox.y, vox.z);
-	if (mask > 0)
-		return;
+
+	//Diffusion coeff
+	float D = (mask == 0) ? params.zeroDiff : params.oneDiff;	
+
 	
 	/////////// Compute
 
 	float oldVal = ndx[tid.x][tid.y][tid.z];
-	/*
-	Heaters
-	*/
-	int rad = 5;
-	if (vox.x - res.x / 4 > res.x / 2 - rad && vox.y > res.y / 2 - rad && vox.z > res.z / 2 - rad &&
-		vox.x - res.x / 4 < res.x / 2 + rad && vox.y < res.y / 2 + rad && vox.z < res.z / 2 + rad
-		)
-		oldVal += 1.5f;
 
-	if (vox.x + res.x / 4 > res.x / 2 - rad && vox.y > res.y / 2 - rad && vox.z > res.z / 2 - rad &&
-		vox.x + res.x / 4 < res.x / 2 + rad && vox.y < res.y / 2 + rad && vox.z < res.z / 2 + rad
-		)
-		oldVal += 1.5f;
+	//http://janroman.dhis.org/finance/Numerical%20Methods/adi.pdf
+	//float dt = 0.1f;
+	int minDim = min(res.x, min(res.y, res.z));
+	//float dt = 1.0f / (6.0f * minDim * D);
+	float3 dX = make_float3(1.0f / (res.x), 1.0f / (res.y), 1.0f / (res.z));
+	float3 dX2 = make_float3(dX.x*dX.x, dX.y*dX.y, dX.z*dX.z);
 
-	float dt = 0.1f;
 
-	// New heat
-	float newVal = oldVal + dt * (
-		ndx[tid.x - 1][tid.y][tid.z] +
-		ndx[tid.x + 1][tid.y][tid.z] +
-		ndx[tid.x][tid.y - 1][tid.z] +
-		ndx[tid.x][tid.y + 1][tid.z] +
-		ndx[tid.x][tid.y][tid.z - 1] +
-		ndx[tid.x][tid.y][tid.z + 1] -
-		oldVal * 6.0f
-		);
+	float minD = max(params.zeroDiff, params.oneDiff);
+
+	float dt = 1.0f / (2.0f * minD * (1.0f / dX2.x +  1.0f / dX2.y + 1.0f / dX2.z));
+	
+	float3 v = D * make_float3(dt / dX2.x , dt / dX2.y, dt / dX2.z);
+
+	//D(dt / 1 + dt / 1 + dt / 1) <= 1/2 >>> dt <= 1/6*D
+	//3 * dt / (1/64)^2 <= 1/2 >>> dt <= 1/6 * 1/4096 >>> dt <= 1 / 24576*D 
+	//D * dt * (1 / resx^2 + 1 / resy^2 + 1 / resz^2) <= 1/2
+		//>>> dt <= 1/2 * 1/D * 1/ sum(dX.x^2)
+
+
+	//if (vox.x == 10 && vox.y > 10 && vox.z == 10)
+		//printf("dt %f, vsum %f\n", dt, v.x+v.y+v.z);
+
+	
+	float3 d2 = make_float3(
+		ndx[tid.x - 1][tid.y][tid.z] + 2.0f * oldVal + ndx[tid.x + 1][tid.y][tid.z],
+		ndx[tid.x][tid.y - 1][tid.z] + 2.0f * oldVal + ndx[tid.x][tid.y + 1][tid.z],
+		ndx[tid.x][tid.y][tid.z - 1] + 2.0f * oldVal + ndx[tid.x][tid.y][tid.z + 1]
+	);
+
+	float newVal = oldVal +  (v.x * d2.x + v.y * d2.y + v.z * d2.z);
+	
+	//newVal = oldVal + v.x;
+		
 
 	surf3Dwrite(newVal, params.concetrationOut, vox.x * sizeof(float), vox.y, vox.z);
 
