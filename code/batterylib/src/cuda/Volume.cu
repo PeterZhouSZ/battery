@@ -140,3 +140,53 @@ void launchHeatKernel(uint3 res, cudaSurfaceObject_t surfIn, cudaSurfaceObject_t
 
 	kernelHeat<blockSize,apron><< <numBlocks, block >> > (res, surfIn, surfOut);
 }
+
+
+
+
+
+
+
+__global__ void kernelBinarizeFloat(uint3 res, cudaSurfaceObject_t surfInOut, float threshold) {
+
+	VOLUME_VOX_GUARD(res);
+
+	float val = 0.0f;
+	surf3Dread(&val, surfInOut, vox.x * sizeof(float), vox.y, vox.z);	
+
+	val = (val < threshold) ? 0.0f : 1.0f;	
+
+	surf3Dwrite(val, surfInOut, vox.x * sizeof(float), vox.y, vox.z);
+}
+
+template <typename T>
+__global__ void kernelBinarizeUnsigned(uint3 res, cudaSurfaceObject_t surfInOut, T threshold) {
+
+	VOLUME_VOX_GUARD(res);
+
+	T val = 0;
+	surf3Dread(&val, surfInOut, vox.x * sizeof(T), vox.y, vox.z);
+
+	val = (val < threshold) ? T(0) : T(-1);
+
+	surf3Dwrite(val, surfInOut, vox.x * sizeof(T), vox.y, vox.z);
+}
+
+
+
+void launchBinarizeKernel(uint3 res, cudaSurfaceObject_t surfInOut, PrimitiveType type, float threshold) {
+
+	uint3 block = make_uint3(8, 8, 8);
+	uint3 numBlocks = make_uint3(
+		(res.x / block.x) + 1,
+		(res.y / block.y) + 1,
+		(res.z / block.z) + 1
+	);
+
+	if (type == TYPE_FLOAT)
+		kernelBinarizeFloat << <numBlocks, block >> > (res, surfInOut, threshold);
+	else if (type == TYPE_UCHAR)
+		kernelBinarizeUnsigned<uchar> << <numBlocks, block >> > (res, surfInOut, uchar(threshold * 255));
+	else
+		exit(-1);
+}

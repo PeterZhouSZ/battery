@@ -97,14 +97,14 @@ BatteryApp::BatteryApp()
 
 	_volume = make_unique<blib::Volume>();
 	if(loadDefualt){			
-		_volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
-		
+		_volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));		
+		_volume->binarize(0,1.0f);
+				
 	}
 	else {
 		int testRes = 128;		
 		//Add empty channel
-		_volume->addChannel({ testRes,testRes,testRes }, TYPE_FLOAT);	
-		
+		_volume->addChannel({ testRes,testRes,testRes }, TYPE_FLOAT);			
 	}
 
 	_volumeRaycaster->setVolume(*_volume, 0);

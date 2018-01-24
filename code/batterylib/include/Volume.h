@@ -7,9 +7,14 @@
 #include <unsupported/Eigen/CXX11/Tensor>
 
 #include "DataPtr.h"
+#include "PrimitiveTypes.h"
+
 #include <array>
 
 namespace blib{
+
+	
+
 
 	struct VolumeChannel {
 
@@ -48,6 +53,8 @@ namespace blib{
 		
 		BLIB_EXPORT void erode(uint channel);
 		BLIB_EXPORT void heat(uint channel);
+				
+		BLIB_EXPORT void binarize(uint channel, float threshold = 1.0f);
 
 		BLIB_EXPORT void diffuse(
 			uint diffusivityChannel,

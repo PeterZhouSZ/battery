@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Types.h"
+#include "PrimitiveTypes.h"
 #include <cuda_runtime.h>
 
 

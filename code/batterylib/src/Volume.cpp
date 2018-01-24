@@ -134,3 +134,17 @@ void blib::Volume::heat(uint channel)
 	);
 	_CUDA(cudaDeviceSynchronize());
 }
+
+ void blib::Volume::binarize(uint channel, float threshold /*= 1.0f*/)
+{
+	 auto & c = getChannel(channel);
+	 launchBinarizeKernel(
+		 make_uint3(c.dim.x, c.dim.y, c.dim.z),
+		 c.getCurrentPtr().getSurface(),
+		 c.type,
+		 threshold		 
+	 );
+	 _CUDA(cudaDeviceSynchronize());
+}
+
+
