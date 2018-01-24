@@ -97,8 +97,11 @@ BatteryApp::BatteryApp()
 
 	_volume = make_unique<blib::Volume>();
 	if(loadDefualt){			
-		_volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));		
-		_volume->binarize(0,1.0f);
+		auto channelID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));		
+		_volume->binarize(channelID,1.0f);
+
+		//Add concetration channel
+		_volume->addChannel(_volume->getChannel(channelID).dim, TYPE_FLOAT);
 				
 	}
 	else {
