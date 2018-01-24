@@ -159,4 +159,29 @@ void blib::Volume::heat(uint channel)
 	 _CUDA(cudaDeviceSynchronize());
 }
 
+ void blib::Volume::diffuse(uint maskChannel, uint concetrationChannel, float zeroDiff, float oneDiff)
+ {
+	 auto & cmask = getChannel(maskChannel);
+	 auto & cconc = getChannel(concetrationChannel);
+
+	 //Must have same dimensions
+	 assert(cmask.dim.x == cconc.dim.x && cmask.dim.y == cconc.dim.y && cmask.dim.z == cconc.dim.z);
+	 assert(zeroDiff >= 0.0f && oneDiff >= 0.0f);
+
+
+	 launchDiffuseKernel(
+		{
+		 make_uint3(cmask.dim.x, cmask.dim.y, cmask.dim.z),
+		 cmask.getCurrentPtr().getSurface(),
+		 cconc.getCurrentPtr().getSurface(),
+		 cconc.getNextPtr().getSurface(),
+		 zeroDiff,
+		 oneDiff
+		}
+	 );
+
+	 _CUDA(cudaDeviceSynchronize());
+
+
+ }
 

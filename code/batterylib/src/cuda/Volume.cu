@@ -190,3 +190,11 @@ void launchBinarizeKernel(uint3 res, cudaSurfaceObject_t surfInOut, PrimitiveTyp
 	else
 		exit(-1);
 }
+
+
+
+void launchDiffuseKernel(DiffuseParams params) {
+
+		//
+
+}

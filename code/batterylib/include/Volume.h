@@ -51,8 +51,10 @@ namespace blib{
 		BLIB_EXPORT void binarize(uint channel, float threshold = 1.0f);
 
 		BLIB_EXPORT void diffuse(
-			uint diffusivityChannel,
-			uint concetrationChannel
+			uint maskChannel,
+			uint concetrationChannel,
+			float zeroDiff,
+			float oneDiff
 			);
 
 		

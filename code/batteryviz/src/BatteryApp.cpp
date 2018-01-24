@@ -153,8 +153,14 @@ void BatteryApp::update(double dt)
 
 	if (_volume->hasChannel(CHANNEL_CONCETRATION)) {
 		for (auto i = 0; i < _options["Optim"].get<int>("stepsPerFrame"); i++) {
-			_volume->heat(CHANNEL_CONCETRATION);
-			_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();
+			//_volume->heat(CHANNEL_CONCETRATION);			
+			//_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();
+			_volume->diffuse(
+				CHANNEL_BATTERY,
+				CHANNEL_CONCETRATION,
+				1.0e-10f,
+				1.0e-7f
+			);
 		}
 	}
 

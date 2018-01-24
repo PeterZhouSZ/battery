@@ -15,3 +15,15 @@ void launchBinarizeKernel(uint3 res,
 	float threshold //between 0 to 1
 );
 
+
+struct DiffuseParams {
+	uint3 res;
+	cudaSurfaceObject_t mask;
+	cudaSurfaceObject_t concetrationIn;
+	cudaSurfaceObject_t concetrationOut;
+	float zeroDiff;
+	float oneDiff;
+};
+
+void launchDiffuseKernel(DiffuseParams params);
+
