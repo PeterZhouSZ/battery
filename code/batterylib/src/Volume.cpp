@@ -24,21 +24,6 @@ blib::VolumeChannel::VolumeChannel(ivec3 dim, PrimitiveType type, bool doubleBuf
 	auto & ptr = getCurrentPtr();	
 	float * arr = reinterpret_cast<float*>(ptr.getCPU());	
 	memset(arr, 0, ptr.byteSize());
-
-	/*srand(0);
-	for (auto i = 0; i < ptr.byteSize() / ptr.stride(); i++) {
-		/ *float val = (rand() % 255) / 255.0f;
-		if (val < 0.1f) val = 0.0f;
-		if (val > 0.60f) val = 1.0f;
-
-		((float*)arr)[i] = val;* /
-
-		if (i < ptr.byteSize() / ptr.stride() / 2)
-			((float*)arr)[i] = 1.0f;
-		else
-			((float*)arr)[i] = 0.0f;
-
-	}	*/
 	ptr.commit();
 }
 
@@ -97,13 +82,13 @@ blib::Volume::Volume()
 uint blib::Volume::addChannel(ivec3 dim, PrimitiveType type)
 {
 	_channels.push_back(VolumeChannel(dim, type));
-	return _channels.size() - 1;
+	return static_cast<uint>(_channels.size() - 1);
 }
 
 uint blib::Volume::emplaceChannel(VolumeChannel && channel)
 {
 	_channels.emplace_back(std::move(channel));
-	return _channels.size() - 1;
+	return static_cast<uint>(_channels.size() - 1);
 }
 
 VolumeChannel & blib::Volume::getChannel(uint index)
@@ -115,6 +100,11 @@ VolumeChannel & blib::Volume::getChannel(uint index)
 bool blib::Volume::hasChannel(uint index) const
 {
 	return index < _channels.size();
+}
+
+BLIB_EXPORT uint blib::Volume::numChannels() const
+{
+	return static_cast<uint>(_channels.size());
 }
 
 const VolumeChannel & blib::Volume::getChannel(uint index) const
@@ -176,7 +166,13 @@ void blib::Volume::heat(uint channel)
 		 cconc.getCurrentPtr().getSurface(),
 		 cconc.getNextPtr().getSurface(),
 		 zeroDiff,
-		 oneDiff
+		 oneDiff,
+		 //Boundary values
+		 {
+			 1.0f, 0.0f, 
+			 BOUNDARY_ZERO_GRADIENT, BOUNDARY_ZERO_GRADIENT,
+			 BOUNDARY_ZERO_GRADIENT, BOUNDARY_ZERO_GRADIENT
+		 }
 		}
 	 );
 

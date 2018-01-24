@@ -16,6 +16,31 @@ void launchBinarizeKernel(uint3 res,
 );
 
 
+
+enum Dir {
+	X_POS = 0,
+	X_NEG = 1,
+	Y_POS = 2,
+	Y_NEG = 3,
+	Z_POS = 4,
+	Z_NEG = 5,
+	DIR_NONE = 6
+};
+
+__host__ __device__ inline int3 dirVec(Dir d) {
+	switch (d) {
+		case X_POS: return make_int3(1, 0, 0);
+		case X_NEG: return make_int3(-1, 0, 0);
+		case Y_POS: return make_int3(0, 1, 0);
+		case Y_NEG: return make_int3(0, -1, 0);
+		case Z_POS: return make_int3(0, 0, 1);
+		case Z_NEG: return make_int3(0, 0, -1);
+	};
+	return make_int3(0, 0, 0);
+}
+
+#define BOUNDARY_ZERO_GRADIENT 1e37f
+
 struct DiffuseParams {
 	uint3 res;
 	cudaSurfaceObject_t mask;
@@ -23,6 +48,8 @@ struct DiffuseParams {
 	cudaSurfaceObject_t concetrationOut;
 	float zeroDiff;
 	float oneDiff;
+		
+	float boundaryValues[6];
 };
 
 void launchDiffuseKernel(DiffuseParams params);

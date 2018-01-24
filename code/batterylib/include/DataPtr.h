@@ -1,7 +1,8 @@
 #pragma once
 
+#include "BatteryLibDef.h"
 #include "Types.h"
-#include "PrimitiveTypes.h"
+
 #include <cuda_runtime.h>
 
 
@@ -41,72 +42,72 @@ namespace blib {
 		/*
 			Returns host memory
 		*/
-		void * getCPU() { return _cpu.ptr; }
-		const void * getCPU() const { return _cpu.ptr; }
+		BLIB_EXPORT void * getCPU() { return _cpu.ptr; }
+		BLIB_EXPORT const void * getCPU() const { return _cpu.ptr; }
 
 		/*
 			OpenGL ID of texture
 		*/
-		uint getGlID() const { return _glID; }
+		BLIB_EXPORT uint getGlID() const { return _glID; }
 			
 		/*
 			Total number of elements
 		*/
-		uint64 num() const { 
+		BLIB_EXPORT uint64 num() const {
 			return _extent.width * _extent.height * _extent.depth;
 		}
 
 		/*
 			Total bytesize
 		*/
-		uint64 byteSize() const { 
+		BLIB_EXPORT uint64 byteSize() const {
 			return num() * stride(); 
 		}
 
 		/*
 			Size of element
 		*/
-		uint64 stride() const {
+		BLIB_EXPORT uint64 stride() const {
 			return _desc.x + _desc.y + _desc.z + _desc.w;
 		}
 
-		ivec3 dim() const {
+		BLIB_EXPORT ivec3 dim() const {
 			return { _extent.width, _extent.height, _extent.depth };
 		}
 
 		/*
 			Allocates 3D array 
 		*/
-		bool alloc(PrimitiveType type, ivec3 dim, bool alsoOnCPU = false);
+		BLIB_EXPORT bool alloc(PrimitiveType type, ivec3 dim, bool alsoOnCPU = false);
 
 		/*
 			Allocates 3D array using OpenGL interop
 		*/
-		bool allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnCPU = false);
+		BLIB_EXPORT bool allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnCPU = false);
 
 				
 		/*
 			Commits host memory to device
 		*/
-		bool commit();
+		BLIB_EXPORT bool commit();
 
 		/*
 			Retrieves device memory to host
 		*/
-		bool retrieve();
+		BLIB_EXPORT bool retrieve();
 
 		
 		/*
 			Returns cuda surface handle
 		*/
-		cudaSurfaceObject_t getSurface() const { 
+		BLIB_EXPORT cudaSurfaceObject_t getSurface() const {
 			return _surface; 
 		}
 
 		/*
 			Copies cuda surface handle to specified device memory
 		*/
-		bool copySurfaceTo(void * gpuSurfacePtr) const;
+		BLIB_EXPORT bool copySurfaceTo(void * gpuSurfacePtr) const;
 		
 	private:
 

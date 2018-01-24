@@ -95,7 +95,7 @@ BatteryApp::BatteryApp()
 	loadDefualt = false;
 #endif
 
-	loadDefualt = true;
+	loadDefualt = false;
 
 	_volume = make_unique<blib::Volume>();
 	if(loadDefualt){			
@@ -113,9 +113,35 @@ BatteryApp::BatteryApp()
 				
 	}
 	else {
-		int testRes = 128;		
-		//Add empty channel
-		_volume->addChannel({ testRes,testRes,testRes }, TYPE_FLOAT);			
+		int res = 64;
+		auto batteryID = _volume->addChannel({res,res,res}, TYPE_UCHAR);
+
+		{
+			auto & c = _volume->getChannel(batteryID);
+			uchar * arr = (uchar *)c.getCurrentPtr().getCPU();
+
+			for (auto i = 0; i < res; i++) {
+				for (auto j = 0; j < res; j++) {
+					for (auto k = 0; k < res; k++) {
+						if (glm::length(vec3(i, j, k) / float(res) - vec3(0.5f, 0.5f, 0.5f)) < 0.15f)
+							arr[i + j*res + k*res*res] = 255;
+					}
+				}
+			}
+
+			c.getCurrentPtr().commit();
+
+		}		
+
+		_volume->binarize(CHANNEL_BATTERY, 1.0f);
+
+		//Add concetration channel
+		auto concetrationID = _volume->addChannel(
+			_volume->getChannel(CHANNEL_BATTERY).dim,
+			TYPE_FLOAT
+		);
+		assert(concetrationID == CHANNEL_CONCETRATION);
+
 	}
 
 	_volumeRaycaster->setVolume(*_volume, 0);
@@ -161,6 +187,7 @@ void BatteryApp::update(double dt)
 				1.0e-10f,
 				1.0e-7f
 			);
+			_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();
 		}
 	}
 
@@ -344,6 +371,21 @@ void BatteryApp::callbackKey(GLFWwindow * w, int key, int scancode, int action, 
 
 		if (key == GLFW_KEY_SPACE)
 			_autoUpdate = !_autoUpdate;
+
+		if (key == GLFW_KEY_1) {
+			_options["Render"].get<int>("channel") = 0;
+		}
+
+		if (key == GLFW_KEY_2 && _volume->hasChannel(1)) {
+			_options["Render"].get<int>("channel") = 1;
+		}
+		if (key == GLFW_KEY_3 && _volume->hasChannel(2)) {
+			_options["Render"].get<int>("channel") = 2;
+		}
+		if (key == GLFW_KEY_4 && _volume->hasChannel(3)) {
+			_options["Render"].get<int>("channel") = 3;
+		}
+
 	}
 
 

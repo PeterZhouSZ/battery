@@ -18,7 +18,7 @@ Camera Camera::defaultCamera(int width, int height)
 {
 	Camera c;
 	c.setUp({0,1,0});
-	c.setPosition({ -3.0,0,0 });
+	c.setPosition({ -5.0,0,0 });
 	c.setLookat({ 0,0,0 });
 	c.setWindowDimensions(width,height);
 	c.setFov({ 3.14f / 4.0f });

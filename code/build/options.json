@@ -51,11 +51,15 @@
             "type": 2
         },
         "stepsPerFrame": {
-            "data": 10,
+            "data": 1,
             "type": 2
         }
     },
     "Render": {
+        "channel": {
+            "data": 0,
+            "type": 2
+        },
         "ellipsoids": {
             "data": false,
             "type": 5
@@ -65,7 +69,7 @@
             "type": 5
         },
         "opacityBlack": {
-            "data": 0.0363339334726334,
+            "data": 0.00999999977648258,
             "type": 3
         },
         "opacityWhite": {

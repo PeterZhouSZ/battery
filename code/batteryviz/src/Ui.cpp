@@ -321,6 +321,11 @@ void Ui::update(double dt)
 
 	ImGui::SliderFloat3("Quadric", reinterpret_cast<float*>(&_app._quadric), 0, 10);
 
+	ImGui::SliderInt("RenderChannel", 
+		&_app._options["Render"].get<int>("channel"),
+		0, _app._volume->numChannels() - 1
+	);
+
 
 	/*
 	Volume
