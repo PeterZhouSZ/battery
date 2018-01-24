@@ -49,6 +49,8 @@ protected:
 	*/
 	Camera _camera;	
 	ShaderDB _shaders;
+
+	uint _currentRenderChannel;
 	std::unique_ptr<VolumeRaycaster> _volumeRaycaster;
 	Scene _scene;
 	

@@ -94,15 +94,27 @@ blib::Volume::Volume()
 }
 
 
-void blib::Volume::addChannel(ivec3 dim, PrimitiveType type)
+uint blib::Volume::addChannel(ivec3 dim, PrimitiveType type)
 {
 	_channels.push_back(VolumeChannel(dim, type));
+	return _channels.size() - 1;
+}
+
+uint blib::Volume::emplaceChannel(VolumeChannel && channel)
+{
+	_channels.emplace_back(std::move(channel));
+	return _channels.size() - 1;
 }
 
 VolumeChannel & blib::Volume::getChannel(uint index)
 {
 	assert(index < _channels.size());
 	return _channels[index];
+}
+
+bool blib::Volume::hasChannel(uint index) const
+{
+	return index < _channels.size();
 }
 
 const VolumeChannel & blib::Volume::getChannel(uint index) const

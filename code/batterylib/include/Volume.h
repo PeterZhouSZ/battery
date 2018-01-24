@@ -38,13 +38,11 @@ namespace blib{
 	struct Volume {
 		BLIB_EXPORT Volume();
 
-		BLIB_EXPORT void addChannel(ivec3 dim, PrimitiveType type);
-		BLIB_EXPORT size_t emplaceChannel(VolumeChannel && channel) {
-			_channels.emplace_back(std::move(channel));
-			return _channels.size() - 1;
-		}
+		BLIB_EXPORT uint addChannel(ivec3 dim, PrimitiveType type);
+		BLIB_EXPORT uint emplaceChannel(VolumeChannel && channel);
 		BLIB_EXPORT VolumeChannel & getChannel(uint index);
 		BLIB_EXPORT const VolumeChannel & getChannel(uint index) const;
+		BLIB_EXPORT bool hasChannel(uint index) const;
 
 		
 		BLIB_EXPORT void erode(uint channel);

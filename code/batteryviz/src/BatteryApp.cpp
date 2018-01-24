@@ -41,13 +41,15 @@ RNGUniformInt uniformDistInt(0, INT_MAX);
 #include "render/PrimitivesVBO.h"
 #include "render/Shaders.h"
 
-
+#define CHANNEL_BATTERY 0
+#define CHANNEL_CONCETRATION 1
 
 
 BatteryApp::BatteryApp()
 	: App("BatteryViz"),
 	_camera(Camera::defaultCamera(_window.width, _window.height)),	
-	_ui(*this)
+	_ui(*this),
+	_currentRenderChannel(0)
 	
 {	
 
@@ -97,11 +99,17 @@ BatteryApp::BatteryApp()
 
 	_volume = make_unique<blib::Volume>();
 	if(loadDefualt){			
-		auto channelID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));		
-		_volume->binarize(channelID,1.0f);
+		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));	
+		assert(batteryID == CHANNEL_BATTERY);
+
+		_volume->binarize(CHANNEL_BATTERY,1.0f);
 
 		//Add concetration channel
-		_volume->addChannel(_volume->getChannel(channelID).dim, TYPE_FLOAT);
+		auto concetrationID = _volume->addChannel(
+			_volume->getChannel(CHANNEL_BATTERY).dim, 
+			TYPE_FLOAT
+		);
+		assert(concetrationID == CHANNEL_CONCETRATION);
 				
 	}
 	else {
@@ -141,11 +149,17 @@ void BatteryApp::update(double dt)
 	//_saEllipsoid.update(_options["Optim"].get<int>("stepsPerFrame"));
 	//_volumeRaycaster->updateVolume(_volume);	
 
-	for (auto i = 0; i < _options["Optim"].get<int>("stepsPerFrame"); i++) {
-		_volume->heat(0);
-		_volume->getChannel(0).swapBuffers();
+
+
+	if (_volume->hasChannel(CHANNEL_CONCETRATION)) {
+		for (auto i = 0; i < _options["Optim"].get<int>("stepsPerFrame"); i++) {
+			_volume->heat(CHANNEL_CONCETRATION);
+			_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();
+		}
 	}
-	_volumeRaycaster->setVolume(*_volume, 0);
+
+	
+	
 
 
 	return;
@@ -247,9 +261,20 @@ void BatteryApp::render(double dt)
 	/*
 	Volume raycaster
 	*/
+
+
+
 	if (_options["Render"].get<bool>("volume")) {
-				
-		_volumeRaycaster->setTransferGray();
+		
+		//update current channel to render
+		_currentRenderChannel = _options["Render"].get<int>("channel");
+
+		_volumeRaycaster->setVolume(*_volume, _currentRenderChannel);
+		
+		if(_currentRenderChannel == CHANNEL_BATTERY)
+			_volumeRaycaster->setTransferGray();
+		else
+			_volumeRaycaster->setTransferJet();
 
 		_camera.setWindowDimensions(_window.width, _window.height - static_cast<int>(_window.height * sliceHeight));
 		_volumeRaycaster->render(_camera, {
