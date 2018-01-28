@@ -212,6 +212,7 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 
 	//Read whole block into shared memory
 	__shared__ float ndx[N][N][N];
+	__shared__ float Ddx[N][N][N];
 
 	
 	//Priority x > y > z (instead of 27 boundary values, just use 6)	
@@ -232,6 +233,7 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 
 	if (dir != DIR_NONE) {
 		ndx[tid.x][tid.y][tid.z] = params.boundaryValues[dir];
+		Ddx[tid.x][tid.y][tid.z] = BOUNDARY_ZERO_GRADIENT;
 	}
 	else {
 		surf3Dread(
@@ -239,6 +241,19 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 			params.concetrationIn,
 			vox.x * sizeof(float), vox.y, vox.z
 		);
+
+		uchar maskVal;
+		surf3Dread(
+			&maskVal,
+			params.mask,
+			vox.x * sizeof(uchar), vox.y, vox.z
+		);
+		if (maskVal == 0)
+			Ddx[tid.x][tid.y][tid.z] = params.zeroDiff;
+		else
+			Ddx[tid.x][tid.y][tid.z] = params.oneDiff;
+
+
 	}	
 	__syncthreads();
 
@@ -246,6 +261,11 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 	if (ndx[tid.x][tid.y][tid.z] == BOUNDARY_ZERO_GRADIENT) {		
 		int3 neighVec = -dirVec(dir);
 		ndx[tid.x][tid.y][tid.z] = ndx[tid.x + neighVec.x][tid.y + neighVec.y][tid.z + neighVec.z];
+	}
+
+	if (Ddx[tid.x][tid.y][tid.z] == BOUNDARY_ZERO_GRADIENT) {
+		int3 neighVec = -dirVec(dir);
+		Ddx[tid.x][tid.y][tid.z] = Ddx[tid.x + neighVec.x][tid.y + neighVec.y][tid.z + neighVec.z];
 	}
 	//TODO: test what is faster -> double read from global memory, or copy within shared with extra threadsync
 
@@ -269,7 +289,71 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 	//Diffusion coeff
 	float D = (mask == 0) ? params.zeroDiff : params.oneDiff;	
 
+
+
 	
+	///
+	{
+
+		float D = Ddx[tid.x][tid.y][tid.z];
+		//delta x for D is half of for concetration
+		const float3 Dneg = make_float3(
+			0.5f * Ddx[tid.x - 1][tid.y][tid.z] + 0.5f * D,
+			0.5f * Ddx[tid.x][tid.y - 1][tid.z] + 0.5f * D,
+			0.5f * Ddx[tid.x][tid.y][tid.z -1] + 0.5f * D			
+		);
+		const float3 Dpos = make_float3(
+			0.5f * Ddx[tid.x + 1][tid.y][tid.z] + 0.5f * D,
+			0.5f * Ddx[tid.x][tid.y + 1][tid.z] + 0.5f * D,
+			0.5f * Ddx[tid.x][tid.y][tid.z + 1] + 0.5f * D
+		);
+
+
+		const float3 Cneg = make_float3(
+			ndx[tid.x - 1][tid.y][tid.z], 
+			ndx[tid.x][tid.y - 1][tid.z],
+			ndx[tid.x][tid.y][tid.z - 1]
+		);
+
+		const float3 Cpos = make_float3(
+			ndx[tid.x + 1][tid.y][tid.z],
+			ndx[tid.x][tid.y + 1][tid.z],
+			ndx[tid.x][tid.y][tid.z + 1]
+		);
+
+		const float3 C = make_float3(ndx[tid.x][tid.y][tid.z]);
+
+
+
+		float3 dc = Dneg * Cneg + Dpos * Cpos - C * (Dneg + Dpos);
+
+		//if (vox.x == 2 && vox.y == 10 && vox.z == 10)
+			//printf("c: %f, D: %.9f dc: %f %f %f, Dneg: %f %f %f\n",C.x, D, dc.x, dc.y, dc.z, Dneg.x, Dneg.y, Dneg.z);
+
+		float newVal = C.x + (dc.x + dc.y + dc.z) * 0.19999f;
+
+		surf3Dwrite(newVal, params.concetrationOut, vox.x * sizeof(float), vox.y, vox.z);
+
+
+		return;
+
+		//float3 dD2 = make_float3(
+		//	Ddx[tid.x - 1][tid.y][tid.z] + 2.0f * oldVal + Ddx[tid.x + 1][tid.y][tid.z],
+		//	Ddx[tid.x][tid.y - 1][tid.z] + 2.0f * oldVal + Ddx[tid.x][tid.y + 1][tid.z],
+		//	Ddx[tid.x][tid.y][tid.z - 1] + 2.0f * oldVal + Ddx[tid.x][tid.y][tid.z + 1]
+		//);
+
+		//float3 dc2 = make_float3(
+		//	ndx[tid.x - 1][tid.y][tid.z] + 2.0f * oldVal + ndx[tid.x + 1][tid.y][tid.z],
+		//	ndx[tid.x][tid.y - 1][tid.z] + 2.0f * oldVal + ndx[tid.x][tid.y + 1][tid.z],
+		//	ndx[tid.x][tid.y][tid.z - 1] + 2.0f * oldVal + ndx[tid.x][tid.y][tid.z + 1]
+		//);
+
+
+		
+
+	}
+
 	/////////// Compute
 
 	float oldVal = ndx[tid.x][tid.y][tid.z];
@@ -278,7 +362,8 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 	//float dt = 0.1f;
 	int minDim = min(res.x, min(res.y, res.z));
 	//float dt = 1.0f / (6.0f * minDim * D);
-	float3 dX = make_float3(1.0f / (res.x), 1.0f / (res.y), 1.0f / (res.z));
+	//float3 dX = make_float3(1.0f / (res.x), 1.0f / (res.y), 1.0f / (res.z));
+	float3 dX = make_float3(0.37e-6f);// , 1.0f / (res.y), 1.0f / (res.z));
 	float3 dX2 = make_float3(dX.x*dX.x, dX.y*dX.y, dX.z*dX.z);
 
 
@@ -286,6 +371,7 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 
 	float dt = 1.0f / (2.0f * minD * (1.0f / dX2.x +  1.0f / dX2.y + 1.0f / dX2.z));
 	
+	//dt *= 1.0f / 10.0f;
 	float3 v = D * make_float3(dt / dX2.x , dt / dX2.y, dt / dX2.z);
 
 	//D(dt / 1 + dt / 1 + dt / 1) <= 1/2 >>> dt <= 1/6*D
@@ -294,8 +380,8 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 		//>>> dt <= 1/2 * 1/D * 1/ sum(dX.x^2)
 
 
-	//if (vox.x == 10 && vox.y > 10 && vox.z == 10)
-		//printf("dt %f, vsum %f\n", dt, v.x+v.y+v.z);
+	if (vox.x < 2 && vox.y == 10 && vox.z == 10)
+		printf("x %d, dt %.9f, vsum %.9f, val: %f dx: %f\n", vox.x ,dt , v.x+v.y+v.z, oldVal, oldVal - ndx[tid.x - 1][tid.y][tid.z]);
 
 	
 	float3 d2 = make_float3(

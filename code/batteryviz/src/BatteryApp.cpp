@@ -26,7 +26,8 @@
 #include <array>
 #include <numeric>
 
-#define DATA_FOLDER "../../data/graphite/SL43_C5_1c5bar_Data/"
+//#define DATA_FOLDER "../../data/graphite/SL43_C5_1c5bar_Data/"
+#define DATA_FOLDER "../../data/graphite/Cropped/"
 
 
 using namespace std;
@@ -95,7 +96,7 @@ BatteryApp::BatteryApp()
 	loadDefualt = false;
 #endif
 
-	loadDefualt = false;
+	loadDefualt = true;
 
 	_volume = make_unique<blib::Volume>();
 	if(loadDefualt){			
@@ -120,15 +121,26 @@ BatteryApp::BatteryApp()
 			auto & c = _volume->getChannel(batteryID);
 			uchar * arr = (uchar *)c.getCurrentPtr().getCPU();
 
-			std::vector<vec3> pos = {
+
+			std::vector<vec3> pos;
+			std::vector<float> rad;
+
+			for (auto i = 0; i < 500; i++) {
+				pos.push_back({ uniformDist.next(),uniformDist.next(),uniformDist.next() });
+				rad.push_back({ uniformDist.next()  * 0.15f});
+			}
+
+			/*std::vector<vec3> pos = {
 				vec3(0.5f),
 				vec3(0.25f),
 				vec3(0.75f),
-				vec3(0.75f,0.1f,1.0f)
+				vec3(0.75f,0.1f,1.0f),
+				vec3(0.3f,0.8f,0.1f)
 			};
 			std::vector<float> rad = {
-				0.15f, 0.15f, 0.15f, 0.2f
+				0.15f, 0.15f, 0.15f, 0.2f, 0.2f
 			};
+*/
 
 			for (auto i = 0; i < res; i++) {
 				for (auto j = 0; j < res; j++) {
@@ -192,8 +204,8 @@ void BatteryApp::update(double dt)
 
 	if (_volume->hasChannel(CHANNEL_CONCETRATION)) {
 		for (auto i = 0; i < _options["Optim"].get<int>("stepsPerFrame"); i++) {
-			//_volume->heat(CHANNEL_CONCETRATION);			
-			//_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();
+			/*_volume->heat(CHANNEL_CONCETRATION);			
+			_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();*/
 			_volume->diffuse(
 				CHANNEL_BATTERY,
 				CHANNEL_CONCETRATION,
@@ -201,10 +213,19 @@ void BatteryApp::update(double dt)
 				//0.001f
 				//1.0e-10f, //abhas's
 				//1.0e-7f
-				1.0e-7f,
-				1.0e-10f
+				//1.0e-7f,
+				//1.0e-10f
+				0.5f,
+				0.0001f
 			);
 			_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();
+			//_volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().retrieve();
+
+			//void * ptr = _volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().getCPU();
+
+			char b;
+			b = 0;
+
 		}
 	}
 

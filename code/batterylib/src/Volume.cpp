@@ -168,10 +168,10 @@ void blib::Volume::heat(uint channel)
 		 zeroDiff,
 		 oneDiff,
 		 //Boundary values
-		 {
-			 1.0f, 0.0f, 
-			 BOUNDARY_ZERO_GRADIENT, BOUNDARY_ZERO_GRADIENT,
-			 BOUNDARY_ZERO_GRADIENT, BOUNDARY_ZERO_GRADIENT
+		 {			 
+			 0.0f, 1.0f,
+			 BOUNDARY_ZERO_GRADIENT, BOUNDARY_ZERO_GRADIENT,			 
+			 BOUNDARY_ZERO_GRADIENT, BOUNDARY_ZERO_GRADIENT,			 
 		 }
 		}
 	 );
