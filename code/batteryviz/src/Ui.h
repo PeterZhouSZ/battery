@@ -19,6 +19,8 @@ public:
 	void callbackScroll(GLFWwindow * w, double xoffset, double yoffset);
 	void callbackChar(GLFWwindow * w,unsigned int code);
 
+	bool isFocused() const;
+
 private:
 	BatteryApp & _app;
 

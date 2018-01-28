@@ -371,6 +371,7 @@ void Ui::callbackMouseButton(GLFWwindow * w, int button, int action, int mods)
 
 void Ui::callbackKey(GLFWwindow * w, int key, int scancode, int action, int mods)
 {
+	
 	ImGui_ImplGlfwGL3_KeyCallback(w, key, scancode, action, mods);
 }
 
@@ -381,6 +382,12 @@ void Ui::callbackScroll(GLFWwindow * w, double xoffset, double yoffset)
 
 void Ui::callbackChar(GLFWwindow * w, unsigned int code)
 {
+	
 	ImGui_ImplGlfwGL3_CharCallback(w, code);
+}
+
+bool Ui::isFocused() const
+{
+	return ImGui::IsAnyItemActive();
 }
 

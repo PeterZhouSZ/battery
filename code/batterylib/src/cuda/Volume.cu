@@ -294,43 +294,45 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 	
 	///
 	{
+		float dx = params.voxelSize;
 
-		float D = Ddx[tid.x][tid.y][tid.z];
-		//delta x for D is half of for concetration
-		const float3 Dneg = make_float3(
-			0.5f * Ddx[tid.x - 1][tid.y][tid.z] + 0.5f * D,
-			0.5f * Ddx[tid.x][tid.y - 1][tid.z] + 0.5f * D,
-			0.5f * Ddx[tid.x][tid.y][tid.z -1] + 0.5f * D			
-		);
-		const float3 Dpos = make_float3(
-			0.5f * Ddx[tid.x + 1][tid.y][tid.z] + 0.5f * D,
-			0.5f * Ddx[tid.x][tid.y + 1][tid.z] + 0.5f * D,
-			0.5f * Ddx[tid.x][tid.y][tid.z + 1] + 0.5f * D
+		const float D = Ddx[tid.x][tid.y][tid.z];
+		const float3 D3 = make_float3(D);
+
+		const float3 Dneg = lerp(
+			D3,
+			make_float3(Ddx[tid.x - 1][tid.y][tid.z], Ddx[tid.x][tid.y - 1][tid.z], Ddx[tid.x][tid.y][tid.z-1]),
+			(dx * 0.5f)
 		);
 
+		const float3 Dpos = lerp(
+			D3,
+			make_float3(Ddx[tid.x + 1][tid.y][tid.z], Ddx[tid.x][tid.y + 1][tid.z], Ddx[tid.x][tid.y][tid.z + 1]),			
+			(dx * 0.5f)
+		);	
 
-		const float3 Cneg = make_float3(
-			ndx[tid.x - 1][tid.y][tid.z], 
-			ndx[tid.x][tid.y - 1][tid.z],
-			ndx[tid.x][tid.y][tid.z - 1]
-		);
-
-		const float3 Cpos = make_float3(
-			ndx[tid.x + 1][tid.y][tid.z],
-			ndx[tid.x][tid.y + 1][tid.z],
-			ndx[tid.x][tid.y][tid.z + 1]
-		);
 
 		const float3 C = make_float3(ndx[tid.x][tid.y][tid.z]);
 
+		const float3 Cneg = lerp(
+			C,
+			make_float3(ndx[tid.x - 1][tid.y][tid.z], ndx[tid.x][tid.y - 1][tid.z],	ndx[tid.x][tid.y][tid.z - 1]),
+			dx
+		);
 
+		const float3 Cpos = lerp(
+			C,
+			make_float3(ndx[tid.x + 1][tid.y][tid.z], ndx[tid.x][tid.y + 1][tid.z], ndx[tid.x][tid.y][tid.z + 1]),
+			dx
+		);
+		
 
 		float3 dc = Dneg * Cneg + Dpos * Cpos - C * (Dneg + Dpos);
 
 		//if (vox.x == 2 && vox.y == 10 && vox.z == 10)
 			//printf("c: %f, D: %.9f dc: %f %f %f, Dneg: %f %f %f\n",C.x, D, dc.x, dc.y, dc.z, Dneg.x, Dneg.y, Dneg.z);
 
-		float newVal = C.x + (dc.x + dc.y + dc.z) * 0.19999f;
+		float newVal = C.x + (dc.x + dc.y + dc.z) / dx;
 
 		surf3Dwrite(newVal, params.concetrationOut, vox.x * sizeof(float), vox.y, vox.z);
 

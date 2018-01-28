@@ -396,6 +396,13 @@ void BatteryApp::callbackMouseButton(GLFWwindow * w, int button, int action, int
 
 void BatteryApp::callbackKey(GLFWwindow * w, int key, int scancode, int action, int mods)
 {
+
+	if (_ui.isFocused()) {
+		_ui.callbackKey(w, key, scancode, action, mods);
+		return;
+	}
+
+
 	App::callbackKey(w, key, scancode, action, mods);
 		
 
@@ -424,8 +431,7 @@ void BatteryApp::callbackKey(GLFWwindow * w, int key, int scancode, int action, 
 
 	}
 
-
-	_ui.callbackKey(w, key, scancode, action, mods);
+	
 }
 
 void BatteryApp::callbackScroll(GLFWwindow * w, double xoffset, double yoffset)

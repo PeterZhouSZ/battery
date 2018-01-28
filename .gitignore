@@ -39,3 +39,4 @@ imgui.ini
 */build/obj/*
 */build/.vs/*
 */bin/*
+*/build/*.pdb
