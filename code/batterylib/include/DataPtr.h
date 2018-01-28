@@ -108,6 +108,13 @@ namespace blib {
 			Copies cuda surface handle to specified device memory
 		*/
 		BLIB_EXPORT bool copySurfaceTo(void * gpuSurfacePtr) const;
+
+
+		/*
+			Clears both cpu & gpu with val
+			TODO: memset on gpu instead of doing cpu->gpu copy (i.e. using kernel/memset3d)
+		*/
+		BLIB_EXPORT bool clear(uchar val = 0);
 		
 	private:
 

@@ -40,6 +40,22 @@ const Texture3DPtr & blib::VolumeChannel::getNextPtr() const
 	return _ptr[(_current + 1) % 2];
 }
 
+void blib::VolumeChannel::clear()
+{
+	clearCurrent();
+	clearNext();
+}
+
+void blib::VolumeChannel::clearCurrent()
+{
+	getCurrentPtr().clear(0);	
+}
+
+void blib::VolumeChannel::clearNext()
+{
+	getNextPtr().clear(0);
+}
+
 Texture3DPtr & blib::VolumeChannel::getNextPtr()
 {
 	//Attempting to get double buffer when channel was allocated as single buffer
@@ -149,7 +165,16 @@ void blib::Volume::heat(uint channel)
 	 _CUDA(cudaDeviceSynchronize());
 }
 
- void blib::Volume::diffuse(uint maskChannel, uint concetrationChannel, float zeroDiff, float oneDiff)
+ void blib::Volume::diffuse(
+	 uint maskChannel,
+	 uint concetrationChannel, 
+	 float voxelSize,
+	 float zeroDiff, 
+	 float oneDiff,
+	 float highConc,
+	 float lowConc,
+	 Dir diffusionDir
+ )
  {
 	 auto & cmask = getChannel(maskChannel);
 	 auto & cconc = getChannel(concetrationChannel);
@@ -158,20 +183,53 @@ void blib::Volume::heat(uint channel)
 	 assert(cmask.dim.x == cconc.dim.x && cmask.dim.y == cconc.dim.y && cmask.dim.z == cconc.dim.z);
 	 assert(zeroDiff >= 0.0f && oneDiff >= 0.0f);
 
+	 std::array<float, 6> boundary;
+	 for (auto &v : boundary)
+		 v = BOUNDARY_ZERO_GRADIENT;
+	 
+	 switch (diffusionDir) {
+	 case X_POS:
+		 boundary[X_NEG] = lowConc;
+		 boundary[X_POS] = highConc;
+		 break;
+	 case X_NEG:
+		 boundary[X_POS] = lowConc;
+		 boundary[X_NEG] = highConc;
+		 break;
+	 case Y_POS:
+		 boundary[Y_NEG] = lowConc;
+		 boundary[Y_POS] = highConc;
+		 break;
+	 case Y_NEG:
+		 boundary[Y_POS] = lowConc;
+		 boundary[Y_NEG] = highConc;
+		 break;
+	 case Z_POS:
+		 boundary[Z_NEG] = lowConc;
+		 boundary[Z_POS] = highConc;
+		 break;
+	 case Z_NEG:
+		 boundary[Z_POS] = lowConc;
+		 boundary[Z_NEG] = highConc;
+		 break;
+	 }
+	 
+	 
+	 
 
 	 launchDiffuseKernel(
 		{
 		 make_uint3(cmask.dim.x, cmask.dim.y, cmask.dim.z),
+		 voxelSize,
 		 cmask.getCurrentPtr().getSurface(),
 		 cconc.getCurrentPtr().getSurface(),
 		 cconc.getNextPtr().getSurface(),
 		 zeroDiff,
 		 oneDiff,
 		 //Boundary values
-		 {			 
-			 0.0f, 1.0f,
-			 BOUNDARY_ZERO_GRADIENT, BOUNDARY_ZERO_GRADIENT,			 
-			 BOUNDARY_ZERO_GRADIENT, BOUNDARY_ZERO_GRADIENT,			 
+		 {
+			 boundary[0],boundary[1],boundary[2],
+			 boundary[3],boundary[4],boundary[5]
 		 }
 		}
 	 );

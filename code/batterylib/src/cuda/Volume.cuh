@@ -17,15 +17,6 @@ void launchBinarizeKernel(uint3 res,
 
 
 
-enum Dir {
-	X_POS = 0,
-	X_NEG = 1,
-	Y_POS = 2,
-	Y_NEG = 3,
-	Z_POS = 4,
-	Z_NEG = 5,
-	DIR_NONE = 6
-};
 
 __host__ __device__ inline int3 dirVec(Dir d) {
 	switch (d) {
@@ -43,6 +34,7 @@ __host__ __device__ inline int3 dirVec(Dir d) {
 
 struct DiffuseParams {
 	uint3 res;
+	float voxelSize; 
 	cudaSurfaceObject_t mask;
 	cudaSurfaceObject_t concetrationIn;
 	cudaSurfaceObject_t concetrationOut;

@@ -96,7 +96,7 @@ BatteryApp::BatteryApp()
 	loadDefualt = false;
 #endif
 
-	loadDefualt = true;
+	loadDefualt = false;
 
 	_volume = make_unique<blib::Volume>();
 	if(loadDefualt){			
@@ -114,7 +114,7 @@ BatteryApp::BatteryApp()
 				
 	}
 	else {
-		int res = 64;
+		int res = 32;
 		auto batteryID = _volume->addChannel({res,res,res}, TYPE_UCHAR);
 
 		{
@@ -125,7 +125,7 @@ BatteryApp::BatteryApp()
 			std::vector<vec3> pos;
 			std::vector<float> rad;
 
-			for (auto i = 0; i < 500; i++) {
+			for (auto i = 0; i < 32; i++) {
 				pos.push_back({ uniformDist.next(),uniformDist.next(),uniformDist.next() });
 				rad.push_back({ uniformDist.next()  * 0.15f});
 			}
@@ -141,7 +141,7 @@ BatteryApp::BatteryApp()
 				0.15f, 0.15f, 0.15f, 0.2f, 0.2f
 			};
 */
-
+			#pragma omp parallel for
 			for (auto i = 0; i < res; i++) {
 				for (auto j = 0; j < res; j++) {
 					for (auto k = 0; k < res; k++) {
@@ -208,15 +208,13 @@ void BatteryApp::update(double dt)
 			_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();*/
 			_volume->diffuse(
 				CHANNEL_BATTERY,
-				CHANNEL_CONCETRATION,
-				//0.005f,
-				//0.001f
-				//1.0e-10f, //abhas's
-				//1.0e-7f
-				//1.0e-7f,
-				//1.0e-10f
-				0.5f,
-				0.0001f
+				CHANNEL_CONCETRATION,				
+				_options["Diffusion"].get<float>("voxelSize"),
+				_options["Diffusion"].get<float>("D_zero"), //0.5f,
+				_options["Diffusion"].get<float>("D_one"), //0.0001f
+				_options["Diffusion"].get<float>("C_high"), 
+				_options["Diffusion"].get<float>("C_low"), 
+				Dir(_options["Diffusion"].get<int>("direction"))
 			);
 			_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();
 			//_volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().retrieve();
@@ -450,7 +448,7 @@ void BatteryApp::callbackChar(GLFWwindow * w, unsigned int code)
 void BatteryApp::resetSA()
 {
 
-
+	_volume->getChannel(CHANNEL_CONCETRATION).clear();
 
 /*
 	_saEllipsoid.score = [&](const vector<Ellipsoid> & vals) {

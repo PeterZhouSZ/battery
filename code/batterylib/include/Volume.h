@@ -23,6 +23,13 @@ namespace blib{
 		BLIB_EXPORT const Texture3DPtr & getCurrentPtr() const;
 		BLIB_EXPORT const Texture3DPtr & getNextPtr() const;
 
+		/*
+			Clears both buffers
+		*/
+		BLIB_EXPORT void clear();
+		BLIB_EXPORT void clearCurrent();
+		BLIB_EXPORT void clearNext();
+
 		BLIB_EXPORT void swapBuffers();
 		
 		
@@ -53,8 +60,12 @@ namespace blib{
 		BLIB_EXPORT void diffuse(
 			uint maskChannel,
 			uint concetrationChannel,
+			float voxelSize,
 			float zeroDiff,
-			float oneDiff
+			float oneDiff,
+			float highConc = 1.0f,
+			float lowConc = 0.0f,
+			Dir diffusionDir = X_POS
 			);
 
 		

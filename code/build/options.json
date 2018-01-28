@@ -1,4 +1,30 @@
 {
+    "Diffusion": {
+        "C_high": {
+            "data": 1.0,
+            "type": 3
+        },
+        "C_low": {
+            "data": 0.0,
+            "type": 3
+        },
+        "D_one": {
+            "data": 9.99999997475243e-07,
+            "type": 3
+        },
+        "D_zero": {
+            "data": 0.5,
+            "type": 3
+        },
+        "direction": {
+            "data": 0,
+            "type": 2
+        },
+        "voxelSize": {
+            "data": 0.0,
+            "type": 3
+        }
+    },
     "Optim": {
         "SA": {
             "MRD": {
@@ -51,13 +77,13 @@
             "type": 2
         },
         "stepsPerFrame": {
-            "data": 1,
+            "data": 16,
             "type": 2
         }
     },
     "Render": {
         "channel": {
-            "data": 0,
+            "data": 1,
             "type": 2
         },
         "ellipsoids": {

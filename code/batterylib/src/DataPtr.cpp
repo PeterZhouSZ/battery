@@ -246,6 +246,13 @@ bool blib::Texture3DPtr::copySurfaceTo(void * gpuSurfacePtr) const
 	);
 }
 
+bool blib::Texture3DPtr::clear(uchar val /*= 0*/)
+{
+	memset(getCPU(), val, this->byteSize());	
+	return commit();
+
+}
+
 bool blib::Texture3DPtr::createSurface()
 {
 	cudaResourceDesc resDesc; 
