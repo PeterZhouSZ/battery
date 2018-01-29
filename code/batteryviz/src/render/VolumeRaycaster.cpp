@@ -50,6 +50,8 @@ std::vector<color4> transferJet() {
 		arr[i] = color4(jet(t, 0, 1),t*t * 0.05f);
 	}
 
+	arr.back().w = 0.05f;
+
 	return arr;
 
 }

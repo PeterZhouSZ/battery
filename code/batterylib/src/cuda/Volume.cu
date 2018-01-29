@@ -326,13 +326,23 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 			dx
 		);
 		
+		float dt = dx*dx * (1.0f / (2.0f * min(params.zeroDiff, params.oneDiff)));
+
+
+		//https://math.stackexchange.com/questions/1949795/explicit-finite-difference-scheme-for-nonlinear-diffusion
+		//float3 dc = (dt / (dx*dx)) * (Dpos * (Cpos - C) - Dneg * (C - Cneg));
 
 		float3 dc = Dneg * Cneg + Dpos * Cpos - C * (Dneg + Dpos);
 
-		//if (vox.x == 2 && vox.y == 10 && vox.z == 10)
+		//float3 dc = D * (Cpos - 2* C + Cneg) + (Dneg - Dpos) * ()
+
+		if (vox.x == 2 && vox.y == 10 && vox.z == 10) {
+			printf("dt: %f\n", dt);
+		}
 			//printf("c: %f, D: %.9f dc: %f %f %f, Dneg: %f %f %f\n",C.x, D, dc.x, dc.y, dc.z, Dneg.x, Dneg.y, Dneg.z);
 
-		float newVal = C.x + (dc.x + dc.y + dc.z) / dx;
+		float newVal = C.x + (dc.x + dc.y + dc.z) * (dt / (dx*dx));
+		
 
 		surf3Dwrite(newVal, params.concetrationOut, vox.x * sizeof(float), vox.y, vox.z);
 
