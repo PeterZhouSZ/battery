@@ -79,6 +79,12 @@ protected:
 	friend Ui;
 	Ui _ui;	
 
+	
+	double _simulationTime;
+	double _convergenceTime;
+	float _residual;
+	
+
 private:
 	
 

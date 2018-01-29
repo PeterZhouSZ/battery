@@ -258,10 +258,19 @@ void Ui::update(double dt)
 		ImVec2(static_cast<float>(_app._window.width - w), 0), 
 		ImGuiSetCond_Always
 	);
-	ImGui::SetNextWindowSize(
-		ImVec2(static_cast<float>(w), 2.0f * (static_cast<float>(_app._window.height) / 3.0f)), 
-		ImGuiSetCond_Always
-	);
+
+	if (_app._options["Render"].get<bool>("slices")) {
+		ImGui::SetNextWindowSize(
+			ImVec2(static_cast<float>(w), 2.0f * (static_cast<float>(_app._window.height) / 3.0f)),
+			ImGuiSetCond_Always
+		);
+	}
+	else {
+		ImGui::SetNextWindowSize(
+			ImVec2(static_cast<float>(w), static_cast<float>(_app._window.height)),
+			ImGuiSetCond_Always
+		);
+	}
 
 	static bool mainOpen = false;
 
@@ -354,7 +363,42 @@ void Ui::update(double dt)
 	if (ImGui::Button("Reset SA")) {
 		_app.resetSA();
 	}
+
+	if (ImGui::Button("Diff")){
+		_app._volume->getChannel(1).differenceSum();
+	}
 	
+
+	ImGui::Text("Simulation time: %.6fs (%.1fm), dC/dt: %.6f", float(_app._simulationTime), float(_app._simulationTime / 60.0), _app._residual);
+
+	if (_app._convergenceTime >= 0.0f) {
+		ImGui::Text("Convergence time: %.6f", float(_app._convergenceTime));
+	}
+
+	static bool concGraph = true;
+	ImGui::Checkbox("Concetration Graph", &concGraph);
+	
+	if(concGraph){
+
+		const uint channel = 1;
+
+		const Dir dir = Dir(_app._options["Diffusion"].get<int>("direction"));
+		
+		std::vector<float> vals;
+
+		auto & c = _app._volume->getChannel(channel);
+		vals.resize(c.dimInDirection(dir),0.0f);
+		_app._volume->reduceSlice(channel, dir, vals.data());
+
+		auto sliceElemCount = float(c.sliceElemCount(dir));
+		for (auto & v : vals)
+			v /= sliceElemCount;
+		
+		ImGui::PlotLines("C", vals.data(), int(vals.size()), 0, nullptr, 0.0f, 1.0f, ImVec2(400,300));
+
+
+	
+	}
 
 
 

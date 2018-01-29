@@ -101,6 +101,8 @@ blib::Texture3DPtr::Texture3DPtr()
 }
 
 
+
+
 bool blib::Texture3DPtr::alloc(PrimitiveType type, ivec3 dim, bool alsoOnCPU)
 {
 	
@@ -188,6 +190,21 @@ bool blib::Texture3DPtr::allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnC
 	return true;
 }
 
+bool blib::Texture3DPtr::mapGPUArray()
+{
+	//Map resource for cuda
+	_CUDA(cudaGraphicsMapResources(1, &_gpuRes, 0));
+
+	//Get pointer
+	return _CUDA(cudaGraphicsSubResourceGetMappedArray(&_gpu, _gpuRes, 0, 0));
+}
+
+ bool blib::Texture3DPtr::unmapGPUArray()
+{
+	 //Unmap resource
+	 return _CUDA(cudaGraphicsUnmapResources(1, &_gpuRes, 0));
+}
+
 bool blib::Texture3DPtr::commit()
 {
 
@@ -227,7 +244,7 @@ bool blib::Texture3DPtr::retrieve()
 	memset(&p, 0, sizeof(cudaMemcpy3DParms));
 
 	p.extent = _extent;
-	p.kind = cudaMemcpyDeviceToHost;
+	p.kind = cudaMemcpyDeviceToHost;	
 
 	p.srcArray = _gpu;
 	p.dstPtr = _cpu;	
@@ -249,6 +266,20 @@ bool blib::Texture3DPtr::copySurfaceTo(void * gpuSurfacePtr) const
 bool blib::Texture3DPtr::clear(uchar val /*= 0*/)
 {
 	memset(getCPU(), val, this->byteSize());	
+	return commit();
+
+}
+
+bool blib::Texture3DPtr::fillSlow(void * elem)
+{
+	auto * cpu = getCPU();
+	
+	const auto numElem = num();
+	const auto size = primitiveSizeof(_type);
+	for (auto i = 0; i < numElem; i++){
+		memcpy((char*)cpu + i*size, elem, size);
+	}
+	
 	return commit();
 
 }
@@ -299,5 +330,7 @@ void blib::Texture3DPtr::setDesc(PrimitiveType type)
 		_desc.f = cudaChannelFormatKindUnsigned;
 		break;
 	};
+
+	_type = type;
 
 }

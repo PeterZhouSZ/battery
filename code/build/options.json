@@ -9,19 +9,29 @@
             "type": 3
         },
         "D_one": {
-            "data": 0.00100000004749745,
+            "data": 0.0,
             "type": 3
         },
         "D_zero": {
-            "data": 1.0,
+            "data": 0.100000001490116,
             "type": 3
         },
         "direction": {
-            "data": 1,
+            "data": 5,
             "type": 2
         },
         "voxelSize": {
-            "data": 9.99999974737875e-05,
+            "data": 1.0,
+            "type": 3
+        }
+    },
+    "Generator": {
+        "SphereCount": {
+            "data": 128,
+            "type": 2
+        },
+        "SphereRadius": {
+            "data": 0.200000002980232,
             "type": 3
         }
     },
@@ -77,7 +87,7 @@
             "type": 2
         },
         "stepsPerFrame": {
-            "data": 64,
+            "data": 1,
             "type": 2
         }
     },

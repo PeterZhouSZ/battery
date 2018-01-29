@@ -4,6 +4,9 @@
 #include "Volume.cuh"
 #include "CudaUtility.h"
 
+#include <thrust/reduce.h>
+#include <thrust/device_vector.h>
+
 using namespace blib;
 
 bool glewInited = false;
@@ -38,6 +41,24 @@ const Texture3DPtr & blib::VolumeChannel::getNextPtr() const
 	//Attempting to get double buffer when channel was allocated as single buffer
 	assert(_doubleBuffered);
 	return _ptr[(_current + 1) % 2];
+}
+
+float blib::VolumeChannel::differenceSum()
+{
+
+	//Only float supported at the moment
+	assert(type == TYPE_FLOAT);
+
+	auto res = make_uint3(dim.x, dim.y, dim.z);
+	launchSubtractKernel(
+		res,
+		getCurrentPtr().getSurface(),
+		getNextPtr().getSurface()
+	);	
+		
+	float result = launchReduceSumKernel(res, getCurrentPtr().getSurface());				
+
+	return result;
 }
 
 void blib::VolumeChannel::clear()
@@ -78,6 +99,17 @@ void blib::VolumeChannel::swapBuffers()
 }
 
 
+
+uint blib::VolumeChannel::dimInDirection(Dir dir)
+{
+	return dim[getDirIndex(dir)];
+}
+
+uint blib::VolumeChannel::sliceElemCount(Dir dir)
+{
+	uint index = getDirIndex(dir);
+	return dim[(index + 1) % 3] * dim[(index + 2) % 3];
+}
 
 ///////////////////////////
 
@@ -138,7 +170,7 @@ void blib::Volume::erode(uint channel)
 		c.getCurrentPtr().getSurface(), //in
 		c.getNextPtr().getSurface() //out
 	);
-	_CUDA(cudaDeviceSynchronize());
+
 
 }
 
@@ -150,7 +182,7 @@ void blib::Volume::heat(uint channel)
 		c.getCurrentPtr().getSurface(), //in
 		c.getNextPtr().getSurface() //out
 	);
-	_CUDA(cudaDeviceSynchronize());
+	
 }
 
  void blib::Volume::binarize(uint channel, float threshold /*= 1.0f*/)
@@ -162,8 +194,24 @@ void blib::Volume::heat(uint channel)
 		 c.type,
 		 threshold		 
 	 );
-	 _CUDA(cudaDeviceSynchronize());
+	 
 }
+
+ void blib::Volume::reduceSlice(uint channel, Dir dir, void * output)
+ {
+	 auto & c = getChannel(channel);
+	 
+	 //Only float supported at the moment
+	 assert(c.type == TYPE_FLOAT);
+
+  	 launchReduceSumSlice(
+		 make_uint3(c.dim.x, c.dim.y, c.dim.z),
+		 c.getCurrentPtr().getSurface(),
+		 dir,
+		 output
+	 );
+
+ }
 
  void blib::Volume::diffuse(
 	 uint maskChannel,
@@ -234,7 +282,7 @@ void blib::Volume::heat(uint channel)
 		}
 	 );
 
-	 _CUDA(cudaDeviceSynchronize());
+	 cudaDeviceSynchronize();
 
 
  }

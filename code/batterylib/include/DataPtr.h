@@ -46,6 +46,14 @@ namespace blib {
 		BLIB_EXPORT const void * getCPU() const { return _cpu.ptr; }
 
 		/*
+			Returns GPU cudaArray
+		*/
+		BLIB_EXPORT const cudaArray * getGPUArray() const { return _gpu; }
+		BLIB_EXPORT cudaArray * getGPUArray() { return _gpu; }
+		BLIB_EXPORT bool mapGPUArray();
+		BLIB_EXPORT bool unmapGPUArray();
+
+		/*
 			OpenGL ID of texture
 		*/
 		BLIB_EXPORT uint getGlID() const { return _glID; }
@@ -115,6 +123,9 @@ namespace blib {
 			TODO: memset on gpu instead of doing cpu->gpu copy (i.e. using kernel/memset3d)
 		*/
 		BLIB_EXPORT bool clear(uchar val = 0);
+
+		//Fills volume with elem of type primitivetype
+		BLIB_EXPORT bool fillSlow(void * elem);
 		
 	private:
 
@@ -136,6 +147,7 @@ namespace blib {
 		cudaChannelFormatDesc _desc;
 		cudaExtent _extent;
 		uint _glID;
+		PrimitiveType _type;
 		
 	};
 

@@ -26,8 +26,9 @@
 #include <array>
 #include <numeric>
 
-//#define DATA_FOLDER "../../data/graphite/SL43_C5_1c5bar_Data/"
-#define DATA_FOLDER "../../data/graphite/Cropped/"
+
+#define DATA_FOLDER "../../data/graphite/SL43_C5_1c5bar_Data/"
+//#define DATA_FOLDER "../../data/graphite/Cropped/"
 
 
 using namespace std;
@@ -46,17 +47,61 @@ RNGUniformInt uniformDistInt(0, INT_MAX);
 #define CHANNEL_CONCETRATION 1
 
 
+
+void generateSpheresVolume(blib::Volume & volume, uint sphereCount, float sphereRadius) {
+
+	{
+		auto & c = volume.getChannel(CHANNEL_BATTERY);
+		
+		uchar * arr = (uchar *)c.getCurrentPtr().getCPU();
+
+		std::vector<vec3> pos;
+		std::vector<float> rad;
+
+		for (auto i = 0; i < sphereCount; i++) {
+			pos.push_back({ uniformDist.next(),uniformDist.next(),uniformDist.next() });
+			rad.push_back({ uniformDist.next()  * sphereRadius });
+		}
+
+		#pragma omp parallel for
+		for (auto i = 0; i < c.dim.x; i++) {
+			for (auto j = 0; j < c.dim.y; j++) {
+				for (auto k = 0; k < c.dim.z; k++) {
+
+					arr[i + j*c.dim.x + k*c.dim.y*c.dim.z] = 0;
+
+					for (auto x = 0; x < pos.size(); x++) {
+						if (glm::length(vec3(i / float(c.dim.x), j / float(c.dim.y), k / float(c.dim.z)) - pos[x]) < rad[x]) {
+							arr[i + j*c.dim.x + k*c.dim.y*c.dim.z] = 255;
+							break;
+						}
+					}
+
+
+				}
+			}
+		}
+
+		c.getCurrentPtr().commit();
+
+	}
+
+	volume.binarize(CHANNEL_BATTERY, 1.0f);
+}
+
+
 BatteryApp::BatteryApp()
 	: App("BatteryViz"),
 	_camera(Camera::defaultCamera(_window.width, _window.height)),	
 	_ui(*this),
-	_currentRenderChannel(0)
+	_currentRenderChannel(0),
+	_simulationTime(0.0f)
 	
 {	
 
 
 	
-
+	
 
 	{
 		std::ifstream optFile(OPTIONS_FILENAME);
@@ -111,54 +156,17 @@ BatteryApp::BatteryApp()
 			TYPE_FLOAT
 		);
 		assert(concetrationID == CHANNEL_CONCETRATION);
+
+		_volume->getChannel(CHANNEL_CONCETRATION).clear();
+
+		auto dim = _volume->getChannel(CHANNEL_BATTERY).dim;
+		std::cout << "Resolution: " << dim.x << " x " << dim.y << " x " << dim.z <<
+			" = " << dim.x*dim.y*dim.z << " voxels (" << (dim.x*dim.y*dim.z)/(1024*1024.0f) << "M)" << std::endl;
 				
 	}
 	else {
 		int res = 32;
-		auto batteryID = _volume->addChannel({res,res,res}, TYPE_UCHAR);
-
-		{
-			auto & c = _volume->getChannel(batteryID);
-			uchar * arr = (uchar *)c.getCurrentPtr().getCPU();
-
-
-			std::vector<vec3> pos;
-			std::vector<float> rad;
-
-			for (auto i = 0; i < 32; i++) {
-				pos.push_back({ uniformDist.next(),uniformDist.next(),uniformDist.next() });
-				rad.push_back({ uniformDist.next()  * 0.15f});
-			}
-
-			/*std::vector<vec3> pos = {
-				vec3(0.5f),
-				vec3(0.25f),
-				vec3(0.75f),
-				vec3(0.75f,0.1f,1.0f),
-				vec3(0.3f,0.8f,0.1f)
-			};
-			std::vector<float> rad = {
-				0.15f, 0.15f, 0.15f, 0.2f, 0.2f
-			};
-*/
-			#pragma omp parallel for
-			for (auto i = 0; i < res; i++) {
-				for (auto j = 0; j < res; j++) {
-					for (auto k = 0; k < res; k++) {
-
-						for (auto x = 0; x < pos.size(); x++) {
-							if (glm::length(vec3(i, j, k) / float(res) - pos[x]) < rad[x])
-								arr[i + j*res + k*res*res] = 255;
-						}
-					}
-				}
-			}
-
-			c.getCurrentPtr().commit();
-
-		}		
-
-		_volume->binarize(CHANNEL_BATTERY, 1.0f);
+		auto batteryID = _volume->addChannel({res,res,res}, TYPE_UCHAR);	
 
 		//Add concetration channel
 		auto concetrationID = _volume->addChannel(
@@ -166,6 +174,10 @@ BatteryApp::BatteryApp()
 			TYPE_FLOAT
 		);
 		assert(concetrationID == CHANNEL_CONCETRATION);
+
+
+		resetSA();
+		//generateSpheresVolume(*_volume, 128, 0.15f);
 
 	}
 
@@ -195,7 +207,7 @@ BatteryApp::BatteryApp()
 void BatteryApp::update(double dt)
 {
 	if (!_autoUpdate) return;
-
+ 
 	
 	//_saEllipsoid.update(_options["Optim"].get<int>("stepsPerFrame"));
 	//_volumeRaycaster->updateVolume(_volume);	
@@ -203,9 +215,17 @@ void BatteryApp::update(double dt)
 
 
 	if (_volume->hasChannel(CHANNEL_CONCETRATION)) {
+
+		
+
 		for (auto i = 0; i < _options["Optim"].get<int>("stepsPerFrame"); i++) {
 			/*_volume->heat(CHANNEL_CONCETRATION);			
 			_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();*/
+
+			float t0 = glfwGetTime();
+
+			auto dir = Dir(_options["Diffusion"].get<int>("direction"));
+
 			_volume->diffuse(
 				CHANNEL_BATTERY,
 				CHANNEL_CONCETRATION,				
@@ -214,9 +234,25 @@ void BatteryApp::update(double dt)
 				_options["Diffusion"].get<float>("D_one"), //0.0001f
 				_options["Diffusion"].get<float>("C_high"), 
 				_options["Diffusion"].get<float>("C_low"), 
-				Dir(_options["Diffusion"].get<int>("direction"))
+				dir
 			);
+
+			static int k = 0; k++;
+
+			if (k % 256 == 0) {
+				auto dim = _volume->getChannel(CHANNEL_CONCETRATION).dim;
+				_residual = _volume->getChannel(CHANNEL_CONCETRATION).differenceSum();// / (dim.x*dim.y*dim.z);
+				if (_residual < 0.000001f && _convergenceTime < 0.0f) {
+					_convergenceTime = _simulationTime;
+				}
+			}
+
 			_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();
+
+			float t1 = glfwGetTime();
+
+			_simulationTime += t1 - t0;
+
 			//_volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().retrieve();
 
 			//void * ptr = _volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().getCPU();
@@ -225,6 +261,9 @@ void BatteryApp::update(double dt)
 			b = 0;
 
 		}
+
+		
+
 	}
 
 	
@@ -415,6 +454,10 @@ void BatteryApp::callbackKey(GLFWwindow * w, int key, int scancode, int action, 
 		if (key == GLFW_KEY_SPACE)
 			_autoUpdate = !_autoUpdate;
 
+		if (key == GLFW_KEY_Q)
+			resetSA();
+
+
 		if (key == GLFW_KEY_1) {
 			_options["Render"].get<int>("channel") = 0;
 		}
@@ -454,7 +497,11 @@ void BatteryApp::callbackChar(GLFWwindow * w, unsigned int code)
 void BatteryApp::resetSA()
 {
 
+	generateSpheresVolume(*_volume, _options["Generator"].get<int>("SphereCount"), _options["Generator"].get<float>("SphereRadius"));		
 	_volume->getChannel(CHANNEL_CONCETRATION).clear();
+	_simulationTime = 0.0f;
+	_convergenceTime = -1.0f;
+	
 
 /*
 	_saEllipsoid.score = [&](const vector<Ellipsoid> & vals) {

@@ -44,13 +44,13 @@ color3 jet(double v, double vmin, double vmax)
 
 std::vector<color4> transferJet() {
 
-	std::vector<color4> arr(256);	
+	std::vector<color4> arr(64);	
 	for (auto i = 0; i < arr.size(); i++) {
 		float t = i / float(arr.size() - 1);
 		arr[i] = color4(jet(t, 0, 1),t*t * 0.05f);
 	}
 
-	arr.back().w = 0.05f;
+//	arr.front().w = 0.005f;
 
 	return arr;
 

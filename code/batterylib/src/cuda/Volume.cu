@@ -336,12 +336,14 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 
 		//float3 dc = D * (Cpos - 2* C + Cneg) + (Dneg - Dpos) * ()
 
-		if (vox.x == 2 && vox.y == 10 && vox.z == 10) {
-			printf("dt: %f\n", dt);
-		}
+		//if (vox.x == 2 && vox.y == 10 && vox.z == 10) {
+			//printf("dt: %f\n", dt);
+		//}
 			//printf("c: %f, D: %.9f dc: %f %f %f, Dneg: %f %f %f\n",C.x, D, dc.x, dc.y, dc.z, Dneg.x, Dneg.y, Dneg.z);
 
-		float newVal = C.x + (dc.x + dc.y + dc.z) * (dt / (dx*dx));
+		float DX = 1.0f / res.x;
+
+		float newVal = C.x + (dc.x + dc.y + dc.z);
 		
 
 		surf3Dwrite(newVal, params.concetrationOut, vox.x * sizeof(float), vox.y, vox.z);
@@ -392,8 +394,8 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 		//>>> dt <= 1/2 * 1/D * 1/ sum(dX.x^2)
 
 
-	if (vox.x < 2 && vox.y == 10 && vox.z == 10)
-		printf("x %d, dt %.9f, vsum %.9f, val: %f dx: %f\n", vox.x ,dt , v.x+v.y+v.z, oldVal, oldVal - ndx[tid.x - 1][tid.y][tid.z]);
+//	if (vox.x < 2 && vox.y == 10 && vox.z == 10)
+	//	printf("x %d, dt %.9f, vsum %.9f, val: %f dx: %f\n", vox.x ,dt , v.x+v.y+v.z, oldVal, oldVal - ndx[tid.x - 1][tid.y][tid.z]);
 
 	
 	float3 d2 = make_float3(
@@ -426,4 +428,318 @@ void launchDiffuseKernel(DiffuseParams params) {
 	);
 
 	kernelDiffuse<blockSize, apron> << <numBlocks, block >> > (params);
+}
+
+
+
+
+
+
+
+__global__ void kernelSubtract(uint3 res, cudaSurfaceObject_t A, cudaSurfaceObject_t B) {
+
+	VOLUME_VOX_GUARD(res);
+
+	float Aval, Bval;
+	surf3Dread(&Aval, A, vox.x * sizeof(float), vox.y, vox.z);
+	surf3Dread(&Bval, B, vox.x * sizeof(float), vox.y, vox.z);
+
+	float newVal = Bval - Aval;
+	
+	surf3Dwrite(newVal, A, vox.x * sizeof(float), vox.y, vox.z);
+}
+
+void launchSubtractKernel(uint3 res, cudaSurfaceObject_t A, cudaSurfaceObject_t B) {
+	uint3 block = make_uint3(8, 8, 8);
+	uint3 numBlocks = make_uint3(
+		(res.x / block.x) + 1,
+		(res.y / block.y) + 1,
+		(res.z / block.z) + 1
+	);
+
+	kernelSubtract << <numBlocks, block >> > (res, A, B);
+
+}
+
+
+
+//template <typename T, unsigned int blockSize>
+//__global__ void reduce(T *g_idata, T *g_odata, unsigned int n)
+//{
+//	extern __shared__ int sdata[];
+//	unsigned int tid = threadIdx.x;
+//	unsigned int i = blockIdx.x*(blockSize * 2) + tid;
+//	unsigned int gridSize = blockSize * 2 * gridDim.x;
+//	sdata[tid] = 0;
+//
+//	while (i < n) { sdata[tid] += g_idata[i] + g_idata[i + blockSize]; i += gridSize; }
+//	__syncthreads();
+//
+//	if (blockSize >= 512) { if (tid < 256) { sdata[tid] += sdata[tid + 256]; } __syncthreads(); }
+//	if (blockSize >= 256) { if (tid < 128) { sdata[tid] += sdata[tid + 128]; } __syncthreads(); }
+//	if (blockSize >= 128) { if (tid < 64) { sdata[tid] += sdata[tid + 64]; } __syncthreads(); }
+//	if (tid < 32) {
+//		if (blockSize >= 64) sdata[tid] += sdata[tid + 32];
+//		if (blockSize >= 32) sdata[tid] += sdata[tid + 16];
+//		if (blockSize >= 16) sdata[tid] += sdata[tid + 8];
+//		if (blockSize >= 8) sdata[tid] += sdata[tid + 4];
+//		if (blockSize >= 4) sdata[tid] += sdata[tid + 2];
+//		if (blockSize >= 2) sdata[tid] += sdata[tid + 1];
+//	}
+//	if (tid == 0) g_odata[blockIdx.x] = sdata[0];
+//}
+
+template <typename T, unsigned int blockSize, bool toSurface>
+__global__ void reduce3D(uint3 res, cudaSurfaceObject_t data, T * finalData, unsigned int n, uint3 offset)
+{
+	extern __shared__ T sdata[];
+	unsigned int tid = threadIdx.x;
+	unsigned int i = blockIdx.x*(blockSize * 2) + tid;
+	unsigned int gridSize = blockSize * 2 * gridDim.x;
+	sdata[tid] = 0;
+
+	while (i < n) { 
+		uint3 voxi = make_uint3(i % res.x, (i / res.x) % res.y, i / (res.x*res.y)) + offset;
+		uint3 voxip = make_uint3((i+blockSize) % res.x, ((i + blockSize) / res.x) % res.y, (i + blockSize) / (res.x*res.y)) + offset;
+
+		T vali, valip;
+		surf3Dread(&vali, data, voxi.x * sizeof(T), voxi.y, voxi.z);
+		surf3Dread(&valip, data, voxip.x * sizeof(T), voxip.y, voxip.z);
+		
+	
+		sdata[tid] += (vali + valip);
+
+		i += gridSize; 
+	}
+	__syncthreads();
+
+	if (blockSize >= 512) { if (tid < 256) { sdata[tid] += sdata[tid + 256]; } __syncthreads(); }
+	if (blockSize >= 256) { if (tid < 128) { sdata[tid] += sdata[tid + 128]; } __syncthreads(); }
+	if (blockSize >= 128) { if (tid < 64) { sdata[tid] += sdata[tid + 64]; } __syncthreads(); }
+	if (tid < 32) {
+		if (blockSize >= 64) sdata[tid] += sdata[tid + 32];
+		if (blockSize >= 32) sdata[tid] += sdata[tid + 16];
+		if (blockSize >= 16) sdata[tid] += sdata[tid + 8];
+		if (blockSize >= 8) sdata[tid] += sdata[tid + 4];
+		if (blockSize >= 4) sdata[tid] += sdata[tid + 2];
+		if (blockSize >= 2) sdata[tid] += sdata[tid + 1];
+	}
+	if (tid == 0) {
+
+		unsigned int o = blockIdx.x;	
+		//Either copy to surface
+		if (toSurface) {			
+			uint3 voxo = make_uint3(o % res.x, (o / res.x) % res.y, o / (res.x*res.y));
+			surf3Dwrite(sdata[0], data, voxo.x * sizeof(T), voxo.y, voxo.z);				
+		}
+		//Or final 1D array
+		else {
+			finalData[o] = sdata[0];						
+		}	
+	}
+	
+}
+
+
+
+float launchReduceSumKernel(uint3 res, cudaSurfaceObject_t surf) {
+		
+
+	const uint finalSizeMax = 512;
+	const uint blockSize = 512;
+	const uint3 block = make_uint3(blockSize,1,1);	
+	uint n = res.x * res.y * res.z;
+
+
+	float * deviceResult = nullptr;
+	cudaMalloc(&deviceResult, finalSizeMax * sizeof(float));
+	cudaMemset(deviceResult, 0, finalSizeMax * sizeof(float));
+	
+
+	while (n > finalSizeMax) {
+		uint3 numBlocks = make_uint3(
+			(n / block.x) / 2 , 1, 1
+		);		
+
+		//If not final stage of reduction -> reduce into  surface
+		if (numBlocks.x > finalSizeMax) {
+			reduce3D<float, blockSize, true>
+				<<<numBlocks, block, blockSize * sizeof(float)>>> (
+					res, surf, nullptr, n, make_uint3(0)
+					);
+		}
+		else {
+			reduce3D<float, blockSize, false>
+				<<<numBlocks, block, blockSize * sizeof(float)>>> (
+					res, surf, deviceResult, n, make_uint3(0)
+					);
+		
+		}
+
+		//New N
+		n = numBlocks.x;
+	}
+
+
+	float * hostResult = new float[finalSizeMax];
+	cudaMemcpy(hostResult, deviceResult, finalSizeMax * sizeof(float), cudaMemcpyDeviceToHost);
+
+
+	float result = 0.0f;
+	for (auto i = 0; i < finalSizeMax; i++) {
+		result += hostResult[i];
+	}
+
+	cudaFree(deviceResult);
+	delete[] hostResult;
+
+
+	return result;
+
+}
+
+
+
+
+//////////////////////////
+
+template <Dir dir>
+__global__ void sliceReduce(uint3 res, cudaSurfaceObject_t surf, float *output) {
+		
+	const uint3 tid = make_uint3(threadIdx.x, threadIdx.y, threadIdx.z);
+	const uint tidLin = tid.x + tid.y * blockDim.x; 
+
+	const uint3 vox = make_uint3(
+		blockIdx.x * blockDim.x, //in slice x
+		blockIdx.y * blockDim.y, //in slice y
+		blockIdx.z * blockDim.z  //slice
+	) + tid;
+
+	{
+		/*uint blockIndex = blockIdx.x + blockIdx.y * gridDim.x + blockIdx.z * gridDim.x * gridDim.y;
+		if(blockIndex == 0 || blockIndex == 127)
+			printf("block: %d %d %d - > %d, vox: %d %d %d | blockDim: %d %d %d\n", 
+				blockIdx.x, blockIdx.y, blockIdx.z,
+				blockIndex, 
+				vox.x, vox.y, vox.z,
+				blockDim.x, blockDim.y, blockDim.z
+			);*/
+	}
+
+	extern __shared__ float s[];
+
+	uint3 texVox;
+	if (dir == Z_POS || dir == Z_NEG)
+		texVox = vox;
+	else if (dir == Y_POS || dir == Y_POS)
+		texVox = make_uint3(vox.x, vox.z, vox.y);
+	else 
+		texVox = make_uint3(vox.y, vox.z, vox.x);
+
+	s[tidLin] = 0.0f;
+
+
+	bool valid = true;
+	if (texVox.x >= res.x || texVox.y > res.y || texVox.z >= res.z) {
+		valid = false;
+	}
+
+	if(valid)
+		surf3Dread(&s[tidLin], surf, texVox.x * sizeof(float), texVox.y, texVox.z);
+
+	__syncthreads();
+
+	
+	//For now let tid==0 do all the work
+	if (tidLin == 0) {
+		float blockResult = 0.0f;
+		uint perBlock = blockDim.x * blockDim.y;
+		for (uint i = 0; i < perBlock; i++) {
+			blockResult += s[i];
+		}
+
+		uint blockIndex = blockIdx.x + blockIdx.y * gridDim.x + blockIdx.z * gridDim.x * gridDim.y;
+		output[blockIndex] = blockResult;
+
+	}
+
+	
+}
+
+
+float launchReduceSumSlice(uint3 res, cudaSurfaceObject_t surf, Dir dir, void * output){
+	
+
+
+
+	const uint3 blockSize = make_uint3(16,16,1);
+	const uint dirIndex = getDirIndex(dir);
+
+	uint *resArr = (uint*)&res;
+	uint3 resRotated = make_uint3(
+		resArr[(dirIndex + 1) % 3], 
+		resArr[(dirIndex + 2) % 3], 
+		resArr[dirIndex]
+	);
+
+	//uint3 resRotated = make_uint3(864, 864, 289);
+
+	const uint3 grid = roundDiv(resRotated, blockSize);
+
+	const uint size = grid.x * grid.y * grid.z;
+
+	float * deviceResult = nullptr;
+	cudaMalloc(&deviceResult, size * sizeof(float));
+	cudaMemset(deviceResult, 0, size * sizeof(float));
+
+	if(dirIndex == 0)
+		sliceReduce<X_POS> << <grid, blockSize, blockSize.x * blockSize.y * sizeof(float) >> >
+			(res, surf, deviceResult);
+	else if(dirIndex == 1)
+		sliceReduce<Y_POS> << <grid, blockSize, blockSize.x * blockSize.y * sizeof(float) >> >
+		(res, surf, deviceResult);
+	else if (dirIndex == 2)
+		sliceReduce<Z_POS> << <grid, blockSize, blockSize.x * blockSize.y * sizeof(float) >> >
+		(res, surf, deviceResult);
+
+		 
+
+	float * hostResult = new float[size];
+	cudaMemcpy(hostResult, deviceResult, size * sizeof(float), cudaMemcpyDeviceToHost);
+
+
+	for (auto sliceID = 0; sliceID < grid.z; sliceID++) {
+
+		((float *)output)[sliceID] = 0.0f;
+		for (auto k = 0; k < grid.x * grid.y; k++) {
+			((float *)output)[sliceID] += hostResult[grid.x * grid.y * sliceID + k];
+		}
+
+	}
+
+	cudaFree(deviceResult);
+	delete[] hostResult;
+
+
+
+
+
+	//uint3 grid = make_uint3(resRotated.x / blockSize.x, roundDiv(resRotated.y, blockSize.y), resRotated.z / blockSize.z);	
+	/*uint finalSizeMax = 1;
+	while (sliceNum > finalSizeMax) 
+		finalSizeMax *= 2;
+	
+	
+
+	float * deviceResult = nullptr;
+	cudaMalloc(&deviceResult, finalSizeMax * sizeof(float));
+	cudaMemset(deviceResult, 0, finalSizeMax * sizeof(float));
+
+
+
+
+	cudaFree(deviceResult);*/
+
+	return 0;
+
 }

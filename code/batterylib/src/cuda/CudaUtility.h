@@ -17,5 +17,8 @@ namespace blib {
 		const char * file,
 		int line,
 		bool abort = true);
+
+	//todo performance:
+	//https://devblogs.nvidia.com/how-implement-performance-metrics-cuda-cc/
 	
 }

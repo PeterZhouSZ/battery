@@ -23,6 +23,11 @@ namespace blib{
 		BLIB_EXPORT const Texture3DPtr & getCurrentPtr() const;
 		BLIB_EXPORT const Texture3DPtr & getNextPtr() const;
 
+		
+		//Call before swap buffers
+		//Current = Current - Next; Sum(Current);
+		BLIB_EXPORT float differenceSum();
+
 		/*
 			Clears both buffers
 		*/
@@ -32,7 +37,8 @@ namespace blib{
 
 		BLIB_EXPORT void swapBuffers();
 		
-		
+		BLIB_EXPORT uint dimInDirection(Dir dir);
+		BLIB_EXPORT uint sliceElemCount(Dir dir);
 		
 
 	private:		
@@ -56,6 +62,9 @@ namespace blib{
 		BLIB_EXPORT void heat(uint channel);
 				
 		BLIB_EXPORT void binarize(uint channel, float threshold = 1.0f);
+		
+		//Reduces for each slice in dir and writes result to output
+		BLIB_EXPORT void reduceSlice(uint channel, Dir dir, void * output);
 
 		BLIB_EXPORT void diffuse(
 			uint maskChannel,
