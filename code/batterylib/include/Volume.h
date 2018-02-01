@@ -77,6 +77,8 @@ namespace blib{
 			Dir diffusionDir = X_POS
 			);
 
+		BLIB_EXPORT void testCusparse();
+
 		
 
 	private:

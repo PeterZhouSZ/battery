@@ -287,3 +287,32 @@ void blib::Volume::heat(uint channel)
 
  }
 
+
+ //////////
+#include <cusparse.h>
+#include <cusolverSp.h>
+
+ BLIB_EXPORT void blib::Volume::testCusparse()
+ {
+
+	 cusolverSpHandle_t handle = NULL;
+	 cusparseHandle_t cusparseHandle = NULL; // used in residual evaluation
+	 cudaStream_t stream = NULL;
+	 cusparseMatDescr_t descrA = NULL;
+
+	cusolverSpCreate(&handle);
+
+	cusparseCreate(&cusparseHandle);
+
+	cudaStreamCreate(&stream);
+	cusparseSetStream(cusparseHandle, stream);
+
+	cusparseCreateMatDescr(&descrA);
+
+	cusparseSetMatType(descrA, CUSPARSE_MATRIX_TYPE_GENERAL);
+
+	char b;
+	b = 0;
+
+ }
+

@@ -179,7 +179,7 @@ BatteryApp::BatteryApp()
 		resetSA();
 		//generateSpheresVolume(*_volume, 128, 0.15f);
 
-	}
+	}	
 
 	_volumeRaycaster->setVolume(*_volume, 0);
 	

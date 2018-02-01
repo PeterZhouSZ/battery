@@ -52,7 +52,9 @@ project "batterylib"
 
 	links {
 		"opengl32",
-		"cudart"
+		"cudart",
+		"cusparse",
+		"cusolver"
 	} 
 
 	defines {		
