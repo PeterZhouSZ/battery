@@ -27,7 +27,8 @@
 #include <numeric>
 
 
-#define DATA_FOLDER "../../data/graphite/SL43_C5_1c5bar_Data/"
+//#define DATA_FOLDER "../../data/graphite/SL43_C5_1c5bar_Data/"
+#define DATA_FOLDER "../../data/graphiteSections/SL43_C5_1c5bar_Data/SL43_C5_1c5bar_section001/"
 //#define DATA_FOLDER "../../data/graphite/Cropped/"
 
 
@@ -141,7 +142,7 @@ BatteryApp::BatteryApp()
 	loadDefualt = false;
 #endif
 
-	loadDefualt = false;
+	loadDefualt = true;
 
 	_volume = make_unique<blib::Volume>();
 	if(loadDefualt){			
@@ -239,13 +240,14 @@ void BatteryApp::update(double dt)
 
 			static int k = 0; k++;
 
-			if (k % 256 == 0) {
+			//if (k % 256 == 0) {
 				auto dim = _volume->getChannel(CHANNEL_CONCETRATION).dim;
-				_residual = _volume->getChannel(CHANNEL_CONCETRATION).differenceSum();// / (dim.x*dim.y*dim.z);
-				if (_residual < 0.000001f && _convergenceTime < 0.0f) {
+				_residual = _volume->getChannel(CHANNEL_CONCETRATION).differenceSum();// / (dim.x*dim.y*dim.z);				
+				//_residual = 0.1;
+				if (abs(_residual) < 0.000001f && _convergenceTime < 0.0f) {
 					_convergenceTime = _simulationTime;
 				}
-			}
+			//}
 
 			_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();
 
@@ -497,7 +499,7 @@ void BatteryApp::callbackChar(GLFWwindow * w, unsigned int code)
 void BatteryApp::resetSA()
 {
 
-	generateSpheresVolume(*_volume, _options["Generator"].get<int>("SphereCount"), _options["Generator"].get<float>("SphereRadius"));		
+	//generateSpheresVolume(*_volume, _options["Generator"].get<int>("SphereCount"), _options["Generator"].get<float>("SphereRadius"));		
 	_volume->getChannel(CHANNEL_CONCETRATION).clear();
 	_simulationTime = 0.0f;
 	_convergenceTime = -1.0f;

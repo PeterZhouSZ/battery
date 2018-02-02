@@ -538,10 +538,8 @@ __global__ void reduce3D(uint3 res, cudaSurfaceObject_t data, T * finalData, uns
 	if (tid == 0) {
 		unsigned int o = blockIdx.x;	
 		//Either copy to surface
-		if (toSurface) {			
-			uint x = o % res.x;
-			uint y = ((o - x) / res.x) % res.y;
-			uint3 voxo = make_uint3(x, y, o / (res.x*res.y));
+		if (toSurface) {						
+			uint3 voxo = ind2sub(res,o);
 			surf3Dwrite(sdata[0], data, voxo.x * sizeof(T), voxo.y, voxo.z);				
 		}
 		//Or final 1D array
@@ -557,12 +555,12 @@ __global__ void reduce3D(uint3 res, cudaSurfaceObject_t data, T * finalData, uns
 float launchReduceSumKernel(uint3 res, cudaSurfaceObject_t surf) {
 		
 
-	//const uint finalSizeMax = 512;	
+	const uint finalSizeMax = 512;	
 	const uint blockSize = 512;
 	const uint3 block = make_uint3(blockSize,1,1);	
 	uint n = res.x * res.y * res.z;
 
-	uint finalSizeMax = ((res.x * res.y * res.z) / blockSize) / 2;
+	//uint finalSizeMax = ((res.x * res.y * res.z) / blockSize) / 2;
 
 
 	float * deviceResult = nullptr;

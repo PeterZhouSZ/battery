@@ -5,7 +5,8 @@ from fipy.boundaryConditions.fixedValue import FixedValue
 from fipy.terms.diffusionTerm import DiffusionTerm
 import numpy as np
 import os, time, psutil, argparse, sys
-from fipy.solvers.trilinos.linearGMRESSolver import LinearGMRESSolver
+#from fipy.solvers.trilinos.linearGMRESSolver import LinearGMRESSolver
+from fipy.solvers.scipy.linearGMRESSolver import LinearGMRESSolver
 from fipy.tools import numerix
 
 # Import other functions
@@ -42,12 +43,12 @@ if not os.path.isdir(args.output):
 
 
 # Read Tomography Data
-print"Reading Data from", filename, '...'
+#print ("Reading Data from", filename, '...')
 t1 = time.time()
 inputFile = open(args.input, 'rb')
 intensity = cPickle.load(inputFile)
 t2 = time.time()
-print 'Done Reading!'
+#print 'Done Reading!'
 inputFile.close()
 
 ## Create the cell variable for storing the phase information
@@ -62,8 +63,8 @@ newIntensity = np.zeros(nx*ny*nz)
 
 mesh = Grid3D(dx, dy, dz, nx, ny, nz)
 
-print intensity.shape
-print "Setting phase..."
+print (intensity.shape)
+print ("Setting phase...")
 
 # flatten 3D array to 1D
 newIntensity = intensity.flatten()
@@ -74,19 +75,19 @@ phase=CellVariable(mesh, value = 0.0)
 phase.setValue(1 - newIntensity/255) #Thresholding step. Values less than 255 are assigned 0.
 
 t4 = time.time()
-print "Phase Set!"
+print ("Phase Set!")
 
 # Set diffusivity.
-print "Setting D..."
+print ("Setting D...")
 t5 = time.time()
 D = 1.0e-10*phase + 1.0e-7*(1.0-phase)
 t6 = time.time()
-print "D Set!"
+print ("D Set!")
 
 # Calculate porosity.
 porosity = 1.0 - (np.shape(where(phase > 0)[0])[0] / float(np.shape(phase)[0]))
 
-print 'solving...'
+print ('solving...')
 t7 = time.time()
 
 x,y,z = mesh.cellCenters
@@ -135,4 +136,4 @@ results.write('\ntime_set_D %g' %((t6 - t5)/60))
 results.write('\ntime_sol %g' %((t8 - t7)/60))
 results.write('\nmem_percent %g' %process.memory_percent())
 results.close()
-print "Done!!!"
+print ("Done!!!")

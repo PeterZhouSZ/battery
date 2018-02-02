@@ -375,7 +375,7 @@ void Ui::update(double dt)
 		ImGui::Text("Convergence time: %.6f", float(_app._convergenceTime));
 	}
 
-	static bool concGraph = true;
+	static bool concGraph = false;
 	ImGui::Checkbox("Concetration Graph", &concGraph);
 	
 	if(concGraph){
