@@ -489,6 +489,16 @@ void launchSubtractKernel(uint3 res, cudaSurfaceObject_t A, cudaSurfaceObject_t 
 //	if (tid == 0) g_odata[blockIdx.x] = sdata[0];
 //}
 
+__host__ __device__ uint3 ind2sub(uint3 res, uint i) {
+	uint x = i % res.x;
+	uint tmp = ((i - x) / res.x);
+	uint y = tmp % res.y;
+	uint z = (tmp - y) / res.y;
+	return make_uint3(
+		x,y,z
+	);
+}
+
 template <typename T, unsigned int blockSize, bool toSurface>
 __global__ void reduce3D(uint3 res, cudaSurfaceObject_t data, T * finalData, unsigned int n, uint3 offset)
 {
@@ -499,13 +509,14 @@ __global__ void reduce3D(uint3 res, cudaSurfaceObject_t data, T * finalData, uns
 	sdata[tid] = 0;
 
 	while (i < n) { 
-		uint3 voxi = make_uint3(i % res.x, (i / res.x) % res.y, i / (res.x*res.y)) + offset;
-		uint3 voxip = make_uint3((i+blockSize) % res.x, ((i + blockSize) / res.x) % res.y, (i + blockSize) / (res.x*res.y)) + offset;
+		uint3 voxi = ind2sub(res, i);
+		uint3 voxip = ind2sub(res, i + blockSize); 
 
-		T vali, valip;
+		T vali, valip = 0;
 		surf3Dread(&vali, data, voxi.x * sizeof(T), voxi.y, voxi.z);
-		surf3Dread(&valip, data, voxip.x * sizeof(T), voxip.y, voxip.z);
-		
+		if(voxip.x < res.x && voxip.y < res.y && voxip.z < res.z)
+			surf3Dread(&valip, data, voxip.x * sizeof(T), voxip.y, voxip.z);	
+				
 	
 		sdata[tid] += (vali + valip);
 
@@ -525,11 +536,12 @@ __global__ void reduce3D(uint3 res, cudaSurfaceObject_t data, T * finalData, uns
 		if (blockSize >= 2) sdata[tid] += sdata[tid + 1];
 	}
 	if (tid == 0) {
-
 		unsigned int o = blockIdx.x;	
 		//Either copy to surface
 		if (toSurface) {			
-			uint3 voxo = make_uint3(o % res.x, (o / res.x) % res.y, o / (res.x*res.y));
+			uint x = o % res.x;
+			uint y = ((o - x) / res.x) % res.y;
+			uint3 voxo = make_uint3(x, y, o / (res.x*res.y));
 			surf3Dwrite(sdata[0], data, voxo.x * sizeof(T), voxo.y, voxo.z);				
 		}
 		//Or final 1D array
@@ -545,10 +557,12 @@ __global__ void reduce3D(uint3 res, cudaSurfaceObject_t data, T * finalData, uns
 float launchReduceSumKernel(uint3 res, cudaSurfaceObject_t surf) {
 		
 
-	const uint finalSizeMax = 512;
+	//const uint finalSizeMax = 512;	
 	const uint blockSize = 512;
 	const uint3 block = make_uint3(blockSize,1,1);	
 	uint n = res.x * res.y * res.z;
+
+	uint finalSizeMax = ((res.x * res.y * res.z) / blockSize) / 2;
 
 
 	float * deviceResult = nullptr;
