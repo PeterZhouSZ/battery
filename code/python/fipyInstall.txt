@@ -1,0 +1,16 @@
+Miniconda
+Python 2.7
+
+(as admin)
+conda create --name <MYFIPYENV> --channel guyer --channel conda-forge python numpy scipy matplotlib mayavi
+source activate <MYFIPYENV>
+
+pip install numpy //version 1.1 (https://github.com/usnistgov/fipy/issues/508)
+
+//pip install fipy
+
+https://github.com/usnistgov/fipy/issues/508#issuecomment-296792763
+use docker as guide 
+https://gist.github.com/wd15/0df919c420954fe5b02480c81b82b6c5
+
+
