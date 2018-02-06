@@ -26,6 +26,12 @@ namespace blib {
 			ivec3 subdim = ivec3(INT_MAX)
 		);
 
+		BLIB_EXPORT bool solveWithoutParticles(
+			VolumeChannel & volChannel,
+			VolumeChannel * outVolume = nullptr,
+			ivec3 subdim = ivec3(INT_MAX)
+		);
+
 	private:
 			
 		

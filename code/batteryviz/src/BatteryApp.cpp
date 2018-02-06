@@ -144,7 +144,7 @@ BatteryApp::BatteryApp()
 	loadDefualt = false;
 #endif
 
-	loadDefualt = false;
+	loadDefualt = true;
 
 	_volume = make_unique<blib::Volume>();
 	if(loadDefualt){			
@@ -168,9 +168,9 @@ BatteryApp::BatteryApp()
 				
 	}
 	else {
-		int res = 196;
-		//ivec3 d = ivec3(res);
-		ivec3 d = ivec3(256,256,184);
+		int res = 64;
+		ivec3 d = ivec3(res);
+		//ivec3 d = ivec3(256,256,184);
 		auto batteryID = _volume->addChannel(d, TYPE_UCHAR);	
 
 		//Add concetration channel
@@ -186,13 +186,13 @@ BatteryApp::BatteryApp()
 
 	}	
 
-	const bool testDiffusionSolver = false;
+	const bool testDiffusionSolver = true;
 	if(testDiffusionSolver)
 	{
 		DiffusionSolver ds;
 		//for (auto i = 2; i < 2096; i *= 2) {
 		//auto i = 64;
-			ds.solve(
+			ds.solveWithoutParticles(
 				_volume->getChannel(CHANNEL_BATTERY),				
 				&_volume->getChannel(CHANNEL_CONCETRATION)				
 			);
