@@ -15,6 +15,8 @@ using namespace blib;
 #include <Eigen/IterativeLinearSolvers>
 #include <Eigen/SparseLU>
 
+#include <omp.h>
+
 DiffusionSolver::DiffusionSolver(bool verbose)
 	: _verbose(verbose),
 	 _maxElemPerRow(7) //diagonal and +-x|y|z
@@ -63,7 +65,7 @@ blib::DiffusionSolver::~DiffusionSolver()
 
 }
 
-bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, ivec3 subdim)
+bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, VolumeChannel * outVolume, ivec3 subdim)
 {
 
 	const auto & c = volChannel;
@@ -80,7 +82,7 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, ivec3 subdim)
 	const float lowConc = 0.0f;
 
 	const float d0 = 1.0f;
-	const float d1 = 0.0001f;
+	const float d1 = 0.001f;
 
 
 
@@ -251,8 +253,9 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, ivec3 subdim)
 #ifdef DS_USEGPU
 	cpuRowPtr.back() = curRowPtr;
 #else
-	Eigen::SparseMatrix<float> A(M, N);
+	Eigen::SparseMatrix<float,Eigen::RowMajor> A(M, N);
 	A.setFromTriplets(triplets.begin(), triplets.end());
+	A.makeCompressed();
 #endif
 	
 
@@ -353,9 +356,15 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, ivec3 subdim)
 		std::cout << "DEVICE avg conc: " << sum << std::endl;
 	}
 #else
+
+	
 	auto start = std::chrono::system_clock::now();
 
-	Eigen::BiCGSTAB<Eigen::SparseMatrix<float>> stab;
+	omp_set_num_threads(8);
+	Eigen::setNbThreads(8);
+
+	
+	Eigen::BiCGSTAB<Eigen::SparseMatrix<float,Eigen::RowMajor>> stab;
 	//Eigen::ConjugateGradient<Eigen::SparseMatrix<float>> stab;		
 	//Eigen::SparseLU<Eigen::SparseMatrix<float>> stab;		
 	//stab.analyzePattern(A);
@@ -389,6 +398,17 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, ivec3 subdim)
 
 #endif
 
+
+	if (outVolume) {
+#ifdef DS_USEGPU
+		memcpy(outVolume->getCurrentPtr().getCPU(), resDeviceX.data(), resDeviceX.size() * sizeof(float));
+#else		
+
+		memcpy(outVolume->getCurrentPtr().getCPU(), x.data(), x.size() * sizeof(float));	
+#endif
+	
+	
+	}
 	
 	
 	

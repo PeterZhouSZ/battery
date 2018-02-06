@@ -21,7 +21,8 @@ namespace blib {
 		//subdim allows to select smaller subvolume - for testing
 		//TODO: diffusion params
 		BLIB_EXPORT bool solve(
-			VolumeChannel & volChannel, 
+			VolumeChannel & volChannel, 						
+			VolumeChannel * outVolume = nullptr,
 			ivec3 subdim = ivec3(INT_MAX)
 		);
 
