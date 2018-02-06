@@ -13,8 +13,10 @@
 #include <batterylib/include/VolumeIO.h>
 #include <batterylib/include/RandomGenerator.h>
 
+#include <batterylib/include/DiffusionSolver.h>
 
 #include <glm/gtc/matrix_transform.hpp>
+
 
 
 
@@ -181,6 +183,16 @@ BatteryApp::BatteryApp()
 		//generateSpheresVolume(*_volume, 128, 0.15f);
 
 	}	
+
+	const bool testDiffusionSolver = false;
+	if(testDiffusionSolver)
+	{
+		DiffusionSolver ds;
+		for (auto i = 2; i < 2096; i *= 2) {
+			ds.prepare(_volume->getChannel(CHANNEL_BATTERY), i);
+		}
+	}
+	
 
 	_volumeRaycaster->setVolume(*_volume, 0);
 	

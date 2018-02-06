@@ -26,3 +26,135 @@ bool blib::cudaCheck(
 	return false;
 }
 
+bool blib::cusolverCheck(cusolverStatus_t result, const char * function, const char * file, int line, bool abort /*= true*/)
+{
+	if (result == CUSOLVER_STATUS_SUCCESS)
+		return true;
+
+	std::cerr << "cuSolver Error: ";
+	switch (result) {
+		case CUSOLVER_STATUS_NOT_INITIALIZED:
+			std::cerr << "CUSOLVER_STATUS_NOT_INITIALIZED, \
+				\nThe cuSolver library was not initialized.This is usually caused by the lack of a prior call, an error in the CUDA Runtime API called by the cuSolver routine, or an error in the hardware setup. \
+				\nTo correct : call cusolverCreate() prior to the function call; and check that the hardware, an appropriate version of the driver, and the cuSolver library are correctly installed.";
+			break;
+		case CUSOLVER_STATUS_ALLOC_FAILED:
+			std::cerr << "CUSOLVER_STATUS_ALLOC_FAILED, \
+				\nResource allocation failed inside the cuSolver library. This is usually caused by a cudaMalloc() failure.\
+				\nTo correct : prior to the function call, deallocate previously allocated memory as much as possible.";
+			break;
+		case CUSOLVER_STATUS_INVALID_VALUE:
+			std::cerr << "CUSOLVER_STATUS_INVALID_VALUE, \
+				\nAn unsupported value or parameter was passed to the function (a negative vector size, for example).\
+				\nTo correct : ensure that all the parameters being passed have valid values.";
+			break;
+		case CUSOLVER_STATUS_ARCH_MISMATCH:
+			std::cerr << "CUSOLVER_STATUS_ARCH_MISMATCH, \
+				\nThe function requires a feature absent from the device architecture; usually caused by the lack of support for atomic operations or double precision. \
+				\nTo correct : compile and run the application on a device with compute capability 2.0 or above.";
+			break;
+		case CUSOLVER_STATUS_EXECUTION_FAILED:
+			std::cerr << "CUSOLVER_STATUS_EXECUTION_FAILED, \
+				\nThe GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons.\
+				\nTo correct : check that the hardware, an appropriate version of the driver, and the cuSolver library are correctly installed.";
+			break;
+		case CUSOLVER_STATUS_INTERNAL_ERROR:
+			std::cerr << "CUSOLVER_STATUS_INTERNAL_ERROR, \
+				\nAn internal cuSolver operation failed. This error is usually caused by a cudaMemcpyAsync() failure.\
+				\nTo correct : check that the hardware, an appropriate version of the driver, and the cuSolver library are correctly installed.Also, check that the memory passed as a parameter to the routine is not being deallocated prior to the routine’s completion.";
+			break;
+		case CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED:
+			std::cerr << "CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED, \
+				\nThe matrix type is not supported by this function. This is usually caused by passing an invalid matrix descriptor to the function.\
+				\nTo correct : check that the fields in descrA were set correctly.";
+			break;
+	}
+	
+	std::cerr	<< "(" << function << " at "
+		<< file << ":" << line
+		<< ")"
+		<< std::endl;
+
+	if (abort)
+		exit(result);
+
+	return false;
+}
+
+bool blib::cusparseCheck(cusparseStatus_t result, const char * function, const char * file, int line, bool abort /*= true*/)
+{
+	if (result == CUSPARSE_STATUS_SUCCESS)
+		return true;
+
+	std::cerr << "cuSparse Error: ";
+	switch (result) {
+	case CUSPARSE_STATUS_NOT_INITIALIZED:
+		std::cerr << "CUSPARSE_STATUS_NOT_INITIALIZED, \
+				The cuSPARSE library was not initialized. This is usually caused by the lack of a prior call, an error in the CUDA Runtime API called by the cuSPARSE routine, or an error in the hardware setup.\
+				To correct : call cusparseCreate() prior to the function call; and check that the hardware, an appropriate version of the driver, and the cuSPARSE library are correctly installed.";
+
+		break;
+	case CUSPARSE_STATUS_ALLOC_FAILED:
+		std::cerr << "CUSPARSE_STATUS_ALLOC_FAILED, \
+				Resource allocation failed inside the cuSPARSE library. This is usually caused by a cudaMalloc() failure.\
+				To correct : prior to the function call, deallocate previously allocated memory as much as possible.";
+		break;
+	case CUSPARSE_STATUS_INVALID_VALUE:
+		std::cerr << "CUSPARSE_STATUS_INVALID_VALUE, \
+				An unsupported value or parameter was passed to the function (a negative vector size, for example).\
+				To correct : ensure that all the parameters being passed have valid values.";
+		break;
+	case CUSPARSE_STATUS_ARCH_MISMATCH:
+		std::cerr << "CUSPARSE_STATUS_ARCH_MISMATCH, \
+				The function requires a feature absent from the device architecture; usually caused by the lack of support for atomic operations or double precision.\
+				To correct : compile and run the application on a device with appropriate compute capability, which is 1.1 for 32 - bit atomic operations and 1.3 for double precision.";
+		break;
+	case CUSPARSE_STATUS_MAPPING_ERROR:
+		std::cerr << "CUSPARSE_STATUS_MAPPING_ERROR, \
+				An access to GPU memory space failed, which is usually caused by a failure to bind a texture.\
+				To correct : prior to the function call, unbind any previously bound textures.";
+		break;
+	case CUSPARSE_STATUS_EXECUTION_FAILED:
+		std::cerr << "CUSPARSE_STATUS_EXECUTION_FAILED, \
+				The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons.\
+			To correct : check that the hardware, an appropriate version of the driver, and the cuSPARSE library are correctly installed.";
+		break;
+	case CUSPARSE_STATUS_INTERNAL_ERROR:
+		std::cerr << "CUSPARSE_STATUS_INTERNAL_ERROR, \
+				An internal cuSPARSE operation failed. This error is usually caused by a cudaMemcpyAsync() failure.\
+				To correct : check that the hardware, an appropriate version of the driver, and the cuSPARSE library are correctly installed. Also, check that the memory passed as a parameter to the routine is not being deallocated prior to the routine’s completion.";
+		break;
+	case CUSPARSE_STATUS_MATRIX_TYPE_NOT_SUPPORTED:
+		std::cerr << "CUSPARSE_STATUS_MATRIX_TYPE_NOT_SUPPORTED, \
+				The matrix type is not supported by this function. This is usually caused by passing an invalid matrix descriptor to the function.\
+				To correct : check that the fields in cusparseMatDescr_t descrA were set correctly.";
+		break;
+	}
+
+	std::cerr << "(" << function << " at "
+		<< file << ":" << line
+		<< ")"
+		<< std::endl;
+
+	if (abort)
+		exit(result);
+
+	return false;
+}
+
+void blib::cudaOccupiedMemory(size_t * total, size_t * occupied, int device)
+{	
+	size_t free;
+	cudaMemGetInfo(&free, total);
+	*occupied = *total - free;
+
+}
+
+void blib::cudaPrintMemInfo(int device /*= 0*/)
+{
+	size_t total, occupied;
+	cudaOccupiedMemory(&total, &occupied);
+	std::cout << occupied / (1024.0f * 1024.0f) << "MB / " << total / (1024.0f * 1024.0f) << "MB"
+		<< " (" << (occupied / float(total)) * 100.0f << "%) \n";
+}
+

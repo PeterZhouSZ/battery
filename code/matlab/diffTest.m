@@ -4,7 +4,7 @@ d0 = 1.0;
 d1 = 0.0001
 row = 1;
 % m is including ghost points
-M = 40;
+M = 2;
 m = [M, M, M];
 h = [1,1,1] ./ (m + [1,1,1]);%(1 / M+2);
 invH = [1,1,1] ./ h;
@@ -12,27 +12,27 @@ invH2 = [1,1,1] ./ ( h .* h);
 n = m(1)*m(2)*m(3);
 D = d0 * ones(m);
 
-sn = 40;
-minRad = 0.15;
-radRange = 0.025;
-maxRad = minRad + radRange;
-rads = rand([sn,1])*radRange+ minRad;
-poss = rand([sn,3]); %* ( 1 - 2*maxRad) + maxRad;
-tic
-for z=1:m(3)    
-    for y=1:m(2)
-        for x=1:m(1)             
-            v = [(x-1) / (m(1)-1),(y-1) / (m(2) -1), (z-1) / (m(3) -1)];
-            
-            for k=1:sn
-                if ((norm(v - poss(k,:))) < rads(k))
-                    D(x,y,z) = d1;
-                end
-            end
-            
-        end
-    end
-end
+% sn = 40;
+% minRad = 0.15;
+% radRange = 0.025;
+% maxRad = minRad + radRange;
+% rads = rand([sn,1])*radRange+ minRad;
+% poss = rand([sn,3]); %* ( 1 - 2*maxRad) + maxRad;
+% tic
+% for z=1:m(3)    
+%     for y=1:m(2)
+%         for x=1:m(1)             
+%             v = [(x-1) / (m(1)-1),(y-1) / (m(2) -1), (z-1) / (m(3) -1)];
+%             
+%             for k=1:sn
+%                 if ((norm(v - poss(k,:))) < rads(k))
+%                     D(x,y,z) = d1;
+%                 end
+%             end
+%             
+%         end
+%     end
+% end
 toc
 fprintf('D finished\n')
 tic
@@ -233,7 +233,7 @@ toc
 fprintf('Solver Finished\n')
 
 
-
+xvec = x;
 
 x = reshape(x,m);
 x = permute(x,[3,2,1]);

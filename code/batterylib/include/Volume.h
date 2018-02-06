@@ -76,8 +76,7 @@ namespace blib{
 			float lowConc = 0.0f,
 			Dir diffusionDir = X_POS
 			);
-
-		BLIB_EXPORT void testCusparse();
+		
 
 		
 
