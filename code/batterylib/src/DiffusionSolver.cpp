@@ -4,7 +4,9 @@
 
 using namespace blib;
 
-#define CPU_TEST
+
+//#define DS_USEGPU
+//#define DS_LINSYS_TO_FILE
 
 #include <chrono>
 #include <iostream>
@@ -13,101 +15,66 @@ using namespace blib;
 #include <Eigen/IterativeLinearSolvers>
 #include <Eigen/SparseLU>
 
-DiffusionSolver::DiffusionSolver() 
-	:  _maxElemPerRow(7) //diagonal and +-x|y|z
+DiffusionSolver::DiffusionSolver(bool verbose)
+	: _verbose(verbose),
+	 _maxElemPerRow(7) //diagonal and +-x|y|z
 {
 
+#ifdef DS_USEGPU
 
-	//Handle to cusolver lib
-	_CUSOLVER(cusolverSpCreate(&_handle));
-	
-	//Handle to cusparse
-	_CUSPARSE(cusparseCreate(&_cusparseHandle));
+		//Handle to cusolver lib
+		_CUSOLVER(cusolverSpCreate(&_handle));
 
-	//Create new stream
-	_CUDA(cudaStreamCreate(&_stream));
-	_CUSPARSE(cusparseSetStream(_cusparseHandle, _stream));
+		//Handle to cusparse
+		_CUSPARSE(cusparseCreate(&_cusparseHandle));
 
-	//Matrix description
-	_CUSPARSE(cusparseCreateMatDescr(&_descrA));	
-	_CUSPARSE(cusparseSetMatType(_descrA, CUSPARSE_MATRIX_TYPE_GENERAL));
-	//todo matrix type - perhaps symmetrical?
-	
-	_CUSPARSE(cusparseSetMatIndexBase(_descrA, CUSPARSE_INDEX_BASE_ZERO));
+		//Create new stream
+		_CUDA(cudaStreamCreate(&_stream));
+		_CUSPARSE(cusparseSetStream(_cusparseHandle, _stream));
+
+		//Matrix description
+		_CUSPARSE(cusparseCreateMatDescr(&_descrA));
+		_CUSPARSE(cusparseSetMatType(_descrA, CUSPARSE_MATRIX_TYPE_GENERAL));
+		//todo matrix type - perhaps symmetrical?
+
+		_CUSPARSE(cusparseSetMatIndexBase(_descrA, CUSPARSE_INDEX_BASE_ZERO));
+
+#endif // DS_USEGPU
 
 
 }
 
 blib::DiffusionSolver::~DiffusionSolver()
 {
-	if (_handle) { _CUSOLVER(cusolverSpDestroy(_handle)); }
-	if (_cusparseHandle) { _CUSPARSE(cusparseDestroy(_cusparseHandle)); }
-	if (_stream) { _CUDA(cudaStreamDestroy(_stream)); }
-	if (_descrA) { _CUSPARSE(cusparseDestroyMatDescr(_descrA)); }
+#ifdef DS_USEGPU
+		if (_handle) { _CUSOLVER(cusolverSpDestroy(_handle)); }
+		if (_cusparseHandle) { _CUSPARSE(cusparseDestroy(_cusparseHandle)); }
+		if (_stream) { _CUDA(cudaStreamDestroy(_stream)); }
+		if (_descrA) { _CUSPARSE(cusparseDestroyMatDescr(_descrA)); }
 
-	if (_deviceA)  _CUDA(cudaFree(_deviceA));
-	if (_deviceRowPtr)  _CUDA(cudaFree(_deviceRowPtr));
-	if (_deviceColInd)  _CUDA(cudaFree(_deviceColInd));
+		if (_deviceA)  _CUDA(cudaFree(_deviceA));
+		if (_deviceRowPtr)  _CUDA(cudaFree(_deviceRowPtr));
+		if (_deviceColInd)  _CUDA(cudaFree(_deviceColInd));
 
-	if (_deviceB)  _CUDA(cudaFree(_deviceB));
-	if (_deviceX)  _CUDA(cudaFree(_deviceX));	
-
+		if (_deviceB)  _CUDA(cudaFree(_deviceB));
+		if (_deviceX)  _CUDA(cudaFree(_deviceX));
+	
+#endif // DS_USEGPU
 
 }
 
-bool blib::DiffusionSolver::prepare(VolumeChannel & volChannel, int d)
+bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, ivec3 subdim)
 {
 
 	const auto & c = volChannel;
-	auto dim = c.dim;
+	auto dim = glm::min(subdim, c.dim);
+	
 
-	//cudaDeviceReset();
-#ifdef CPU_TEST
-	//_maxElemPerRow = 1;
-	dim = ivec3(d);
-	dim = glm::min(dim, volChannel.dim);
-	std::cout << "DIM " << dim.x << ", " << dim.y << ", " << dim.z << " nnz:" << dim.x*dim.y*dim.z / (1024 * 1024.0f) << "M" << std::endl;
-#endif 
+	
+	if(_verbose)
+		std::cout << "DIM " << dim.x << ", " << dim.y << ", " << dim.z << " nnz:" << dim.x*dim.y*dim.z / (1024 * 1024.0f) << "M" << std::endl;
 
 
-
-	//Matrix dimensions	
-	size_t N = dim.x * dim.y * dim.z; //cols
-	size_t M = N; //rows
-	size_t nnz = _maxElemPerRow * M; //total elems
-
-
-
-	//Reallocate if needed
-	if (nnz > _nnz) {
-		//Update dims
-		_nnz = nnz;
-		_M = M;
-		_N = N;
-		
-
-				if (_deviceA) _CUDA(cudaFree(_deviceA));
-				_CUDA(cudaMalloc(&_deviceA, _nnz * sizeof(float)));
-
-				if (_deviceB) _CUDA(cudaFree(_deviceB));
-				_CUDA(cudaMalloc(&_deviceB, _M * sizeof(float)));
-
-				//todo: map to other vol. channel
-				if (_deviceX) _CUDA(cudaFree(_deviceX));
-				_CUDA(cudaMalloc(&_deviceX, _N * sizeof(float)));
-
-				if (_deviceRowPtr) _CUDA(cudaFree(_deviceRowPtr));
-				_CUDA(cudaMalloc(&_deviceRowPtr, (_M + 1) * sizeof(int))); //CSR format
-
-				if (_deviceColInd) _CUDA(cudaFree(_deviceColInd));
-				_CUDA(cudaMalloc(&_deviceColInd, _nnz * sizeof(int)));
-	}
-
-	//cudaPrintMemInfo();
-
-
-	//Copy data
-#ifdef CPU_TEST
 
 	const float highConc = 1.0f;
 	const float lowConc = 0.0f;
@@ -115,20 +82,62 @@ bool blib::DiffusionSolver::prepare(VolumeChannel & volChannel, int d)
 	const float d0 = 1.0f;
 	const float d1 = 0.0001f;
 
-	std::cout << nnz << " elems, " << "vol: " << dim.x << " ^3" << std::endl;
+
+
+	//Matrix dimensions	
+	size_t N = dim.x * dim.y * dim.z; //cols
+	size_t M = N; //rows
+	size_t nnz = _maxElemPerRow * M; //total elems
+	
+
+	//Reallocate if needed
+	if (nnz > _nnz) {
+		//Update dims
+		_nnz = nnz;
+		_M = M;
+		_N = N;
+
+		#ifdef DS_USEGPU
+			if (_deviceA) _CUDA(cudaFree(_deviceA));
+			_CUDA(cudaMalloc(&_deviceA, _nnz * sizeof(float)));
+
+			if (_deviceB) _CUDA(cudaFree(_deviceB));
+			_CUDA(cudaMalloc(&_deviceB, _M * sizeof(float)));
+
+			//todo: map to other vol. channel
+			if (_deviceX) _CUDA(cudaFree(_deviceX));
+			_CUDA(cudaMalloc(&_deviceX, _N * sizeof(float)));
+
+			if (_deviceRowPtr) _CUDA(cudaFree(_deviceRowPtr));
+			_CUDA(cudaMalloc(&_deviceRowPtr, (_M + 1) * sizeof(int))); //CSR format
+
+			if (_deviceColInd) _CUDA(cudaFree(_deviceColInd));
+			_CUDA(cudaMalloc(&_deviceColInd, _nnz * sizeof(int)));
+		#endif
+	}
+
+	
+
+
+	//Copy data
+	if (_verbose)
+		std::cout << nnz << " elems, " << "vol: " << dim.x << " ^3" << std::endl;
+
 
 	auto start0 = std::chrono::system_clock::now();
+	
+#ifdef DS_USEGPU
 	std::vector<float> cpuData; cpuData.reserve(_nnz);
 	std::vector<int> cpuRowPtr(M + 1, -1);
 	std::vector<int> cpuColInd; cpuColInd.reserve(_nnz);
-	std::vector<float> cpuB(M);
-	std::vector<float> cpuX(N);
-
+	std::vector<float> cpuB(M);	
+#else
 	std::vector<Eigen::Triplet<float>> triplets;
 	Eigen::VectorXf b(M);
 	b.setZero();
 	Eigen::VectorXf x(N);
-	
+#endif
+			
 
 	volChannel.getCurrentPtr().retrieve();
 	assert(volChannel.type == TYPE_UCHAR);
@@ -141,8 +150,7 @@ bool blib::DiffusionSolver::prepare(VolumeChannel & volChannel, int d)
 	const auto sample = [&linIndex, dim, D, d0, d1](int x, int y, int z) {
 		x = std::clamp(x, 0, dim.x - 1);
 		y = std::clamp(y, 0, dim.y - 1);
-		z = std::clamp(z, 0, dim.z - 1);
-		//return 1.0f;
+		z = std::clamp(z, 0, dim.z - 1);		
 		return (D[linIndex(x, y, z)] == 0) ? d0 : d1;
 	};
 
@@ -151,10 +159,7 @@ bool blib::DiffusionSolver::prepare(VolumeChannel & volChannel, int d)
 	const vec3 invH = { 1.0f / h.x, 1.0f / h.y, 1.0f / h.z };
 	const vec3 invH2 = { invH.x*invH.x,invH.y*invH.y,invH.z*invH.z };
 
-
-
 	int curRowPtr = 0;
-
 	for (auto z = 0; z < dim.z; z++) {
 		for (auto y = 0; y < dim.y; y++) {
 			for (auto x = 0; x < dim.x; x++) {
@@ -215,175 +220,101 @@ bool blib::DiffusionSolver::prepare(VolumeChannel & volChannel, int d)
 				if (y < dim.y - 1) vals[5] = Dpos.y;
 				if (z < dim.z - 1) vals[6] = Dpos.z;
 
-				//if (bval != 0.0f) {
+				
+#ifdef DS_USEGPU
 					cpuB[i] = bval;
+#else
 					b[i] = bval;
-				//}
-
+#endif					
+		
 				int inRow = 0;
-				for (auto k = 0; k < 7; k++) {
-					//if (colId[k] < 0) continue;
-					//if (colId[k] >= N) break;
+				for (auto k = 0; k < 7; k++) {					
 					if(vals[k] == 0.0f) continue;
+#ifdef DS_USEGPU
 					cpuData.push_back(vals[k]);
 					cpuColInd.push_back(colId[k]);
-
-					triplets.push_back(Eigen::Triplet<float>(i,colId[k], vals[k]));
-
+#else
+					triplets.push_back(Eigen::Triplet<float>(i, colId[k], vals[k]));
+#endif
+					
 					inRow++;
 				}
 
+#ifdef DS_USEGPU
 				cpuRowPtr[i] = curRowPtr;
+#endif
 				curRowPtr += inRow;
 			}
 		}
 	}
 
-
+#ifdef DS_USEGPU
 	cpuRowPtr.back() = curRowPtr;
-
-
-	Eigen::SparseMatrix<float> A(M,N);
+#else
+	Eigen::SparseMatrix<float> A(M, N);
 	A.setFromTriplets(triplets.begin(), triplets.end());
-
+#endif
 	
-	/*{
+
+#ifndef DS_USEGPU
+#ifdef DS_LINSYS_TO_FILE
+	{
 		std::ofstream f("A.txt");
 		f << A.toDense();
 		f.close();
 	}
-
 	{
 		std::ofstream f("b.vec");
 		f << b;
 		f.close();
-	}*/
+	}
+#endif
+#endif
 	
-	
 
-
-	/*for (auto i = 0; i < cpuData.size(); i++) {
-		cpuData[i] = 1.0f;//float(i);
-		cpuColInd[i] = i;
-	}
-
-	for (auto i = 0; i < cpuRowPtr.size() - 1; i++) {
-		cpuRowPtr[i] = i;
-	}
-	cpuRowPtr.back() = _nnz;
-
-
-
-	for (auto i = 0; i < cpuB.size(); i++) {
-		cpuB[i] = 1.0f;
-	}
-	*/
 	auto end0 = std::chrono::system_clock::now();
 
 	std::chrono::duration<double> elapsed_seconds0 = end0 - start0;
-	std::cout << "prep elapsed time: " << elapsed_seconds0.count() << "s\n";
+	if (_verbose) {
+		std::cout << "prep elapsed time: " << elapsed_seconds0.count() << "s\n";
+	}
 
 
-	//Symmetry check
-	/*{
-		int issym = 0;
-		_CUSOLVER(
-			cusolverSpXcsrissymHost(
-				_handle, _M, _nnz, _descrA,
-				cpuRowPtr.data(), cpuRowPtr.data() + 1, cpuColInd.data(), &issym)
-		);
-	}*/
+#ifdef DS_USEGPU
 
 	int singularity;
 	float tol = 1.0e-9f;
-
-	{
-		auto start = std::chrono::system_clock::now();
-
-/*
-
-		_CUSOLVER(cusolverSpScsrlsvluHost(
-			_handle,
-			_N,
-			cpuData.size(),
-			_descrA,
-			cpuData.data(),
-			cpuRowPtr.data(),
-			cpuColInd.data(),
-			cpuB.data(),
-			tol,
-			0,
-			cpuX.data(),
-			&singularity
-		));*/
-
-
-
-		/*Eigen::BiCGSTAB<Eigen::SparseMatrix<float>> stab;
-		//Eigen::ConjugateGradient<Eigen::SparseMatrix<float>> stab;		
-		
-		//Eigen::SparseLU<Eigen::SparseMatrix<float>> stab;		
-		//stab.analyzePattern(A);
-		//stab.factorize(A);
-		//x = stab.solve(b);
-		
-		//x = stab.compute(A).solve(b);
-		x.setLinSpaced(0.0f, 1.0f);
-		x = stab.compute(A).solveWithGuess(b, x);
-*/
-
-		
-
-		
-
-		auto end = std::chrono::system_clock::now();
-
-		/*std::cout << "#iterations:     " << stab.iterations() << std::endl;
-		std::cout << "estimated error: " << stab.error() << std::endl;*/
-
-
-		/*{
-			std::ofstream f("x.vec");
-			f << x;
-			f.close();
-		}
-*/
-
-		std::chrono::duration<double> elapsed_seconds = end - start;
-		std::cout << "solve host elapsed time: " << elapsed_seconds.count() << "s\n";
-	}
-
-	//std::cout << "avgconc: " << x.mean() << std::endl;
-
-
-	double sum = 0.0;
-	for (auto & v : cpuX) {
-		sum += v;
-	}
-
-	sum /= cpuX.size();
-	std::cout << "avg conc: " << sum << std::endl;
-
-
-
-
-
 
 	_CUDA(cudaMemcpy(_deviceA, cpuData.data(), _nnz * sizeof(float), cudaMemcpyHostToDevice));
 	_CUDA(cudaMemcpy(_deviceRowPtr, cpuRowPtr.data(), (_M + 1) * sizeof(int), cudaMemcpyHostToDevice));
 	_CUDA(cudaMemcpy(_deviceColInd, cpuColInd.data(), _nnz * sizeof(int), cudaMemcpyHostToDevice));
 	_CUDA(cudaMemcpy(_deviceB, cpuB.data(), M * sizeof(float), cudaMemcpyHostToDevice));
-		
 
-	
 	{
 		cudaEvent_t start, stop;
 		cudaEventCreate(&start);
 		cudaEventCreate(&stop);
 
-		
-	
-		cudaEventRecord(start,_stream);		
+
+		//Host version
+		/*
+		_CUSOLVER(cusolverSpScsrlsvluHost(
+		_handle,
+		_N,
+		cpuData.size(),
+		_descrA,
+		cpuData.data(),
+		cpuRowPtr.data(),
+		cpuColInd.data(),
+		cpuB.data(),
+		tol,
+		0,
+		cpuX.data(),
+		&singularity
+		));*/
+
+
+		cudaEventRecord(start, _stream);
 		_CUSOLVER(cusolverSpScsrlsvqr(
 			_handle,
 			_N,
@@ -402,16 +333,17 @@ bool blib::DiffusionSolver::prepare(VolumeChannel & volChannel, int d)
 		cudaEventSynchronize(stop);
 
 		float milliseconds = 0;
-		cudaEventElapsedTime(&milliseconds, start, stop);		
-		std::cout << "solve GPU elapsed time: " << milliseconds / 1000.0f << "s\n";
+		cudaEventElapsedTime(&milliseconds, start, stop);
+
+		if (_verbose) {
+			std::cout << "solve GPU elapsed time: " << milliseconds / 1000.0f << "s\n";
+		}
 	}
-
 	
-
 	std::vector<float> resDeviceX(N);
 	_CUDA(cudaMemcpy(resDeviceX.data(), _deviceX, _N * sizeof(float), cudaMemcpyDeviceToHost));
 
-	{
+	if(_verbose){
 		double sum = 0.0;
 		for (auto & v : resDeviceX) {
 			sum += v;
@@ -420,14 +352,45 @@ bool blib::DiffusionSolver::prepare(VolumeChannel & volChannel, int d)
 		sum /= resDeviceX.size();
 		std::cout << "DEVICE avg conc: " << sum << std::endl;
 	}
-
-	
 #else
+	auto start = std::chrono::system_clock::now();
 
-	//launch kernel that, thread per row, that fills the matrix from 3D diffusivity texture
+	Eigen::BiCGSTAB<Eigen::SparseMatrix<float>> stab;
+	//Eigen::ConjugateGradient<Eigen::SparseMatrix<float>> stab;		
+	//Eigen::SparseLU<Eigen::SparseMatrix<float>> stab;		
+	//stab.analyzePattern(A);
+	//stab.factorize(A);
+	//x = stab.solve(b);
+	//x = stab.compute(A).solve(b);
+
+	x.setLinSpaced(0.0f, 1.0f);
+	x = stab.compute(A).solveWithGuess(b, x);
+
+
+	auto end = std::chrono::system_clock::now();
+
+	if (_verbose) {
+		std::chrono::duration<double> elapsed_seconds = end - start;
+		std::cout << "#iterations:     " << stab.iterations() << std::endl;
+		std::cout << "estimated error: " << stab.error() << std::endl;
+		std::cout << "solve host elapsed time: " << elapsed_seconds.count() << "s\n";				
+		std::cout << "host avg conc: " << x.mean() << std::endl;
+
+	}
+
+#ifdef DS_LINSYS_TO_FILE
+	{
+		std::ofstream f("x.vec");
+		f << x;
+		f.close();
+	}
+#endif
+
 
 #endif
 
+	
+	
 	
 	return true;
 }

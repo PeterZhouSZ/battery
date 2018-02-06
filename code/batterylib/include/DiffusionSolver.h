@@ -13,15 +13,22 @@ namespace blib {
 
 
 	public:
-		BLIB_EXPORT DiffusionSolver();
+		BLIB_EXPORT DiffusionSolver(bool verbose = true);
 		BLIB_EXPORT ~DiffusionSolver();
 
 
-		BLIB_EXPORT bool prepare(VolumeChannel & volChannel, int d);
+		//Solves stable=state diffusion equation
+		//subdim allows to select smaller subvolume - for testing
+		//TODO: diffusion params
+		BLIB_EXPORT bool solve(
+			VolumeChannel & volChannel, 
+			ivec3 subdim = ivec3(INT_MAX)
+		);
 
 	private:
 			
-
+		
+		bool _verbose;
 
 		cusolverSpHandle_t _handle = nullptr;
 		cusparseHandle_t _cusparseHandle = nullptr; // used in residual evaluation

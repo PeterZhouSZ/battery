@@ -184,12 +184,12 @@ BatteryApp::BatteryApp()
 
 	}	
 
-	const bool testDiffusionSolver = false;
+	const bool testDiffusionSolver = true;
 	if(testDiffusionSolver)
 	{
 		DiffusionSolver ds;
 		for (auto i = 2; i < 2096; i *= 2) {
-			ds.prepare(_volume->getChannel(CHANNEL_BATTERY), i);
+			ds.solve(_volume->getChannel(CHANNEL_BATTERY), ivec3(i));
 		}
 	}
 	
