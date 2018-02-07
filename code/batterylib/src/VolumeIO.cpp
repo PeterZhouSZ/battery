@@ -116,7 +116,7 @@ VolumeChannel blib::loadTiffFolder(const char * folder)
 BLIB_EXPORT bool blib::saveVolumeBinary(const char * path, const VolumeChannel & channel)
 {
 
-	std::ofstream f(path);
+	std::ofstream f(path, std::ios::binary);
 	if (!f.good()) return false;
 
 	const auto & dataptr = channel.getCurrentPtr();
@@ -139,7 +139,7 @@ BLIB_EXPORT bool blib::saveVolumeBinary(const char * path, const VolumeChannel &
 BLIB_EXPORT VolumeChannel blib::loadVolumeBinary(const char * path)
 {
 
-	std::ifstream f(path);
+	std::ifstream f(path, std::ios::binary);
 	if (!f.good()) 
 		throw "Couldn't read file";
 

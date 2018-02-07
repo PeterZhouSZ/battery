@@ -143,7 +143,7 @@ BatteryApp::BatteryApp()
 	loadDefualt = false;
 #endif
 
-	loadDefualt = true;
+	loadDefualt = false;
 
 	_volume = make_unique<blib::Volume>();
 

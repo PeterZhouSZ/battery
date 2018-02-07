@@ -379,11 +379,12 @@ void Ui::update(double dt)
 	
 
 	
-	if (ImGui::Button("Diffusion Solv")) {
+	if (ImGui::Button("Diffusion Solver")) {
 		_app._diffSolver.solveWithoutParticles(
 			_app._volume->getChannel(CHANNEL_BATTERY),
 			&_app._volume->getChannel(CHANNEL_CONCETRATION)
 		);
+		//Update to GPU
 		_app._volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().commit();
 	}
 
@@ -396,11 +397,15 @@ void Ui::update(double dt)
 		if (ImGui::Button("Save Current Channel")) {
 
 			auto & c = _app._volume->getChannel(_app._options["Render"].get<int>("channel"));
-			c.getCurrentPtr().retrieve();
+
+			//Update from GPU
+			c.getCurrentPtr().retrieve();			
+
 			blib::saveVolumeBinary(
 				outputPath,
 				c
 			);
+
 		}
 
 		ImGui::SameLine();		

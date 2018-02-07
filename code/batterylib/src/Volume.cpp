@@ -155,9 +155,8 @@ uint blib::Volume::emplaceChannel(VolumeChannel && channel, uint index)
 		_channels.push_back(std::move(channel));
 		return static_cast<uint>(_channels.size() - 1);
 	}
-	else {
-		//_channels
-		_channels.emplace(_channels.begin() + index, std::move(channel));
+	else {		
+		_channels[index] = std::move(channel);		
 		return index;
 	}
 	
