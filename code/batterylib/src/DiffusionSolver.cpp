@@ -54,7 +54,7 @@ size_t linearIndex(const ivec3 & dim, const ivec3 & pos) {
 void buildNodeList(std::vector<Node> & nodeList, std::vector<size_t> & indices, const VolumeChannel & c, size_t nodeIndex_) {
 
 	const auto & dim = c.dim;
-	const size_t stride[3] = { 1, dim.y, dim.x*dim.y };
+	const size_t stride[3] = { 1, dim.x, dim.x*dim.y };
 	const uchar * cdata = (uchar *)c.getCurrentPtr().getCPU();
 	//todo add bound.cond here
 	/*if (curPos.x < 0 || curPos.y < 0 || curPos.z < 0 ||
@@ -635,6 +635,17 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, VolumeChannel * ou
 	return true;
 }
 
+
+
+
+
+
+
+
+
+
+
+
 BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 	VolumeChannel & volChannel, 
 	VolumeChannel * outVolume /*= nullptr*/, 
@@ -644,6 +655,8 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 #ifdef DS_USEGPU
 	assert(false); // CPU only
 #endif
+
+	using T = float;
 
 	const auto & c = volChannel;
 	auto dim = glm::min(subdim, c.dim);
@@ -703,21 +716,26 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 	size_t N = M;
 
 	const vec3 h = { 1.0f / (dim.x + 1), 1.0f / (dim.y + 1), 1.0f / (dim.z + 1) };
+	//const vec3 h = { 1.0f / (dim.x + 1), 1.0f / (dim.x + 1), 1.0f / (dim.x + 1) };
+
 	const vec3 invH = { 1.0f / h.x, 1.0f / h.y, 1.0f / h.z };
 	const vec3 invH2 = { invH.x*invH.x,invH.y*invH.y,invH.z*invH.z };
 
 
-	std::vector<Eigen::Triplet<double>> triplets;
-	Eigen::VectorXd b(M);
+	std::vector<Eigen::Triplet<T>> triplets;
+	
+	Eigen::Matrix<T, Eigen::Dynamic, 1> b(M);
 	b.setZero();
-	Eigen::VectorXd x(N);
+	Eigen::Matrix<T, Eigen::Dynamic, 1> x(N);
 
 	size_t row = 0;
 	for (auto & n : nodeList) {
 
 		auto Dcur = vec3(d0) * invH2; // vec x vec product
 
-		auto Dpos = (vec3(
+		auto Dpos = Dcur;
+		auto Dneg = Dcur;
+		/*auto Dpos = (vec3(
 			d0 * invH2.x,
 			d0 * invH2.y,
 			d0 * invH2.z
@@ -726,7 +744,7 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 			d0 * invH2.x,
 			d0 * invH2.y,
 			d0 * invH2.z
-		) + vec3(Dcur)) * 0.5f;
+		) + vec3(Dcur)) * 0.5f;*/
 
 
 		auto diagVal = -(Dpos.x + Dpos.y + Dpos.z + Dneg.x + Dneg.y + Dneg.z);
@@ -735,15 +753,15 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 
 		int k = 0;
 		for (auto & neigh : n.neigh) {
-			float dval = (k % 2 == 0) ? Dpos[k / 3] : Dneg[k / 3];
+			float dval = (k % 2 == 0) ? Dpos[k / 2] : Dneg[k / 2];
 
 			if (neigh.type == NODE) {
-				triplets.push_back(Eigen::Triplet<double>(row, neigh.index, 
+				triplets.push_back(Eigen::Triplet<T>(row, neigh.index, 
 					dval
 					));
 			}
 			else if (neigh.type == DIRICHLET) {
-				bval += d0 * neigh.value * invH2[k / 3];
+				bval -= d0 * neigh.value * invH2[k / 3];
 			}
 			else if (neigh.type == VON_NEUMANN) {
 				diagVal += dval;
@@ -752,14 +770,14 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 		}
 
 		b[row] = bval;
-		triplets.push_back(Eigen::Triplet<double>(row, row, diagVal));
+		triplets.push_back(Eigen::Triplet<T>(row, row, diagVal));
 
 		
 		row++;
 	}
 
 	auto start = std::chrono::system_clock::now();
-	Eigen::SparseMatrix<double, Eigen::RowMajor> A(M, N);
+	Eigen::SparseMatrix<T, Eigen::RowMajor> A(M, N);
 	A.setFromTriplets(triplets.begin(), triplets.end());
 	A.makeCompressed();
 
@@ -768,10 +786,32 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 	Eigen::setNbThreads(8);
 
 
-	Eigen::BiCGSTAB<Eigen::SparseMatrix<double, Eigen::RowMajor>> stab;
+	//Eigen::ConjugateGradient<Eigen::SparseMatrix<T, Eigen::RowMajor>> stab;
+	Eigen::BiCGSTAB<Eigen::SparseMatrix<T, Eigen::RowMajor>> stab;
+	
+	x.setLinSpaced(0.0, 0.0);
+	float tol = 1e-5;
+	stab.setTolerance(tol);
+	stab.compute(A);
+	
 
-	x.setLinSpaced(0.0, 1.0);
-	x = stab.compute(A).solveWithGuess(b, x);
+	const int maxIter = 2000;
+	const int iterPerStep = 2000;
+
+	stab.setMaxIterations(iterPerStep);
+
+	for (auto i = 0; i < maxIter; i += iterPerStep) {
+		x = stab.solveWithGuess(b, x);		
+		float er = stab.error();		
+		if (_verbose) {			
+			std::cout << "i:" << i << ", estimated error: " << er << std::endl;
+		}
+		if (er <= tol)
+			break;
+	}
+
+	
+	//x = stab.compute(A).solve(b);//solveWithGuess(b, x);
 	auto end = std::chrono::system_clock::now();
 
 
@@ -791,7 +831,7 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 		int nodeIndex = 0;
 		for (auto & n : nodeList) {
 			auto i = linearIndex(dim, n.pos);
-			concData[i] = -x[nodeIndex];
+			concData[i] = x[nodeIndex];
 			//assert(cdata[i] == 0);
 			nodeIndex++;
 

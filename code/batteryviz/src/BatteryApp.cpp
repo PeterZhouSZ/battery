@@ -71,11 +71,11 @@ void generateSpheresVolume(blib::Volume & volume, uint sphereCount, float sphere
 			for (auto j = 0; j < c.dim.y; j++) {
 				for (auto k = 0; k < c.dim.z; k++) {
 
-					arr[i + j*c.dim.x + k*c.dim.y*c.dim.z] = 0;
+					arr[i + j*c.dim.x + k*c.dim.y*c.dim.x] = 0;
 
 					for (auto x = 0; x < pos.size(); x++) {
 						if (glm::length(vec3(i / float(c.dim.x), j / float(c.dim.y), k / float(c.dim.z)) - pos[x]) < rad[x]) {
-							arr[i + j*c.dim.x + k*c.dim.y*c.dim.z] = 255;
+							arr[i + j*c.dim.x + k*c.dim.y*c.dim.x] = 255;
 							break;
 						}
 					}
@@ -168,9 +168,9 @@ BatteryApp::BatteryApp()
 				
 	}
 	else {
-		int res = 64;
-		ivec3 d = ivec3(res);
-		//ivec3 d = ivec3(256,256,184);
+		int res = 196;
+		//ivec3 d = ivec3(res);
+		ivec3 d = ivec3(96);
 		auto batteryID = _volume->addChannel(d, TYPE_UCHAR);	
 
 		//Add concetration channel
@@ -192,6 +192,7 @@ BatteryApp::BatteryApp()
 		DiffusionSolver ds;
 		//for (auto i = 2; i < 2096; i *= 2) {
 		//auto i = 64;
+
 			ds.solveWithoutParticles(
 				_volume->getChannel(CHANNEL_BATTERY),				
 				&_volume->getChannel(CHANNEL_CONCETRATION)				
