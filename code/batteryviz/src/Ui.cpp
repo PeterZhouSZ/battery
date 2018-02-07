@@ -386,7 +386,25 @@ void Ui::update(double dt)
 		);
 		//Update to GPU
 		_app._volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().commit();
+
+		float tau = _app._diffSolver.tortuosityCPU(
+			_app._volume->getChannel(CHANNEL_BATTERY),
+			_app._volume->getChannel(CHANNEL_CONCETRATION),
+			X_POS
+		);
+		std::cout << "tau = " << tau << "\n";
 	}
+
+	ImGui::SameLine();
+	if (ImGui::Button("Tortuosity")) {
+		float tau = _app._diffSolver.tortuosityCPU(
+			_app._volume->getChannel(CHANNEL_BATTERY),
+			_app._volume->getChannel(CHANNEL_CONCETRATION),
+			X_POS
+		);
+		std::cout << "tau = " << tau << "\n";
+	}
+
 
 
 	//Output
@@ -409,22 +427,30 @@ void Ui::update(double dt)
 		}
 
 		ImGui::SameLine();		
-		ImGui::InputText("", outputPath, 256);
+		ImGui::InputText("outVol", outputPath, 256);
 	}
 
 	//Input
 	{
 
 		static char inputPath[256] = "volOut.vol";
+
+		
 		if (ImGui::Button("Load to Current Channel")) {
-			_app._volume->emplaceChannel(
-				blib::loadVolumeBinary(inputPath),
-				_app._options["Render"].get<int>("channel")
-			);
+
+			try {
+				_app._volume->emplaceChannel(
+					blib::loadVolumeBinary(inputPath),
+					_app._options["Render"].get<int>("channel")
+				);
+			}
+			catch (const char * ex) {
+				std::cout << ex << std::endl;
+			}
 		}
 
 		ImGui::SameLine();
-		ImGui::InputText("", inputPath, 256);
+		ImGui::InputText("inVol", inputPath, 256);
 	}	
 
 	if (ImGui::Button("Difference sum")){

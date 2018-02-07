@@ -687,16 +687,20 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 	buildNodeList(nodeList, indices, volChannel, 1);
 
 
-	
-	if (_verbose)
+	float porosity = 0.0f;
 	{
-		const uchar * cdata = (uchar * )volChannel.getCurrentPtr().getCPU();
+		const uchar * cdata = (uchar *)volChannel.getCurrentPtr().getCPU();
 		size_t cnt = 0;
 		for (auto i = 0; i < volChannel.getCurrentPtr().byteSize() / sizeof(uchar); i++) {
 			if (cdata[i] == 0)
 				cnt++;
 		}
-		std::cout << "occupancy (d0, direct): " << 100.0f * (cnt / float(maxN)) << std::endl;
+		porosity = (cnt / float(maxN));
+	}
+	
+	if (_verbose)
+	{		
+		std::cout << "occupancy (d0, direct): " << 100.0f * porosity << std::endl;
 	}
 
 	if (_verbose)
@@ -770,6 +774,12 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 		}
 
 		b[row] = bval;
+
+		//initial guess
+		x[row] = 1.0f - (n.pos.x / float(dim.x + 1));
+		//x[row] = 0.0f;
+
+		
 		triplets.push_back(Eigen::Triplet<T>(row, row, diagVal));
 
 		
@@ -789,14 +799,16 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 	//Eigen::ConjugateGradient<Eigen::SparseMatrix<T, Eigen::RowMajor>> stab;
 	Eigen::BiCGSTAB<Eigen::SparseMatrix<T, Eigen::RowMajor>> stab;
 	
-	x.setLinSpaced(0.0, 0.0);
+	//x.setLinSpaced(0.0, 0.0);
+
+
 	float tol = 1e-5;
 	stab.setTolerance(tol);
 	stab.compute(A);
 	
 
-	const int maxIter = 2000;
-	const int iterPerStep = 2000;
+	const int maxIter = 3000;
+	const int iterPerStep = 100;
 
 	stab.setMaxIterations(iterPerStep);
 
@@ -837,6 +849,91 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 		}
 	}
 
+
+	
+
+
+	
+
+
 	return true;
+}
+
+BLIB_EXPORT float blib::DiffusionSolver::tortuosityCPU(const VolumeChannel & mask, const VolumeChannel & concetration, Dir dir)
+{
+	
+	
+	assert(mask.type() == TYPE_UCHAR || mask.type() == TYPE_CHAR);
+	assert(concetration.type() == TYPE_FLOAT);
+	assert(mask.dim().x == concetration.dim().x);
+	assert(mask.dim().y == concetration.dim().y);
+	assert(mask.dim().z == concetration.dim().z);
+	const auto dim = mask.dim();
+	
+	const auto totalElem = dim.x * dim.y * dim.z;
+
+
+	const float * concData = (float *)concetration.getCurrentPtr().getCPU();
+	const uchar * cdata = (uchar *)mask.getCurrentPtr().getCPU();
+
+	int zeroElem = 0;
+	for (auto i = 0; i < totalElem; i++) {
+		zeroElem += (cdata[i] == 0) ? 1 : 0;
+	}
+	float porosity = zeroElem / float(totalElem);
+
+
+	
+
+	const int primaryDim = getDirIndex(dir);
+	const int secondaryDims[2] = { (primaryDim + 1) % 3, (primaryDim + 2) % 3 };
+	
+	float sum = 0.0f;
+	float sumHigh = 0.0f;
+	int n = 0;	
+	int k = (getDirSgn(dir) == -1) ? 0 : dim[primaryDim] - 1;
+	int kHigh = (getDirSgn(dir) == 1) ? 0 : dim[primaryDim] - 1;
+
+	for (auto i = 0; i < dim[secondaryDims[0]]; i++) {
+		for (auto j = 0; j < dim[secondaryDims[1]]; j++) {
+			ivec3 pos;
+			pos[primaryDim] = k;
+			pos[secondaryDims[0]] = i;
+			pos[secondaryDims[1]] = j;
+			
+			sum += concData[linearIndex(dim, pos)];
+			
+			pos[primaryDim] = kHigh;
+			sumHigh += concData[linearIndex(dim, pos)];
+
+			n++;
+		}
+	}
+
+	const float d0 = 0.001f;
+
+	
+
+	float avgJ = sum / n;
+	//float h = 1.0f / dim[primaryDim];	
+
+	float high = 1.0f;
+	float low = 0.0f;
+	float dc = high - low;
+	float dx = 1.0f;
+
+	float tau = d0 * porosity * dc / (avgJ * dx);
+
+	std::cout << "Deff: " << (avgJ * dx) / dc << std::endl;
+	std::cout << "porosity: " << porosity << std::endl;
+
+	//float t = (d0 * (1.0f * porosity) / dc);
+	//float t2 = h * porosity / dc / 1.0f / 2.0f;
+
+	return tau;
+
+	
+
+	
 }
 

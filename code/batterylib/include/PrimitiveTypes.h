@@ -59,3 +59,7 @@ inline uint getDirIndex(Dir dir) {
 	}
 	return uint(-1);
 }
+
+inline int getDirSgn(Dir dir) {
+	return -((dir % 2) * 2 - 1);
+}

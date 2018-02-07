@@ -32,6 +32,12 @@ namespace blib {
 			ivec3 subdim = ivec3(INT_MAX)
 		);
 
+		BLIB_EXPORT float tortuosityCPU(
+			const VolumeChannel & mask,
+			const VolumeChannel & concetration,
+			Dir dir
+		);
+
 	private:
 			
 		
