@@ -13,7 +13,7 @@
 #include <batterylib/include/VolumeIO.h>
 #include <batterylib/include/RandomGenerator.h>
 
-#include <batterylib/include/DiffusionSolver.h>
+
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -46,8 +46,7 @@ RNGUniformInt uniformDistInt(0, INT_MAX);
 #include "render/PrimitivesVBO.h"
 #include "render/Shaders.h"
 
-#define CHANNEL_BATTERY 0
-#define CHANNEL_CONCETRATION 1
+
 
 
 
@@ -67,15 +66,15 @@ void generateSpheresVolume(blib::Volume & volume, uint sphereCount, float sphere
 		}
 
 		#pragma omp parallel for
-		for (auto i = 0; i < c.dim.x; i++) {
-			for (auto j = 0; j < c.dim.y; j++) {
-				for (auto k = 0; k < c.dim.z; k++) {
+		for (auto i = 0; i < c.dim().x; i++) {
+			for (auto j = 0; j < c.dim().y; j++) {
+				for (auto k = 0; k < c.dim().z; k++) {
 
-					arr[i + j*c.dim.x + k*c.dim.y*c.dim.x] = 0;
+					arr[i + j*c.dim().x + k*c.dim().y*c.dim().x] = 0;
 
 					for (auto x = 0; x < pos.size(); x++) {
-						if (glm::length(vec3(i / float(c.dim.x), j / float(c.dim.y), k / float(c.dim.z)) - pos[x]) < rad[x]) {
-							arr[i + j*c.dim.x + k*c.dim.y*c.dim.x] = 255;
+						if (glm::length(vec3(i / float(c.dim().x), j / float(c.dim().y), k / float(c.dim().z)) - pos[x]) < rad[x]) {
+							arr[i + j*c.dim().x + k*c.dim().y*c.dim().x] = 255;
 							break;
 						}
 					}
@@ -98,8 +97,8 @@ BatteryApp::BatteryApp()
 	_camera(Camera::defaultCamera(_window.width, _window.height)),	
 	_ui(*this),
 	_currentRenderChannel(0),
-	_simulationTime(0.0f)
-	
+	_simulationTime(0.0f),
+	_diffSolver(true)	
 {	
 
 
@@ -147,6 +146,10 @@ BatteryApp::BatteryApp()
 	loadDefualt = true;
 
 	_volume = make_unique<blib::Volume>();
+
+
+
+
 	if(loadDefualt){			
 		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));	
 		assert(batteryID == CHANNEL_BATTERY);
@@ -155,27 +158,27 @@ BatteryApp::BatteryApp()
 
 		//Add concetration channel
 		auto concetrationID = _volume->addChannel(
-			_volume->getChannel(CHANNEL_BATTERY).dim, 
+			_volume->getChannel(CHANNEL_BATTERY).dim(),
 			TYPE_FLOAT
 		);
 		assert(concetrationID == CHANNEL_CONCETRATION);
 
 		_volume->getChannel(CHANNEL_CONCETRATION).clear();
 
-		auto dim = _volume->getChannel(CHANNEL_BATTERY).dim;
+		auto dim = _volume->getChannel(CHANNEL_BATTERY).dim();
 		std::cout << "Resolution: " << dim.x << " x " << dim.y << " x " << dim.z <<
 			" = " << dim.x*dim.y*dim.z << " voxels (" << (dim.x*dim.y*dim.z)/(1024*1024.0f) << "M)" << std::endl;
 				
 	}
 	else {
-		int res = 196;
+		int res = 32;
 		//ivec3 d = ivec3(res);
-		ivec3 d = ivec3(96);
+		ivec3 d = ivec3(res*2, res*2, res);
 		auto batteryID = _volume->addChannel(d, TYPE_UCHAR);	
 
 		//Add concetration channel
 		auto concetrationID = _volume->addChannel(
-			_volume->getChannel(CHANNEL_BATTERY).dim,
+			_volume->getChannel(CHANNEL_BATTERY).dim(),
 			TYPE_FLOAT
 		);
 		assert(concetrationID == CHANNEL_CONCETRATION);
@@ -183,24 +186,8 @@ BatteryApp::BatteryApp()
 
 		resetSA();
 		generateSpheresVolume(*_volume, 128, 0.15f);
-
 	}	
-
-	const bool testDiffusionSolver = true;
-	if(testDiffusionSolver)
-	{
-		DiffusionSolver ds;
-		//for (auto i = 2; i < 2096; i *= 2) {
-		//auto i = 64;
-
-			ds.solveWithoutParticles(
-				_volume->getChannel(CHANNEL_BATTERY),				
-				&_volume->getChannel(CHANNEL_CONCETRATION)				
-			);
-		//}
-
-			_volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().commit();
-	}
+	
 	
 
 	_volumeRaycaster->setVolume(*_volume, 0);
@@ -210,12 +197,13 @@ BatteryApp::BatteryApp()
 		Scene init
 	*/
 
+/*
 	auto sphereObj = make_shared<MeshObject>(blib::generateSphere());
 	_scene.addObject("sphere", sphereObj);
+*/
 
 	
-	//resetSA();
-//	_volumeRaycaster->updateVolume(_volume);
+
 
 	
 	
@@ -262,7 +250,7 @@ void BatteryApp::update(double dt)
 			static int k = 0; k++;
 
 			//if (k % 256 == 0) {
-				auto dim = _volume->getChannel(CHANNEL_CONCETRATION).dim;
+				auto dim = _volume->getChannel(CHANNEL_CONCETRATION).dim();
 				_residual = _volume->getChannel(CHANNEL_CONCETRATION).differenceSum();// / (dim.x*dim.y*dim.z);				
 				//_residual = 0.1;
 				if (abs(_residual) < 0.000001f && _convergenceTime < 0.0f) {

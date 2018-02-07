@@ -12,7 +12,7 @@ using namespace blib;
 bool glewInited = false;
 
 blib::VolumeChannel::VolumeChannel(ivec3 dim, PrimitiveType type, bool doubleBuffered)
-	: dim(dim), type(type), _current(0), _doubleBuffered(doubleBuffered)
+	: _dim(dim), _type(type), _current(0), _doubleBuffered(doubleBuffered)
 {	
 
 
@@ -47,9 +47,9 @@ float blib::VolumeChannel::differenceSum()
 {
 
 	//Only float supported at the moment
-	assert(type == TYPE_FLOAT);
+	assert(type() == TYPE_FLOAT);
 
-	auto res = make_uint3(dim.x, dim.y, dim.z);
+	auto res = make_uint3(dim().x, dim().y, dim().z);
 	launchSubtractKernel(
 		res,
 		getCurrentPtr().getSurface(),
@@ -64,7 +64,8 @@ float blib::VolumeChannel::differenceSum()
 void blib::VolumeChannel::clear()
 {
 	clearCurrent();
-	clearNext();
+	if(_doubleBuffered)
+		clearNext();
 }
 
 void blib::VolumeChannel::clearCurrent()
@@ -102,13 +103,28 @@ void blib::VolumeChannel::swapBuffers()
 
 uint blib::VolumeChannel::dimInDirection(Dir dir)
 {
-	return dim[getDirIndex(dir)];
+	return dim()[getDirIndex(dir)];
 }
 
 uint blib::VolumeChannel::sliceElemCount(Dir dir)
 {
 	uint index = getDirIndex(dir);
-	return dim[(index + 1) % 3] * dim[(index + 2) % 3];
+	return dim()[(index + 1) % 3] * dim()[(index + 2) % 3];
+}
+
+bool blib::VolumeChannel::isDoubleBuffered() const
+{
+	return _doubleBuffered;
+}
+
+ivec3 blib::VolumeChannel::dim() const
+{
+	return _dim;
+}
+
+PrimitiveType blib::VolumeChannel::type() const
+{
+	return _type;
 }
 
 ///////////////////////////
@@ -133,10 +149,18 @@ uint blib::Volume::addChannel(ivec3 dim, PrimitiveType type)
 	return static_cast<uint>(_channels.size() - 1);
 }
 
-uint blib::Volume::emplaceChannel(VolumeChannel && channel)
+uint blib::Volume::emplaceChannel(VolumeChannel && channel, uint index)
 {
-	_channels.emplace_back(std::move(channel));
-	return static_cast<uint>(_channels.size() - 1);
+	if (index >= numChannels()) {
+		_channels.push_back(std::move(channel));
+		return static_cast<uint>(_channels.size() - 1);
+	}
+	else {
+		//_channels
+		_channels.emplace(_channels.begin() + index, std::move(channel));
+		return index;
+	}
+	
 }
 
 VolumeChannel & blib::Volume::getChannel(uint index)
@@ -166,7 +190,7 @@ void blib::Volume::erode(uint channel)
 {
 	auto & c = getChannel(channel);
 	launchErodeKernel(
-		make_uint3(c.dim.x, c.dim.y, c.dim.z),
+		make_uint3(c.dim().x, c.dim().y, c.dim().z),
 		c.getCurrentPtr().getSurface(), //in
 		c.getNextPtr().getSurface() //out
 	);
@@ -178,7 +202,7 @@ void blib::Volume::heat(uint channel)
 {
 	auto & c = getChannel(channel);
 	launchHeatKernel(
-		make_uint3(c.dim.x, c.dim.y, c.dim.z),
+		make_uint3(c.dim().x, c.dim().y, c.dim().z),
 		c.getCurrentPtr().getSurface(), //in
 		c.getNextPtr().getSurface() //out
 	);
@@ -189,9 +213,9 @@ void blib::Volume::heat(uint channel)
 {
 	 auto & c = getChannel(channel);
 	 launchBinarizeKernel(
-		 make_uint3(c.dim.x, c.dim.y, c.dim.z),
+		 make_uint3(c.dim().x, c.dim().y, c.dim().z),
 		 c.getCurrentPtr().getSurface(),
-		 c.type,
+		 c.type(),
 		 threshold		 
 	 );
 	 
@@ -202,10 +226,10 @@ void blib::Volume::heat(uint channel)
 	 auto & c = getChannel(channel);
 	 
 	 //Only float supported at the moment
-	 assert(c.type == TYPE_FLOAT);
+	 assert(c.type() == TYPE_FLOAT);
 
   	 launchReduceSumSlice(
-		 make_uint3(c.dim.x, c.dim.y, c.dim.z),
+		 make_uint3(c.dim().x, c.dim().y, c.dim().z),
 		 c.getCurrentPtr().getSurface(),
 		 dir,
 		 output
@@ -228,7 +252,7 @@ void blib::Volume::heat(uint channel)
 	 auto & cconc = getChannel(concetrationChannel);
 
 	 //Must have same dimensions
-	 assert(cmask.dim.x == cconc.dim.x && cmask.dim.y == cconc.dim.y && cmask.dim.z == cconc.dim.z);
+	 assert(cmask.dim().x == cconc.dim().x && cmask.dim().y == cconc.dim().y && cmask.dim().z == cconc.dim().z);
 	 assert(zeroDiff >= 0.0f && oneDiff >= 0.0f);
 
 	 std::array<float, 6> boundary;
@@ -267,7 +291,7 @@ void blib::Volume::heat(uint channel)
 
 	 launchDiffuseKernel(
 		{
-		 make_uint3(cmask.dim.x, cmask.dim.y, cmask.dim.z),
+		 make_uint3(cmask.dim().x, cmask.dim().y, cmask.dim().z),
 		 voxelSize,
 		 cmask.getCurrentPtr().getSurface(),
 		 cconc.getCurrentPtr().getSurface(),

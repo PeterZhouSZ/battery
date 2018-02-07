@@ -53,7 +53,7 @@ size_t linearIndex(const ivec3 & dim, const ivec3 & pos) {
 
 void buildNodeList(std::vector<Node> & nodeList, std::vector<size_t> & indices, const VolumeChannel & c, size_t nodeIndex_) {
 
-	const auto & dim = c.dim;
+	const auto & dim = c.dim();
 	const size_t stride[3] = { 1, dim.x, dim.x*dim.y };
 	const uchar * cdata = (uchar *)c.getCurrentPtr().getCPU();
 	//todo add bound.cond here
@@ -289,7 +289,7 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, VolumeChannel * ou
 {
 
 	const auto & c = volChannel;
-	auto dim = glm::min(subdim, c.dim);
+	auto dim = glm::min(subdim, c.dim());
 	
 
 	
@@ -362,7 +362,7 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, VolumeChannel * ou
 			
 
 	volChannel.getCurrentPtr().retrieve();
-	assert(volChannel.type == TYPE_UCHAR);
+	assert(volChannel.type() == TYPE_UCHAR);
 	uchar * D = (uchar *)volChannel.getCurrentPtr().getCPU();
 
 	const auto linIndex = [dim](int x, int y, int z) -> size_t {
@@ -659,7 +659,7 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 	using T = float;
 
 	const auto & c = volChannel;
-	auto dim = glm::min(subdim, c.dim);
+	auto dim = glm::min(subdim, c.dim());
 
 	if (_verbose)
 		std::cout << "DIM " << dim.x << ", " << dim.y << ", " << dim.z << " nnz:" << dim.x*dim.y*dim.z / (1024 * 1024.0f) << "M" << std::endl;
@@ -678,7 +678,7 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 
 	std::vector<Node> nodeList;
 	nodeList.reserve(maxN); //cannot be reallocated when building!!
-	std::vector<size_t> indices(volChannel.dim.x*volChannel.dim.y*volChannel.dim.z, 0-1);
+	std::vector<size_t> indices(volChannel.dim().x*volChannel.dim().y*volChannel.dim().z, 0-1);
 
 	//for()
 	//TODO: run for each voxel at high concetration face
@@ -831,8 +831,7 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 		int nodeIndex = 0;
 		for (auto & n : nodeList) {
 			auto i = linearIndex(dim, n.pos);
-			concData[i] = x[nodeIndex];
-			//assert(cdata[i] == 0);
+			concData[i] = x[nodeIndex];			
 			nodeIndex++;
 
 		}

@@ -14,6 +14,7 @@
 
 #include <batterylib/include/Transform.h>
 #include <batterylib/include/SimulatedAnnealing.h>
+#include <batterylib/include/DiffusionSolver.h>
 
 #include "Ui.h"
 
@@ -23,6 +24,8 @@
 struct Shader;
 
 #define OPTIONS_FILENAME "options.json"
+#define CHANNEL_BATTERY 0
+#define CHANNEL_CONCETRATION 1
 
 class BatteryApp : public App {
 
@@ -74,7 +77,8 @@ protected:
 	> _saEllipsoid;
 
 
-	
+	blib::DiffusionSolver _diffSolver;
+
 
 	friend Ui;
 	Ui _ui;	

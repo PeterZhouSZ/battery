@@ -360,11 +360,69 @@ void Ui::update(double dt)
 
 
 
-	if (ImGui::Button("Reset SA")) {
+	if (ImGui::Button("Reset Simulation")) {
 		_app.resetSA();
 	}
 
-	if (ImGui::Button("Diff")){
+
+	ImGui::SameLine();
+	if (ImGui::Button("Clear C0")) {
+		_app._volume->getChannel(0).clear();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Clear C1")) {
+		_app._volume->getChannel(1).clear();
+	}
+
+	//_app._volume->getChannel(1).clear();
+
+	
+
+	
+	if (ImGui::Button("Diffusion Solv")) {
+		_app._diffSolver.solveWithoutParticles(
+			_app._volume->getChannel(CHANNEL_BATTERY),
+			&_app._volume->getChannel(CHANNEL_CONCETRATION)
+		);
+		_app._volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().commit();
+	}
+
+
+	//Output
+	{
+
+		static char outputPath[256] = "volOut.vol";
+
+		if (ImGui::Button("Save Current Channel")) {
+
+			auto & c = _app._volume->getChannel(_app._options["Render"].get<int>("channel"));
+			c.getCurrentPtr().retrieve();
+			blib::saveVolumeBinary(
+				outputPath,
+				c
+			);
+		}
+
+		ImGui::SameLine();		
+		ImGui::InputText("", outputPath, 256);
+	}
+
+	//Input
+	{
+
+		static char inputPath[256] = "volOut.vol";
+		if (ImGui::Button("Load to Current Channel")) {
+			_app._volume->emplaceChannel(
+				blib::loadVolumeBinary(inputPath),
+				_app._options["Render"].get<int>("channel")
+			);
+		}
+
+		ImGui::SameLine();
+		ImGui::InputText("", inputPath, 256);
+	}	
+
+	if (ImGui::Button("Difference sum")){
 		_app._volume->getChannel(1).differenceSum();
 	}
 	

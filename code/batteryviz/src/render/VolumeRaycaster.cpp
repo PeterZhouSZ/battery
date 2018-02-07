@@ -114,7 +114,7 @@ bool VolumeRaycaster::setVolume(const blib::Volume & volume, int channel)
 
 
 	_volTexture = volume.getChannel(channel).getCurrentPtr().getGlID();
-	_volDim = volume.getChannel(channel).dim;
+	_volDim = volume.getChannel(channel).dim();
 
 	return true;
 }

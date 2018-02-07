@@ -4,6 +4,7 @@
 #include "tinytiff/tinytiffreader.h"
 
 #include <filesystem>
+#include <fstream>
 
 using namespace std;
 using namespace blib;
@@ -112,4 +113,53 @@ VolumeChannel blib::loadTiffFolder(const char * folder)
 	return volume;
 }
 
+BLIB_EXPORT bool blib::saveVolumeBinary(const char * path, const VolumeChannel & channel)
+{
+
+	std::ofstream f(path);
+	if (!f.good()) return false;
+
+	const auto & dataptr = channel.getCurrentPtr();
+	const void * data = dataptr.getCPU();
+
+	bool doubleBuffered = channel.isDoubleBuffered();
+
+	PrimitiveType type = channel.type();
+	ivec3 dim = channel.dim();
+
+	f.write((const char *)&type, sizeof(PrimitiveType));
+	f.write((const char *)&dim, sizeof(ivec3));
+	f.write((const char *)&doubleBuffered, sizeof(bool));
+	f.write((const char *)data, dataptr.byteSize());
+	f.close();
+
+	return true;
+}
+
+BLIB_EXPORT VolumeChannel blib::loadVolumeBinary(const char * path)
+{
+
+	std::ifstream f(path);
+	if (!f.good()) 
+		throw "Couldn't read file";
+
+	PrimitiveType type;
+	ivec3 dim;
+	bool doubleBuffered;
+
+	f.read((char *)&type, sizeof(PrimitiveType));
+	f.read((char *)&dim, sizeof(ivec3));
+	f.read((char *)&doubleBuffered, sizeof(bool));
+
+
+	VolumeChannel vol(dim, type, doubleBuffered);
+	auto & dataptr = vol.getCurrentPtr();
+	void * data = dataptr.getCPU();
+	
+	f.read((char *)data, dataptr.byteSize());
+
+	dataptr.commit();
+
+	return vol;
+}
 
