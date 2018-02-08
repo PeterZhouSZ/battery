@@ -379,11 +379,32 @@ void Ui::update(double dt)
 	
 
 	
+	static bool particleAsBoundary = false;
+	ImGui::Checkbox("part", &particleAsBoundary);
+	ImGui::SameLine();		
+		
 	if (ImGui::Button("Diffusion Solver")) {
-		_app._diffSolver.solveWithoutParticles(
-			_app._volume->getChannel(CHANNEL_BATTERY),
-			&_app._volume->getChannel(CHANNEL_CONCETRATION)
-		);
+		float tol = powf(10.0f, -_app._options["Diffusion"].get<int>("Tolerance"));
+
+		if (particleAsBoundary) {
+			_app._diffSolver.solveWithoutParticles(
+				_app._volume->getChannel(CHANNEL_BATTERY),
+				&_app._volume->getChannel(CHANNEL_CONCETRATION),
+				_app._options["Diffusion"].get<float>("D_zero"),
+				_app._options["Diffusion"].get<float>("D_one"),
+				tol
+			);
+		}
+		else {
+			
+			_app._diffSolver.solve(
+				_app._volume->getChannel(CHANNEL_BATTERY),
+				&_app._volume->getChannel(CHANNEL_CONCETRATION),
+				_app._options["Diffusion"].get<float>("D_zero"),
+				_app._options["Diffusion"].get<float>("D_one"),
+				tol
+			);
+		}
 		//Update to GPU
 		_app._volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().commit();
 

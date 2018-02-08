@@ -9,12 +9,16 @@
             "type": 3
         },
         "D_one": {
-            "data": 0.0,
+            "data": 0.00100000004749745,
             "type": 3
         },
         "D_zero": {
-            "data": 0.100000001490116,
+            "data": 1.0,
             "type": 3
+        },
+        "Tolerance": {
+            "data": 6,
+            "type": 2
         },
         "direction": {
             "data": 5,

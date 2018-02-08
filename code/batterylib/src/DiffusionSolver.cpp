@@ -21,6 +21,97 @@ using namespace blib;
 
 #include <stack>
 
+
+
+template <typename T>
+void solveJacobi(
+	const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+	const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+	Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
+	float tolerance = 1e-4,
+	size_t maxIter = 20000,
+	bool verbose = false
+
+){
+	Eigen::Matrix<T, Eigen::Dynamic, 1> xprime(x.size());	
+	Eigen::Matrix<T, Eigen::Dynamic, 1> res(x.size());
+
+	maxIter = (maxIter / 2) * 2; //divisible by two
+
+
+	float bsqnorm = b.squaredNorm();
+	float tol2 = tolerance * tolerance * bsqnorm;
+
+	for (auto i = 0; i < maxIter; ++i) {
+
+		auto & curX = (i % 2 == 0) ? x : xprime;
+		auto & nextX = (i % 2 == 0) ? xprime : x;
+
+		res = b - A*curX;
+
+		float err = res.squaredNorm();// / bsqnorm;
+
+		//float err = res.mean();
+
+		if (verbose && i % 128 == 0) {
+
+			float tol_error = sqrt(err / bsqnorm);
+
+			std::cout << "jacobi i: " << i << " err: " << err << ", tol_error: " << tol_error << std::endl;
+		}
+
+		if (err <= tol2) {
+			
+
+			if (verbose) {
+				float tol_error = sqrt(err / bsqnorm);
+				std::cout << "solved " << err << " <= " << tol2 << std::endl;
+				std::cout << "tol_error" << tol_error << std::endl;
+			}
+
+			if (&x != &curX) {
+				std::swap(x, curX);
+			}				
+			break;
+		}
+		jacobiStep(A, b, curX, nextX);
+
+	}
+
+}
+
+template <typename T>
+void jacobiStep(
+	const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+	const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+	Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
+	Eigen::Matrix<T, Eigen::Dynamic, 1> & xnew
+) {
+
+	
+	#pragma omp parallel for
+	for (auto i = 0; i < A.rows(); i++) {		
+
+		float sum = 0.0f;
+		float diag = 0.0f;
+		for (Eigen::SparseMatrix<float, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
+			auto  j = it.col();
+			if (j == i) {				
+				diag = it.value();				
+				continue;
+			}
+			sum += it.value() * x[j];
+		}
+
+		if (diag == 0.0f) {
+			char k;
+			k = 0;
+		}		
+		xnew[i] = (b[i] - sum) / diag;
+	}	
+}
+
+
 enum NeighType {
 	NODE, 
 	DIRICHLET,
@@ -61,6 +152,9 @@ void buildNodeList(std::vector<Node> & nodeList, std::vector<size_t> & indices, 
 		curPos.x >= dim.x || curPos.y >= dim.y || curPos.z >= dim.z
 		) return;*/
 
+	
+	
+	
 
 	std::stack<ivec3> stackNodePos;
 	
@@ -285,11 +379,18 @@ blib::DiffusionSolver::~DiffusionSolver()
 
 }
 
-bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, VolumeChannel * outVolume, ivec3 subdim)
+bool blib::DiffusionSolver::solve(
+	VolumeChannel & volChannel, 
+	VolumeChannel * outVolume, 
+	float d0,
+	float d1,
+	float tolerance
+	
+)
 {
 
 	const auto & c = volChannel;
-	auto dim = glm::min(subdim, c.dim());
+	auto dim = c.dim();
 	
 
 	
@@ -301,8 +402,8 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, VolumeChannel * ou
 	const float highConc = 1.0f;
 	const float lowConc = 0.0f;
 
-	const float d0 = 1.0f;
-	const float d1 = 0.001f;
+	//const float d0 = 1.0f;
+	//const float d1 = 0.0001f;
 
 
 
@@ -357,7 +458,7 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, VolumeChannel * ou
 	std::vector<Eigen::Triplet<float>> triplets;
 	Eigen::VectorXf b(M);
 	b.setZero();
-	Eigen::VectorXf x(N);
+	Eigen::VectorXf X(N);	
 #endif
 			
 
@@ -431,6 +532,7 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, VolumeChannel * ou
 					bval = 0.0f - sample(dim.x - 1, y, z) * lowConc * invH2.x;
 				}
 
+				assert(diagVal != 0.0f);
 
 				if (z > 0) vals[0] = Dneg.z;
 				if (y > 0) vals[1] = Dneg.y;
@@ -447,6 +549,10 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, VolumeChannel * ou
 					cpuB[i] = bval;
 #else
 					b[i] = bval;
+
+					//initial guess
+					X[i] = 1.0f - (x / float(dim.x + 1));
+					//X[i] = 0.0f;
 #endif					
 		
 				int inRow = 0;
@@ -583,6 +689,13 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, VolumeChannel * ou
 	omp_set_num_threads(8);
 	Eigen::setNbThreads(8);
 
+
+	//auto Xinit = X;
+
+	//solveJacobi<float>(A, b, X, tolerance, 150000, true);
+	
+
+	//X = Xinit;
 	
 	Eigen::BiCGSTAB<Eigen::SparseMatrix<float,Eigen::RowMajor>> stab;
 	//Eigen::ConjugateGradient<Eigen::SparseMatrix<float>> stab;		
@@ -592,8 +705,28 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, VolumeChannel * ou
 	//x = stab.solve(b);
 	//x = stab.compute(A).solve(b);
 
-	x.setLinSpaced(0.0f, 1.0f);
-	x = stab.compute(A).solveWithGuess(b, x);
+	const int maxIter = 3000;
+	const int iterPerStep = 100;
+
+	stab.setTolerance(tolerance);
+	stab.setMaxIterations(iterPerStep);
+	stab.compute(A);
+
+
+
+
+
+	for (auto i = 0; i < maxIter; i += iterPerStep) {
+		X = stab.solveWithGuess(b, X);
+		float er = stab.error();
+		if (_verbose) {
+			std::cout << "i:" << i << ", estimated error: " << er << std::endl;
+		}
+		if (er <= tolerance)
+			break;
+	}	
+
+
 
 
 	auto end = std::chrono::system_clock::now();
@@ -603,7 +736,11 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, VolumeChannel * ou
 		std::cout << "#iterations:     " << stab.iterations() << std::endl;
 		std::cout << "estimated error: " << stab.error() << std::endl;
 		std::cout << "solve host elapsed time: " << elapsed_seconds.count() << "s\n";				
-		std::cout << "host avg conc: " << x.mean() << std::endl;
+		std::cout << "host avg conc: " << X.mean() << std::endl;
+		std::cout << "tolerance: " << tolerance << std::endl;
+
+		std::cout << "res.norm : " << (b - A*X).norm()  << std::endl;
+		
 
 	}
 
@@ -624,7 +761,7 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, VolumeChannel * ou
 		memcpy(outVolume->getCurrentPtr().getCPU(), resDeviceX.data(), resDeviceX.size() * sizeof(float));
 #else		
 
-		memcpy(outVolume->getCurrentPtr().getCPU(), x.data(), x.size() * sizeof(float));	
+		memcpy(outVolume->getCurrentPtr().getCPU(), X.data(), X.size() * sizeof(float));	
 #endif
 	
 	
@@ -648,8 +785,10 @@ bool blib::DiffusionSolver::solve(VolumeChannel & volChannel, VolumeChannel * ou
 
 BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 	VolumeChannel & volChannel, 
-	VolumeChannel * outVolume /*= nullptr*/, 
-	ivec3 subdim /*= ivec3(INT_MAX) */
+	VolumeChannel * outVolume, 
+	float d0,
+	float d1,
+	float tolerance
 )
 {
 #ifdef DS_USEGPU
@@ -659,7 +798,7 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 	using T = float;
 
 	const auto & c = volChannel;
-	auto dim = glm::min(subdim, c.dim());
+	auto dim = c.dim();
 
 	if (_verbose)
 		std::cout << "DIM " << dim.x << ", " << dim.y << ", " << dim.z << " nnz:" << dim.x*dim.y*dim.z / (1024 * 1024.0f) << "M" << std::endl;
@@ -667,7 +806,7 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 
 	const float highConc = 1.0f;
 	const float lowConc = 0.0f;
-	const float d0 = 0.001f;
+	//const float d0 = 0.001f;
 
 	//Max dimensions
 	size_t maxN = dim.x * dim.y * dim.z; //cols
@@ -677,13 +816,8 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 	auto start0 = std::chrono::system_clock::now();
 
 	std::vector<Node> nodeList;
-	nodeList.reserve(maxN); //cannot be reallocated when building!!
+	nodeList.reserve(maxN); 
 	std::vector<size_t> indices(volChannel.dim().x*volChannel.dim().y*volChannel.dim().z, 0-1);
-
-	//for()
-	//TODO: run for each voxel at high concetration face
-	//nodeList.push_back(Node({ 0,0,0 }));
-	//indices[0] = 0;
 	buildNodeList(nodeList, indices, volChannel, 1);
 
 
@@ -720,8 +854,6 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 	size_t N = M;
 
 	const vec3 h = { 1.0f / (dim.x + 1), 1.0f / (dim.y + 1), 1.0f / (dim.z + 1) };
-	//const vec3 h = { 1.0f / (dim.x + 1), 1.0f / (dim.x + 1), 1.0f / (dim.x + 1) };
-
 	const vec3 invH = { 1.0f / h.x, 1.0f / h.y, 1.0f / h.z };
 	const vec3 invH2 = { invH.x*invH.x,invH.y*invH.y,invH.z*invH.z };
 
@@ -736,24 +868,11 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 	for (auto & n : nodeList) {
 
 		auto Dcur = vec3(d0) * invH2; // vec x vec product
-
 		auto Dpos = Dcur;
 		auto Dneg = Dcur;
-		/*auto Dpos = (vec3(
-			d0 * invH2.x,
-			d0 * invH2.y,
-			d0 * invH2.z
-		) + vec3(Dcur)) * 0.5f;
-		auto Dneg = (vec3(
-			d0 * invH2.x,
-			d0 * invH2.y,
-			d0 * invH2.z
-		) + vec3(Dcur)) * 0.5f;*/
-
 
 		auto diagVal = -(Dpos.x + Dpos.y + Dpos.z + Dneg.x + Dneg.y + Dneg.z);
 		float bval = 0.0f;
-
 
 		int k = 0;
 		for (auto & neigh : n.neigh) {
@@ -777,11 +896,8 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 
 		//initial guess
 		x[row] = 1.0f - (n.pos.x / float(dim.x + 1));
-		//x[row] = 0.0f;
-
 		
 		triplets.push_back(Eigen::Triplet<T>(row, row, diagVal));
-
 		
 		row++;
 	}
@@ -795,15 +911,17 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 	omp_set_num_threads(8);
 	Eigen::setNbThreads(8);
 
+	/*Eigen::VectorXf res;
+	for (auto i = 0; i < 1024; i++) {
+		jacobi(A, b, x);
+		res = A*b - x;
+		std::cout << "jacobi res: " << res.mean() << std::endl;
+	}*/
 
-	//Eigen::ConjugateGradient<Eigen::SparseMatrix<T, Eigen::RowMajor>> stab;
-	Eigen::BiCGSTAB<Eigen::SparseMatrix<T, Eigen::RowMajor>> stab;
+	Eigen::BiCGSTAB<Eigen::SparseMatrix<T, Eigen::RowMajor>> stab;	
+
 	
-	//x.setLinSpaced(0.0, 0.0);
-
-
-	float tol = 1e-5;
-	stab.setTolerance(tol);
+	stab.setTolerance(tolerance);
 	stab.compute(A);
 	
 
@@ -818,12 +936,10 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 		if (_verbose) {			
 			std::cout << "i:" << i << ", estimated error: " << er << std::endl;
 		}
-		if (er <= tol)
+		if (er <= tolerance)
 			break;
-	}
-
+	}	
 	
-	//x = stab.compute(A).solve(b);//solveWithGuess(b, x);
 	auto end = std::chrono::system_clock::now();
 
 
@@ -833,9 +949,11 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 		std::cout << "estimated error: " << stab.error() << std::endl;
 		std::cout << "solve host elapsed time: " << elapsed_seconds.count() << "s\n";
 		std::cout << "host avg conc: " << x.mean() << std::endl;
+		std::cout << "tolerance " << tolerance << std::endl;
 
 	}
 
+	//Convert solution to volume
 	{
 		float * concData = (float *)outVolume->getCurrentPtr().getCPU();
 		const uchar * cdata = (uchar *)volChannel.getCurrentPtr().getCPU();
@@ -848,13 +966,6 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 
 		}
 	}
-
-
-	
-
-
-	
-
 
 	return true;
 }

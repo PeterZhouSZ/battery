@@ -143,7 +143,7 @@ BatteryApp::BatteryApp()
 	loadDefualt = false;
 #endif
 
-	loadDefualt = true;
+	loadDefualt = false;
 
 	_volume = make_unique<blib::Volume>();
 
@@ -171,7 +171,7 @@ BatteryApp::BatteryApp()
 				
 	}
 	else {
-		int res = 32;
+		int res = 64;
 		//ivec3 d = ivec3(res);
 		ivec3 d = ivec3(res*2, res*2, res);
 		auto batteryID = _volume->addChannel(d, TYPE_UCHAR);	

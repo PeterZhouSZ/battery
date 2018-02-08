@@ -22,14 +22,18 @@ namespace blib {
 		//TODO: diffusion params
 		BLIB_EXPORT bool solve(
 			VolumeChannel & volChannel, 						
-			VolumeChannel * outVolume = nullptr,
-			ivec3 subdim = ivec3(INT_MAX)
+			VolumeChannel * outVolume,
+			float d0,
+			float d1,
+			float tolerance = 1.0e-6f			
 		);
 
 		BLIB_EXPORT bool solveWithoutParticles(
 			VolumeChannel & volChannel,
-			VolumeChannel * outVolume = nullptr,
-			ivec3 subdim = ivec3(INT_MAX)
+			VolumeChannel * outVolume,
+			float d0,
+			float d1,
+			float tolerance = 1.0e-6f
 		);
 
 		BLIB_EXPORT float tortuosityCPU(
