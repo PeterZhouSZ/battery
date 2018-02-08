@@ -1005,14 +1005,18 @@ BLIB_EXPORT float blib::DiffusionSolver::tortuosityCPU(const VolumeChannel & mas
 	int k = (getDirSgn(dir) == -1) ? 0 : dim[primaryDim] - 1;
 	int kHigh = (getDirSgn(dir) == 1) ? 0 : dim[primaryDim] - 1;
 
+	bool zeroOutPart = true;
+
 	for (auto i = 0; i < dim[secondaryDims[0]]; i++) {
 		for (auto j = 0; j < dim[secondaryDims[1]]; j++) {
 			ivec3 pos;
 			pos[primaryDim] = k;
 			pos[secondaryDims[0]] = i;
 			pos[secondaryDims[1]] = j;
-			
-			sum += concData[linearIndex(dim, pos)];
+
+
+			if(zeroOutPart && cdata[linearIndex(dim, pos)] == 0)
+				sum += concData[linearIndex(dim, pos)];
 			
 			pos[primaryDim] = kHigh;
 			sumHigh += concData[linearIndex(dim, pos)];
@@ -1021,11 +1025,17 @@ BLIB_EXPORT float blib::DiffusionSolver::tortuosityCPU(const VolumeChannel & mas
 		}
 	}
 
-	const float d0 = 0.001f;
+	//const float d0 = 0.001f;
+
+
+	float dc = sum / n;
+	float dx = 1.0f / (dim[primaryDim] + 1);
+	float tau = dx * porosity / dc; /// (dx * (dim[primaryDim]+1) );
+
 
 	
 
-	float avgJ = sum / n;
+	/*float avgJ = sum / n;
 	//float h = 1.0f / dim[primaryDim];	
 
 	float high = 1.0f;
@@ -1035,7 +1045,8 @@ BLIB_EXPORT float blib::DiffusionSolver::tortuosityCPU(const VolumeChannel & mas
 
 	float tau = d0 * porosity * dc / (avgJ * dx);
 
-	std::cout << "Deff: " << (avgJ * dx) / dc << std::endl;
+	std::cout << "AvgJ: " << avgJ << std::endl;
+	std::cout << "Deff: " << (avgJ * dx) / dc << std::endl;*/
 	std::cout << "porosity: " << porosity << std::endl;
 
 	//float t = (d0 * (1.0f * porosity) / dc);

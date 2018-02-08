@@ -143,7 +143,7 @@ BatteryApp::BatteryApp()
 	loadDefualt = false;
 #endif
 
-	loadDefualt = false;
+	loadDefualt = true;
 
 	_volume = make_unique<blib::Volume>();
 
@@ -171,9 +171,9 @@ BatteryApp::BatteryApp()
 				
 	}
 	else {
-		int res = 64;
-		//ivec3 d = ivec3(res);
-		ivec3 d = ivec3(res*2, res*2, res);
+		int res = 16;
+		ivec3 d = ivec3(res);
+		//ivec3 d = ivec3(res*2, res*2, res);
 		auto batteryID = _volume->addChannel(d, TYPE_UCHAR);	
 
 		//Add concetration channel
@@ -185,7 +185,7 @@ BatteryApp::BatteryApp()
 
 
 		resetSA();
-		generateSpheresVolume(*_volume, 128, 0.15f);
+		//generateSpheresVolume(*_volume, 128, 0.15f);
 	}	
 	
 	
