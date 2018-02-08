@@ -17,12 +17,12 @@ namespace blib {
 		BLIB_EXPORT ~DiffusionSolver();
 
 
-		//Solves stable=state diffusion equation
-		//subdim allows to select smaller subvolume - for testing
-		//TODO: diffusion params
+		//Solves stable=state diffusion equation		
+		//if dir is pos, 0 is high concetration, otherwise dim[dir]-1 is high
 		BLIB_EXPORT bool solve(
 			VolumeChannel & volChannel, 						
 			VolumeChannel * outVolume,
+			Dir dir,
 			float d0,
 			float d1,
 			float tolerance = 1.0e-6f			

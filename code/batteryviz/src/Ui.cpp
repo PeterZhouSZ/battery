@@ -376,6 +376,11 @@ void Ui::update(double dt)
 
 	//_app._volume->getChannel(1).clear();
 
+	//check
+	_app._options["Diffusion"].get<int>("direction") =
+		std::clamp(_app._options["Diffusion"].get<int>("direction"), 0, 5);
+
+	Dir dir = Dir(_app._options["Diffusion"].get<int>("direction"));
 	
 
 	
@@ -385,6 +390,8 @@ void Ui::update(double dt)
 		
 	if (ImGui::Button("Diffusion Solver")) {
 		float tol = powf(10.0f, -_app._options["Diffusion"].get<int>("Tolerance"));
+
+		
 
 		if (particleAsBoundary) {
 			_app._diffSolver.solveWithoutParticles(
@@ -400,6 +407,7 @@ void Ui::update(double dt)
 			_app._diffSolver.solve(
 				_app._volume->getChannel(CHANNEL_BATTERY),
 				&_app._volume->getChannel(CHANNEL_CONCETRATION),
+				dir,
 				_app._options["Diffusion"].get<float>("D_zero"),
 				_app._options["Diffusion"].get<float>("D_one"),
 				tol
@@ -411,7 +419,7 @@ void Ui::update(double dt)
 		float tau = _app._diffSolver.tortuosityCPU(
 			_app._volume->getChannel(CHANNEL_BATTERY),
 			_app._volume->getChannel(CHANNEL_CONCETRATION),
-			X_POS
+			dir
 		);
 		std::cout << "tau = " << tau << "\n";
 	}
@@ -421,7 +429,7 @@ void Ui::update(double dt)
 		float tau = _app._diffSolver.tortuosityCPU(
 			_app._volume->getChannel(CHANNEL_BATTERY),
 			_app._volume->getChannel(CHANNEL_CONCETRATION),
-			X_POS
+			dir
 		);
 		std::cout << "tau = " << tau << "\n";
 	}

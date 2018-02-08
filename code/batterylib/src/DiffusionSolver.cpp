@@ -382,6 +382,7 @@ blib::DiffusionSolver::~DiffusionSolver()
 bool blib::DiffusionSolver::solve(
 	VolumeChannel & volChannel, 
 	VolumeChannel * outVolume, 
+	Dir dir, 
 	float d0,
 	float d1,
 	float tolerance
@@ -392,6 +393,15 @@ bool blib::DiffusionSolver::solve(
 	const auto & c = volChannel;
 	auto dim = c.dim();
 	
+	uint dirPrimary = getDirIndex(dir);
+	uint dirSecondary[2] = { (dirPrimary + 1) % 3, (dirPrimary + 2) % 3 };
+
+
+	const float highConc = 1.0f;
+	const float lowConc = 0.0f;
+
+	const float concetrationBegin = (getDirSgn(dir) == 1) ? highConc : lowConc;
+	const float concetrationEnd = (getDirSgn(dir) == 1) ? lowConc : highConc;
 
 	
 	if(_verbose)
@@ -399,8 +409,7 @@ bool blib::DiffusionSolver::solve(
 
 
 
-	const float highConc = 1.0f;
-	const float lowConc = 0.0f;
+
 
 	//const float d0 = 1.0f;
 	//const float d1 = 0.0001f;
@@ -444,7 +453,7 @@ bool blib::DiffusionSolver::solve(
 
 	//Copy data
 	if (_verbose)
-		std::cout << nnz << " elems, " << "vol: " << dim.x << " ^3" << std::endl;
+		std::cout << nnz << " elems, " << "vol: ~" << dim[dirPrimary] << " ^3" << std::endl;
 
 
 	auto start0 = std::chrono::system_clock::now();
@@ -477,6 +486,9 @@ bool blib::DiffusionSolver::solve(
 		return (D[linIndex(x, y, z)] == 0) ? d0 : d1;
 	};
 
+	const auto sampleIvec = [&sample](ivec3 ipos) { 
+		return sample(ipos.x, ipos.y, ipos.z); 
+	};
 
 	const vec3 h = { 1.0f / (dim.x + 1), 1.0f / (dim.y + 1), 1.0f / (dim.z + 1) };
 	const vec3 invH = { 1.0f / h.x, 1.0f / h.y, 1.0f / h.z };
@@ -486,6 +498,9 @@ bool blib::DiffusionSolver::solve(
 	for (auto z = 0; z < dim.z; z++) {
 		for (auto y = 0; y < dim.y; y++) {
 			for (auto x = 0; x < dim.x; x++) {
+
+				const ivec3 ipos = { x,y,z };
+
 				auto i = linIndex(x, y, z);
 
 				float bval = 0.0f;
@@ -519,17 +534,27 @@ bool blib::DiffusionSolver::solve(
 				auto diagVal = -(Dpos.x + Dpos.y + Dpos.z + Dneg.x + Dneg.y + Dneg.z);
 
 				//Von neumann cond (first order accurate)
-				if (y == 0) diagVal += Dneg.y;
-				if (z == 0) diagVal += Dneg.z;
-				if (y == dim.y - 1) diagVal += Dpos.y;
-				if (z == dim.z - 1) diagVal += Dpos.z;
+				if (ipos[dirSecondary[0]] == 0) 
+					diagVal += Dneg[dirSecondary[0]];
+				if (ipos[dirSecondary[1]] == 0) 
+					diagVal += Dneg[dirSecondary[1]];				
+
+				if (ipos[dirSecondary[0]] == dim[dirSecondary[0]] - 1) 
+					diagVal += Dpos[dirSecondary[0]];
+
+				if (ipos[dirSecondary[1]] == dim[dirSecondary[1]] - 1)
+					diagVal += Dpos[dirSecondary[1]];				
 
 				//Boundary conditions
-				if (x == 0) {
-					bval = 0.0f - sample(0, y, z) * highConc * invH2.x;
+				if (ipos[dirPrimary] == 0) {
+					ivec3 sampleIPos = ipos;
+					sampleIPos[dirPrimary] = 0;					
+					bval = 0.0f - sampleIvec(sampleIPos) * concetrationBegin * invH2.x;
 				}
-				else if (x == dim.x - 1) {
-					bval = 0.0f - sample(dim.x - 1, y, z) * lowConc * invH2.x;
+				else if (ipos[dirPrimary] == dim[dirPrimary] - 1) {
+					ivec3 sampleIPos = ipos;
+					sampleIPos[dirPrimary] = dim[dirPrimary] - 1;
+					bval = 0.0f - sampleIvec(sampleIPos) * concetrationEnd * invH2.x;
 				}
 
 				assert(diagVal != 0.0f);
@@ -551,7 +576,7 @@ bool blib::DiffusionSolver::solve(
 					b[i] = bval;
 
 					//initial guess
-					X[i] = 1.0f - (x / float(dim.x + 1));
+					X[i] = 1.0f - (ipos[dirPrimary] / float(dim[dirPrimary] + 1));
 					//X[i] = 0.0f;
 #endif					
 		
