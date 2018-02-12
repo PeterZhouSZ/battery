@@ -6,7 +6,7 @@ using namespace blib;
 
 
 //#define DS_USEGPU
-//#define DS_LINSYS_TO_FILE
+#define DS_LINSYS_TO_FILE
 
 #include <chrono>
 #include <iostream>
@@ -479,7 +479,7 @@ bool blib::DiffusionSolver::solve(
 		return x + dim.x * y + dim.x * dim.y * z;
 	};
 
-	const auto sample = [&linIndex, dim, D, d0, d1](int x, int y, int z) {
+	const auto sample = [&linIndex, dim, D, d0, d1](int x, int y, int z) {		
 		x = std::clamp(x, 0, dim.x - 1);
 		y = std::clamp(y, 0, dim.y - 1);
 		z = std::clamp(z, 0, dim.z - 1);		
@@ -490,9 +490,17 @@ bool blib::DiffusionSolver::solve(
 		return sample(ipos.x, ipos.y, ipos.z); 
 	};
 
-	const vec3 h = { 1.0f / (dim.x + 1), 1.0f / (dim.y + 1), 1.0f / (dim.z + 1) };
+	const vec3 h = { 1.0f / (dim.x + 1), 1.0f / (dim.y + 1), 1.0f / (dim.z + 1) };	
 	const vec3 invH = { 1.0f / h.x, 1.0f / h.y, 1.0f / h.z };
-	const vec3 invH2 = { invH.x*invH.x,invH.y*invH.y,invH.z*invH.z };
+	//const vec3 invH2 = { invH.x*invH.x,invH.y*invH.y,invH.z*invH.z };
+
+	const vec3 invH2 = vec3((25.0f / 100.0f) * 0.8f);
+
+	/*const vec3 h0 = { 1.0f / (dim.x), 1.0f / (dim.y), 1.0f / (dim.z) };
+	const vec3 invH0 = { 1.0f / h0.x, 1.0f / h0.y, 1.0f / h0.z };
+	const vec3 invH20 = { invH0.x*invH0.x,invH0.y*invH0.y,invH0.z*invH0.z };*/
+
+
 
 	int curRowPtr = 0;
 	for (auto z = 0; z < dim.z; z++) {
@@ -534,7 +542,7 @@ bool blib::DiffusionSolver::solve(
 				auto diagVal = -(Dpos.x + Dpos.y + Dpos.z + Dneg.x + Dneg.y + Dneg.z);
 
 				//Von neumann cond (first order accurate)
-				if (ipos[dirSecondary[0]] == 0) 
+			/*	if (ipos[dirSecondary[0]] == 0) 
 					diagVal += Dneg[dirSecondary[0]];
 				if (ipos[dirSecondary[1]] == 0) 
 					diagVal += Dneg[dirSecondary[1]];				
@@ -543,7 +551,12 @@ bool blib::DiffusionSolver::solve(
 					diagVal += Dpos[dirSecondary[0]];
 
 				if (ipos[dirSecondary[1]] == dim[dirSecondary[1]] - 1)
-					diagVal += Dpos[dirSecondary[1]];				
+					diagVal += Dpos[dirSecondary[1]];	*/			
+
+					
+				
+
+
 
 				//Boundary conditions
 				if (ipos[dirPrimary] == 0) {
@@ -568,6 +581,26 @@ bool blib::DiffusionSolver::solve(
 				if (x < dim.x - 1) vals[4] = Dpos.x;
 				if (y < dim.y - 1) vals[5] = Dpos.y;
 				if (z < dim.z - 1) vals[6] = Dpos.z;
+
+				
+				//Von neumann cond (centered, second order accurate?)
+				if (ipos[dirSecondary[0]] == 0) {
+					vals[3 + 1 + dirSecondary[0]] += Dneg[dirSecondary[0]];
+				}
+				if (ipos[dirSecondary[1]] == 0) {
+					vals[3 + 1 + dirSecondary[1]] += Dneg[dirSecondary[1]];
+				}
+
+				if (ipos[dirSecondary[0]] == dim[dirSecondary[0]] - 1) {
+					vals[3 - 1 - dirSecondary[0]] += Dpos[dirSecondary[0]];
+				}
+
+				if (ipos[dirSecondary[1]] == dim[dirSecondary[1]] - 1) {
+					vals[3 - 1 - dirSecondary[1]] += Dpos[dirSecondary[1]];
+				}
+
+
+				
 
 				
 #ifdef DS_USEGPU
@@ -607,6 +640,10 @@ bool blib::DiffusionSolver::solve(
 	Eigen::SparseMatrix<float,Eigen::RowMajor> A(M, N);
 	A.setFromTriplets(triplets.begin(), triplets.end());
 	A.makeCompressed();
+
+	
+	//A *= 1.0f / 100.0f;
+
 #endif
 	
 
@@ -772,7 +809,7 @@ bool blib::DiffusionSolver::solve(
 #ifdef DS_LINSYS_TO_FILE
 	{
 		std::ofstream f("x.vec");
-		f << x;
+		f << X;
 		f.close();
 	}
 #endif

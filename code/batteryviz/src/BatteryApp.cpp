@@ -171,9 +171,8 @@ BatteryApp::BatteryApp()
 				
 	}
 	else {
-		int res = 32;
+		int res = 4;
 		ivec3 d = ivec3(res);
-		//ivec3 d = ivec3(res*2, res*2, res);
 		auto batteryID = _volume->addChannel(d, TYPE_UCHAR);	
 
 		//Add concetration channel
@@ -185,7 +184,22 @@ BatteryApp::BatteryApp()
 
 
 		resetSA();
-		generateSpheresVolume(*_volume, 128, 0.15f);
+		
+		auto & c = _volume->getChannel(batteryID);
+		uchar* data = (uchar*)c.getCurrentPtr().getCPU();
+		
+		for (auto i = 1; i <3; i++) {
+			for (auto j = 1; j <3; j++) {
+				for (auto k = 1; k < 3; k++) {
+
+					data[i + j*c.dim().x + k*c.dim().y*c.dim().x] = 255;
+				}
+			}
+		}
+		
+		c.getCurrentPtr().commit();
+
+		//generateSpheresVolume(*_volume, 128, 0.15f);
 	}	
 	
 	
