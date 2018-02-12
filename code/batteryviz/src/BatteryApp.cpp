@@ -143,7 +143,7 @@ BatteryApp::BatteryApp()
 	loadDefualt = false;
 #endif
 
-	loadDefualt = false;
+	loadDefualt = true;
 
 	_volume = make_unique<blib::Volume>();
 
@@ -171,8 +171,8 @@ BatteryApp::BatteryApp()
 				
 	}
 	else {
-		int res = 4;
-		ivec3 d = ivec3(res);
+		int res = 16;
+		ivec3 d = ivec3(res,res-1,res);
 		auto batteryID = _volume->addChannel(d, TYPE_UCHAR);	
 
 		//Add concetration channel
@@ -185,21 +185,25 @@ BatteryApp::BatteryApp()
 
 		resetSA();
 		
+		
+		//Test for fipy cmp
 		auto & c = _volume->getChannel(batteryID);
 		uchar* data = (uchar*)c.getCurrentPtr().getCPU();
 		
-		for (auto i = 1; i <3; i++) {
-			for (auto j = 1; j <3; j++) {
-				for (auto k = 1; k < 3; k++) {
+		for (auto i = 1; i <d[0] -1; i++) {
+			for (auto j = 1; j <d[1] -1; j++) {
+				for (auto k = 1; k < d[2] -1; k++) {
 
 					data[i + j*c.dim().x + k*c.dim().y*c.dim().x] = 255;
 				}
 			}
 		}
-		
 		c.getCurrentPtr().commit();
-
+		
 		//generateSpheresVolume(*_volume, 128, 0.15f);
+		
+
+		
 	}	
 	
 	

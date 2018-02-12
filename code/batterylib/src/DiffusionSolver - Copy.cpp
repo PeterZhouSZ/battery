@@ -385,12 +385,10 @@ bool blib::DiffusionSolver::solve(
 	Dir dir, 
 	float d0,
 	float d1,
-	float tolerance	
+	float tolerance
+	
 )
 {
-	using T = float;
-	using vec3 = glm::tvec3<T,glm::highp>;
-	
 
 	const auto & c = volChannel;
 	auto dim = c.dim();
@@ -399,11 +397,11 @@ bool blib::DiffusionSolver::solve(
 	uint dirSecondary[2] = { (dirPrimary + 1) % 3, (dirPrimary + 2) % 3 };
 
 
-	const T highConc = 1.0f;
-	const T lowConc = 0.0f;
+	const float highConc = 1.0f;
+	const float lowConc = 0.0f;
 
-	const T concetrationBegin = (getDirSgn(dir) == 1) ? highConc : lowConc;
-	const T concetrationEnd = (getDirSgn(dir) == 1) ? lowConc : highConc;
+	const float concetrationBegin = (getDirSgn(dir) == 1) ? highConc : lowConc;
+	const float concetrationEnd = (getDirSgn(dir) == 1) ? lowConc : highConc;
 
 	
 	if(_verbose)
@@ -466,10 +464,10 @@ bool blib::DiffusionSolver::solve(
 	std::vector<int> cpuColInd; cpuColInd.reserve(_nnz);
 	std::vector<float> cpuB(M);	
 #else
-	std::vector<Eigen::Triplet<T>> triplets;
-	Eigen::Matrix<T, Eigen::Dynamic, 1> b(M);
+	std::vector<Eigen::Triplet<float>> triplets;
+	Eigen::VectorXf b(M);
 	b.setZero();
-	Eigen::Matrix<T, Eigen::Dynamic, 1> X(N);
+	Eigen::VectorXf X(N);	
 #endif
 			
 
@@ -481,67 +479,20 @@ bool blib::DiffusionSolver::solve(
 		return x + dim.x * y + dim.x * dim.y * z;
 	};
 
-
-	const auto getD = [D,d0,d1, &linIndex](ivec3 pos) {
-		return (D[linIndex(pos.x, pos.y, pos.z)] == 0) ? d0 : d1;
-	};
-
-	const auto sample = [&getD, dim, D, d0, d1](ivec3 pos, Dir dir/*, vec3 invH2*/) {
-
-		const int k = getDirIndex(dir);
-
-		assert(pos.x >= 0 && pos.y >= 0 && pos.z >= 0);
-		assert(pos.x < dim.x && pos.y < dim.y && pos.z < dim.z);
-		
-		ivec3 newPos = pos;
-
-		int sgn = getDirSgn(dir);
-
-		//float invSpacing = invH2[k];
-		if (pos[k] + sgn < 0 || pos[k] + sgn >= dim[k]) {			
-			//invSpacing *= 2;
-		}
-		else {
-			newPos[k] += getDirSgn(dir);
-		}
-		
-		return getD(newPos);
-	};
-/*
-
-	const auto sample = [&linIndex, dim, D, d0, d1](int x, int y, int z, float invH2) {		
-
-		bool out = false;
-		if (x < 0) { x = 0; out = true;	}
-		if (y < 0) { y = 0; out = true; }
-		if (z < 0) { z = 0; out = true; }
-		if (x >= dim.x) { x = dim.x - 1; out = true; }
-		if (y >= dim.y) { y = dim.y - 1; out = true; }
-		if (z >= dim.z) { z = dim.z - 1; out = true; }
-		if(out)
-			invH2
-
-		/ *x = std::clamp(x, 0, dim.x - 1);
+	const auto sample = [&linIndex, dim, D, d0, d1](int x, int y, int z) {
+		x = std::clamp(x, 0, dim.x - 1);
 		y = std::clamp(y, 0, dim.y - 1);
-		z = std::clamp(z, 0, dim.z - 1);		* /
+		z = std::clamp(z, 0, dim.z - 1);		
 		return (D[linIndex(x, y, z)] == 0) ? d0 : d1;
-	};*/
+	};
 
-	/*const auto sampleIvec = [&sample](ivec3 ipos) { 
+	const auto sampleIvec = [&sample](ivec3 ipos) { 
 		return sample(ipos.x, ipos.y, ipos.z); 
-	};*/
+	};
 
-	const vec3 h_general = { 1.0f / (dim.x + 1), 1.0f / (dim.y + 1), 1.0f / (dim.z + 1) };	
-	//const vec3 invH = { 1.0f / h.x, 1.0f / h.y, 1.0f / h.z };
-	//const vec3 invH2 = { invH.x*invH.x,invH.y*invH.y,invH.z*invH.z };
-
-	const vec3 invH2 = vec3((25.0f / 100.0f) * 0.8f);
-
-	/*const vec3 h0 = { 1.0f / (dim.x), 1.0f / (dim.y), 1.0f / (dim.z) };
-	const vec3 invH0 = { 1.0f / h0.x, 1.0f / h0.y, 1.0f / h0.z };
-	const vec3 invH20 = { invH0.x*invH0.x,invH0.y*invH0.y,invH0.z*invH0.z };*/
-
-
+	const vec3 h = { 1.0f / (dim.x + 1), 1.0f / (dim.y + 1), 1.0f / (dim.z + 1) };
+	const vec3 invH = { 1.0f / h.x, 1.0f / h.y, 1.0f / h.z };
+	const vec3 invH2 = { invH.x*invH.x,invH.y*invH.y,invH.z*invH.z };
 
 	int curRowPtr = 0;
 	for (auto z = 0; z < dim.z; z++) {
@@ -550,35 +501,10 @@ bool blib::DiffusionSolver::solve(
 
 				const ivec3 ipos = { x,y,z };
 
-				vec3 hneg = h_general;
-				vec3 hpos = h_general;
-				for (auto k = 0; k < 3; k++) {
-					if (ipos[k] == 0) {
-						hneg[k] *= 0.5f;
-					}
-					else if (ipos[k] >= dim[k] - 1) {
-						hpos[k] *= 0.5f;
-					}
-				}				
-
-				const vec3 invHneg = vec3(1.0f) / hneg;
-				vec3 invHneg2 = invHneg*invHneg;
-				const vec3 invHpos = vec3(1.0f) / hpos;
-				vec3 invHpos2 = invHpos*invHpos;
-
-
-				//(1.0f / 100.0f) * 0.4f
-				//const float m = (1.0f / 232.0f) * 0.98f;
-				const T m = 1.0f / 50.0f * 0.25f;
-				invHpos2 *= m;
-				invHneg2 *= m;
-
-				
-
 				auto i = linIndex(x, y, z);
 
-				T bval = 0.0f;
-				T vals[7] = { 0.0f,0.0f ,0.0f ,0.0f ,0.0f ,0.0f ,0.0f };
+				float bval = 0.0f;
+				float vals[7] = { 0.0f,0.0f ,0.0f ,0.0f ,0.0f ,0.0f ,0.0f };
 				int colId[7];
 				colId[0] = i - dim.y*dim.x;
 				colId[1] = i - dim.x;
@@ -592,21 +518,9 @@ bool blib::DiffusionSolver::solve(
 
 
 
-				auto Dcur = vec3(getD(ipos)); // vec x vec product
-
-				auto Dneg = (vec3(
-					sample(ipos, X_NEG),
-					sample(ipos, Y_NEG),
-					sample(ipos, Z_NEG)
-				) + vec3(Dcur)) * invHneg2;
+				auto Dcur = vec3(sample(x, y, z)) * invH2; // vec x vec product
 
 				auto Dpos = (vec3(
-					sample(ipos, X_POS),
-					sample(ipos, Y_POS),
-					sample(ipos, Z_POS)
-				) + vec3(Dcur)) * invHpos2;
-
-				/*auto Dpos = (vec3(
 					sample(x + 1, y, z) * invH2.x,
 					sample(x, y + 1, z) * invH2.y,
 					sample(x, y, z + 1) * invH2.z
@@ -615,12 +529,12 @@ bool blib::DiffusionSolver::solve(
 					sample(x - 1, y, z) * invH2.x,
 					sample(x, y - 1, z) * invH2.y,
 					sample(x, y, z - 1) * invH2.z
-				) + vec3(Dcur)) * 0.5f;*/
+				) + vec3(Dcur)) * 0.5f;
 
-				
+				auto diagVal = -(Dpos.x + Dpos.y + Dpos.z + Dneg.x + Dneg.y + Dneg.z);
 
-				//Von neumann cond
-			/*	if (ipos[dirSecondary[0]] == 0) 
+				//Von neumann cond (first order accurate)
+				if (ipos[dirSecondary[0]] == 0) 
 					diagVal += Dneg[dirSecondary[0]];
 				if (ipos[dirSecondary[1]] == 0) 
 					diagVal += Dneg[dirSecondary[1]];				
@@ -629,107 +543,31 @@ bool blib::DiffusionSolver::solve(
 					diagVal += Dpos[dirSecondary[0]];
 
 				if (ipos[dirSecondary[1]] == dim[dirSecondary[1]] - 1)
-					diagVal += Dpos[dirSecondary[1]];	*/
-
-				float diagVal = 0.0f;
-				//auto diagVal = -(Dpos.x + Dpos.y + Dpos.z + Dneg.x + Dneg.y + Dneg.z);
-
-
-				//(is first order accurate von neumann for secondary axes)
-				for (auto k = 0; k < 3; k++) {
-					//if (k == dirPrimary) continue;
-					if (ipos[k] > 0)
-						diagVal += -Dneg[k];
-					if (ipos[k] < dim[k] - 1)
-						diagVal += -Dpos[k];
-				}
-
-
+					diagVal += Dpos[dirSecondary[1]];				
 
 				//Boundary conditions
 				if (ipos[dirPrimary] == 0) {
-					//ivec3 sampleIPos = ipos;
-					//sampleIPos[dirPrimary] = 0;					
-					bval = 0.0f - sample(ipos, getDir(dirPrimary, -1)) * concetrationBegin * invHneg2[dirPrimary];
-
-					//########
-					diagVal -= invHneg2[dirPrimary];
-					//########
-					//bval = 0.0f - sampleIvec(sampleIPos) * concetrationBegin * invH2[dirPrimary];
+					ivec3 sampleIPos = ipos;
+					sampleIPos[dirPrimary] = 0;					
+					bval = 0.0f - sampleIvec(sampleIPos) * concetrationBegin * invH2[dirPrimary];
 				}
 				else if (ipos[dirPrimary] == dim[dirPrimary] - 1) {
-					//ivec3 sampleIPos = ipos;
-					//sampleIPos[dirPrimary] = dim[dirPrimary] - 1;
-					bval = 0.0f - sample(ipos, getDir(dirPrimary, +1)) * concetrationEnd  * invHpos2[dirPrimary];
-					//diagVal += bval;
-
-					//macro gradient??
-					//########
-					diagVal -= invHpos2[dirPrimary];
-					//########
-					//bval = 0.0f - sampleIvec(sampleIPos) * concetrationEnd * invH2[dirPrimary];
+					ivec3 sampleIPos = ipos;
+					sampleIPos[dirPrimary] = dim[dirPrimary] - 1;
+					bval = 0.0f - sampleIvec(sampleIPos) * concetrationEnd * invH2[dirPrimary];
 				}
 
 				assert(diagVal != 0.0f);
 
 				if (z > 0) vals[0] = Dneg.z;
-				//else diagVal += Dneg.z;
-
 				if (y > 0) vals[1] = Dneg.y;
-				//else diagVal += Dneg.y;
-
 				if (x > 0) vals[2] = Dneg.x;
-				//else diagVal += Dneg.x;
-
-				if (x < dim.x - 1) vals[4] = Dpos.x;
-				//else diagVal += Dpos.x;
-				if (y < dim.y - 1) vals[5] = Dpos.y;
-				//else diagVal += Dneg.y;
-				if (z < dim.z - 1) vals[6] = Dpos.z;
-				//else diagVal += Dneg.z;
-
-				
-
-				
-				//Von neumann cond (one-sided, second order accurate)
-				/*{	
-					for (auto sec = 0; sec < 2; sec++) {
-
-						const uint j = dirSecondary[sec];
-						if (ipos[j] == 0) {
-							diagVal += 2.0f / 3.0f * Dneg[j];
-							vals[4 + j] += -1.0f / 3.0f * Dneg[j];
-						}
-						if (ipos[j] == dim[j] - 1) {
-							diagVal += 2.0f / 3.0f * Dpos[j];
-							vals[2 - j] += -1.0f / 3.0f * Dpos[j];
-						}
-
-					}
-				}*/
 
 				vals[3] = diagVal;
-				
-				//Von neumann cond (centered, second order accurate?)
-			/*	if (ipos[dirSecondary[0]] == 0) {
-					vals[3 + 1 + dirSecondary[0]] += Dneg[dirSecondary[0]];
-				}
-				if (ipos[dirSecondary[1]] == 0) {
-					vals[3 + 1 + dirSecondary[1]] += Dneg[dirSecondary[1]];
-				}
 
-				if (ipos[dirSecondary[0]] == dim[dirSecondary[0]] - 1) {
-					vals[3 - 1 - dirSecondary[0]] += Dpos[dirSecondary[0]];
-				}
-
-				if (ipos[dirSecondary[1]] == dim[dirSecondary[1]] - 1) {
-					vals[3 - 1 - dirSecondary[1]] += Dpos[dirSecondary[1]];
-				}
-*/
-
-
-
-				
+				if (x < dim.x - 1) vals[4] = Dpos.x;
+				if (y < dim.y - 1) vals[5] = Dpos.y;
+				if (z < dim.z - 1) vals[6] = Dpos.z;
 
 				
 #ifdef DS_USEGPU
@@ -738,10 +576,12 @@ bool blib::DiffusionSolver::solve(
 					b[i] = bval;
 
 					//initial guess
-					if (getDirSgn(dir) == 1)
-						X[i] = 1.0f - (ipos[dirPrimary] / T(dim[dirPrimary] + 1));
+					
+					if(getDirSgn(dir) == 1)
+						X[i] = 1.0f - (ipos[dirPrimary] / float(dim[dirPrimary] + 1));
 					else
-						X[i] = (ipos[dirPrimary] / T(dim[dirPrimary] + 1));
+						X[i] = (ipos[dirPrimary] / float(dim[dirPrimary] + 1));
+
 					//X[i] = 0.0f;
 #endif					
 		
@@ -752,7 +592,7 @@ bool blib::DiffusionSolver::solve(
 					cpuData.push_back(vals[k]);
 					cpuColInd.push_back(colId[k]);
 #else
-					triplets.push_back(Eigen::Triplet<T>(i, colId[k], vals[k]));
+					triplets.push_back(Eigen::Triplet<float>(i, colId[k], vals[k]));
 #endif
 					
 					inRow++;
@@ -769,14 +609,9 @@ bool blib::DiffusionSolver::solve(
 #ifdef DS_USEGPU
 	cpuRowPtr.back() = curRowPtr;
 #else
-	Eigen::SparseMatrix<T,Eigen::RowMajor> A(M, N);
+	Eigen::SparseMatrix<float,Eigen::RowMajor> A(M, N);
 	A.setFromTriplets(triplets.begin(), triplets.end());
 	A.makeCompressed();
-
-	
-	//A *= (1.0f / 100.0f) * 0.4f;
-	//b *= (1.0f / 100.0f) * 0.4f;
-
 #endif
 	
 
@@ -892,7 +727,7 @@ bool blib::DiffusionSolver::solve(
 
 	//X = Xinit;
 	
-	Eigen::BiCGSTAB<Eigen::SparseMatrix<T,Eigen::RowMajor>> stab;
+	Eigen::BiCGSTAB<Eigen::SparseMatrix<float,Eigen::RowMajor>> stab;
 	//Eigen::ConjugateGradient<Eigen::SparseMatrix<float>> stab;		
 	//Eigen::SparseLU<Eigen::SparseMatrix<float>> stab;		
 	//stab.analyzePattern(A);
@@ -900,8 +735,8 @@ bool blib::DiffusionSolver::solve(
 	//x = stab.solve(b);
 	//x = stab.compute(A).solve(b);
 
-	const int maxIter = 1500;
-	const int iterPerStep = 250;
+	const int maxIter = 3000;
+	const int iterPerStep = 100;
 
 	stab.setTolerance(tolerance);
 	stab.setMaxIterations(iterPerStep);
@@ -915,20 +750,7 @@ bool blib::DiffusionSolver::solve(
 		X = stab.solveWithGuess(b, X);
 		float er = stab.error();
 		if (_verbose) {
-
-			
-			//memcpy(outVolume->getCurrentPtr().getCPU(), X.data(), X.size() * sizeof(float));
 			std::cout << "i:" << i << ", estimated error: " << er << std::endl;
-			if (std::is_same<float, T>::value)
-			{
-				memcpy(outVolume->getCurrentPtr().getCPU(), X.data(), X.size() * sizeof(float));
-				float tau = tortuosityCPU(
-					volChannel,
-					*outVolume,
-					dir
-				);
-				std::cout << "tau = " << tau << "\n";
-			}
 		}
 		if (er <= tolerance)
 			break;
@@ -955,7 +777,7 @@ bool blib::DiffusionSolver::solve(
 #ifdef DS_LINSYS_TO_FILE
 	{
 		std::ofstream f("x.vec");
-		f << X;
+		f << x;
 		f.close();
 	}
 #endif
@@ -964,22 +786,12 @@ bool blib::DiffusionSolver::solve(
 #endif
 
 
-	
-
 	if (outVolume) {
 #ifdef DS_USEGPU
 		memcpy(outVolume->getCurrentPtr().getCPU(), resDeviceX.data(), resDeviceX.size() * sizeof(float));
 #else		
 
-		//if using float
-		if (std::is_same<float, T>::value) {
-			memcpy(outVolume->getCurrentPtr().getCPU(), X.data(), X.size() * sizeof(float));
-		}
-		//conv from double
-		else {
-			Eigen::Matrix<float, Eigen::Dynamic, 1> xfloat = X.cast<float>();
-			memcpy(outVolume->getCurrentPtr().getCPU(), xfloat.data(), xfloat.size() * sizeof(float));
-		}
+		memcpy(outVolume->getCurrentPtr().getCPU(), X.data(), X.size() * sizeof(float));	
 #endif
 	
 	
@@ -1244,14 +1056,14 @@ BLIB_EXPORT float blib::DiffusionSolver::tortuosityCPU(const VolumeChannel & mas
 	}
 
 	//const float d0 = 0.001f;
-	
+
 
 	float dc = sum / n;
 	float dx = 1.0f / (dim[primaryDim] + 1);
-	float tau = dx * porosity / (dc * dx * dim[primaryDim] * 2); /// (dx * (dim[primaryDim]+1) );
+	float tau = dx * porosity / dc; /// (dx * (dim[primaryDim]+1) );
 
 
-	std::cout << "dc: " << dc << std::endl;
+	
 
 	/*float avgJ = sum / n;
 	//float h = 1.0f / dim[primaryDim];	

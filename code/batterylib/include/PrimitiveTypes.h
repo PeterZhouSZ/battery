@@ -63,3 +63,9 @@ inline uint getDirIndex(Dir dir) {
 inline int getDirSgn(Dir dir) {
 	return -((dir % 2) * 2 - 1);
 }
+
+inline Dir getDir(int index, int sgn) {
+	sgn = (sgn + 1) / 2; // 0 neg, 1 pos
+	sgn = 1 - sgn; // 1 neg, 0 pos
+	return Dir(index * 2 + sgn);
+}
