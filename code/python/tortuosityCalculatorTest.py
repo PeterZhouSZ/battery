@@ -58,8 +58,8 @@ if(args.input != None):
 	intensity = cPickle.load(inputFile)
 	inputFile.close()
 else:	
-	intensity = np.ones([n,n,n]) * 255;
-	intensity[1:3,1:3,1:3] = 0;	
+	intensity = np.ones([n,n-1,n]) * 255;
+	intensity[1:(n-1),1:(n-2),1:(n-1)] = 0;	
 	#for i in range(0,n*n*n):
 	#	intensity[random.randint(0,n-1),random.randint(0,n-1),random.randint(0,n-1)] = 255;	
 
@@ -77,6 +77,7 @@ t2 = time.time()
 
 
 ## Create the cell variable for storing the phase information
+#flipped x<=>z in comparison to batterylib
 nx = intensity.shape[2]
 ny = intensity.shape[1]
 nz = intensity.shape[0]
@@ -135,8 +136,12 @@ valueLow = 0.0
 
 # Define solution variable
 concentration = CellVariable(name="solution variable", mesh=mesh, value=0.0)	
-concentration.constrain(valueHigh, mesh.facesLeft)
-concentration.constrain(valueLow, mesh.facesRight)##########################switched temporarily
+## x dir
+concentration.constrain(valueLow, mesh.facesLeft)
+concentration.constrain(valueHigh, mesh.facesRight)
+### y dir
+#concentration.constrain(valueLow, mesh.facesBottom)
+#concentration.constrain(valueHigh, mesh.facesTop)
 
 print("C before:")
 print(concentration)
@@ -164,22 +169,28 @@ print(concentration)
 
 #Post-process to calculate tortuosity in x direction
 concentration[where(phase == 1.0)[0]] = 0
-dp = average(phase[where(x == min(x))])
+#dp = average(phase[where(x == min(x))])
 
-selection = where(x == min(x))
-faceConc = concentration.value[where(x == min(x))];
+#selection = where(x == min(x))
+#faceConc = concentration.value[where(x == min(x))];
 
 dc1 = average(concentration.value[where(x == min(x))])
-dc2 = average(concentration.value[where(x == min(x))])*(1.-dp)
+#dc1 = average(concentration.value[where(y == min(y))])
+#dc2 = average(concentration.value[where(x == min(x))])*(1.-dp)
 
-xtortuosity = dx*porosity/dc1/(dx*nx)/2
-xtortuosity2 = dx*porosity/dc2/(dx*nx)/2
+dd = dx
+nd = nx
+
+xtortuosity = dd*porosity/dc1/(dd*nd)/2
+#xtortuosity2 = dx*porosity/dc2/(dx*nx)/2
 t8 = time.time()
+
 
 
 # Write results to file
 #results = open(args.output + '/' + filename +'.tor', 'w')
 results = sys.stdout
+results.write('dc %g\n' % dc1)
 results.write('porosity %g' % porosity)
 results.write('\nmesh_size %g %g %g' % (dx, dy, dz))
 results.write('\nbounds %g %g %g' % (nx*dx, ny*dy, nz*dz))
@@ -187,10 +198,10 @@ results.write('\nmesh_elements %g %g %g' % (nx, ny, nz))
 # results.write('\nparticle_surface_area %g' % parser._shapes.values()[0].getSurfaceArea())
 # results.write('\nparticle_volume %g' % parser._shapes.values()[0].getVolume())
 results.write('\ntortuosity %g %g %g' % (xtortuosity, xtortuosity, xtortuosity))
-results.write('\ntortuosity2 %g %g %g' % (xtortuosity2, xtortuosity2, xtortuosity2))
+#results.write('\ntortuosity2 %g %g %g' % (xtortuosity2, xtortuosity2, xtortuosity2))
 # results.write('\nconcentrationShape %d' % len(concentration))
 # results.write('\ndc1dc2 %g %g' % (dc1, dc2))
-results.write('\ndp %g' % dp)
+#results.write('\ndp %g' % dp)
 results.write('\ntime_tot %g' %((t8 - t0)/60))
 results.write('\ntime_read %g' %((t2 - t1)/60))
 results.write('\ntime_set_phase %g' %((t4 - t3)/60))
