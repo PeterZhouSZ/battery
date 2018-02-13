@@ -22,6 +22,7 @@ namespace blib{
 		BLIB_EXPORT const Texture3DPtr & getCurrentPtr() const;
 		BLIB_EXPORT const Texture3DPtr & getNextPtr() const;
 
+		BLIB_EXPORT void resize(ivec3 origin, ivec3 dim);
 		
 		//Call before swap buffers
 		//Current = Current - Next; Sum(Current);
@@ -59,6 +60,7 @@ namespace blib{
 
 		BLIB_EXPORT uint addChannel(ivec3 dim, PrimitiveType type);
 		BLIB_EXPORT uint emplaceChannel(VolumeChannel && channel, uint index = UINT_MAX);		
+		
 		
 
 		BLIB_EXPORT VolumeChannel & getChannel(uint index);

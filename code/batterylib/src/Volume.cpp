@@ -43,6 +43,43 @@ const Texture3DPtr & blib::VolumeChannel::getNextPtr() const
 	return _ptr[(_current + 1) % 2];
 }
 
+ void blib::VolumeChannel::resize(ivec3 origin, ivec3 newDim)
+{
+	 
+	 const ivec3 end = origin + newDim;
+	 assert(end.x <= _dim.x);
+	 assert(end.y <= _dim.y);
+	 assert(end.z < _dim.z);
+ 
+
+	 VolumeChannel tmp = VolumeChannel(newDim, _type, _doubleBuffered);
+
+	 for (auto i = 0; i < ((_doubleBuffered) ? 2 : 1); i++) {
+		
+		 
+		 const auto & p0 = _ptr[i];
+		 const auto stride = p0.stride();
+		 const uchar * data0 = reinterpret_cast<const uchar *>(p0.getCPU());
+
+		 auto & p1 = tmp._ptr[i];
+		 uchar * data1 = reinterpret_cast<uchar *>(p1.getCPU());
+
+		 for (auto z = origin.z; z < end.z; z++) {
+			 for (auto y = origin.y; y < end.y; y++) {				 
+				 auto x = origin.x;
+				 auto i0 = linearIndex(_dim, x, y, z);
+				 auto i1 = linearIndex(newDim, x - origin.x, y - origin.y, z - origin.z);
+				 memcpy(data1 + stride * i1, data0 + stride * i0, stride * newDim.x);				 
+			 }
+		 }		 
+
+		 p1.commit();
+
+	 }
+	 *this = std::move(tmp);
+
+}
+
 float blib::VolumeChannel::differenceSum()
 {
 

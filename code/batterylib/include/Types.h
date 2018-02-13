@@ -21,6 +21,12 @@ namespace blib {
 	using mat4 = glm::mat4;
 
 
-		
+	inline size_t linearIndex(const ivec3 & dim, int x, int y, int z) {
+		return x + dim.x * y + dim.x * dim.y * z;
+	}
+
+	inline size_t linearIndex(const ivec3 & dim, const ivec3 & pos) {
+		return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
+	}
 
 }

@@ -69,3 +69,5 @@ inline Dir getDir(int index, int sgn) {
 	sgn = 1 - sgn; // 1 neg, 0 pos
 	return Dir(index * 2 + sgn);
 }
+
+

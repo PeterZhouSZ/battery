@@ -154,6 +154,7 @@ BatteryApp::BatteryApp()
 		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));	
 		assert(batteryID == CHANNEL_BATTERY);
 
+		_volume->getChannel(CHANNEL_BATTERY).resize({ 0,0,0 }, { 64,64,64 });
 		_volume->binarize(CHANNEL_BATTERY,1.0f);
 
 		//Add concetration channel

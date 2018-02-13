@@ -134,12 +134,7 @@ struct Node {
 	Neigh neigh[6];
 };
 
-size_t linearIndex(const ivec3 & dim, int x, int y, int z) {
-	return x + dim.x * y + dim.x * dim.y * z;
-}
-size_t linearIndex(const ivec3 & dim, const ivec3 & pos) {
-	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
-}
+
 
 
 void buildNodeList(std::vector<Node> & nodeList, std::vector<size_t> & indices, const VolumeChannel & c, size_t nodeIndex_) {
