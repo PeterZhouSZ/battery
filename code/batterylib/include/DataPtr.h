@@ -35,7 +35,9 @@ namespace blib {
 
 	};
 
-
+	/*
+		TODO!!!! destructor, free gpu (and cpu) resources
+	*/
 	struct Texture3DPtr {	
 		Texture3DPtr();
 				

@@ -49,7 +49,7 @@ const Texture3DPtr & blib::VolumeChannel::getNextPtr() const
 	 const ivec3 end = origin + newDim;
 	 assert(end.x <= _dim.x);
 	 assert(end.y <= _dim.y);
-	 assert(end.z < _dim.z);
+	 assert(end.z <= _dim.z);
  
 
 	 VolumeChannel tmp = VolumeChannel(newDim, _type, _doubleBuffered);
