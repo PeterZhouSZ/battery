@@ -19,6 +19,10 @@ from numpy import where, shape, average, unique
 import random;
 
 '''---------------------------------------------------------------------------------------'''
+
+## USAGE
+## python tortuosityCalculatorTest.py -i C:\!\battery\battery\data\graphiteSections\SL43_C5_1c5bar_Data\SL43_C5_1c5bar_section001.bin
+
 t0 = time.time()
 
 ## Start memory monitor:
@@ -31,15 +35,11 @@ optionparser.add_argument('-i', '--input', metavar = 'INPUT FILE')
 optionparser.add_argument('-o', '--output')
 
 args = optionparser.parse_args(sys.argv[1:])
-#basename = os.path.basename(args.input)
-#filename = os.path.splitext(basename)[0]
+
 
 if args.output == None:
 	args.output = './Output'
-# 	directoryPath = os.path.dirname(args.input)
-# 	directoryList = directoryPath.split('/')
-# 	directoryList[-4] = 'Output'
-# 	args.output = '/'.join(directoryList)
+
 
 	
 if not os.path.isdir(args.output):
@@ -47,43 +47,58 @@ if not os.path.isdir(args.output):
 
 
 # Read Tomography Data
-#print ("Reading Data from", filename, '...')
+
 t1 = time.time()
 intensity = np.ndarray([0,0,0])
 
-n = 4
+
 
 if(args.input != None):
 	inputFile = open(args.input, 'rb')
 	intensity = cPickle.load(inputFile)
 	inputFile.close()
+	intensity = 255 - intensity;
+
+	#subvolume selection
+	o = 0 # origin
+	m = 8 # dim
+	#intensity = intensity[o:o+m,o:o+m,o:o+m]
 else:	
-	intensity = np.ones([n,n-1,n]) * 255;
-	intensity[1:(n-1),1:(n-2),1:(n-1)] = 0;	
+	##Small test case for lin.sys comparison
+
+	#intensity = np.ones([n,n-1,n]) * 255;
+	#intensity[1:(n-1),1:(n-2),1:(n-1)] = 0;	
+	n = 4	
+	intensity = np.ones([n,n,n]) * 255;
+	intensity[0:(n),0:(n-1),0:(n)] = 0;		
 	#for i in range(0,n*n*n):
 	#	intensity[random.randint(0,n-1),random.randint(0,n-1),random.randint(0,n-1)] = 255;	
 
 
-#randfill
-
-
-
-#print(intensity)
-
+#Converts .bin to tiff, into /vol folder
+convertToTiff = False;
+if(convertToTiff):
+	outputFile = open('vol.vol', 'wb')
+	cPickle.dump(255 - intensity,outputFile)	
+	outputFile.close()
+	os.system('python binToTif.py vol.vol')
+	
 print ("Loaded")
 
+
+
 t2 = time.time()
-#print 'Done Reading!'
+
 
 
 ## Create the cell variable for storing the phase information
-#flipped x<=>z in comparison to batterylib
+#flipped x<=>z with respect to batterylib
 nx = intensity.shape[2]
 ny = intensity.shape[1]
 nz = intensity.shape[0]
-dx = 1.0/(nx+1)#0.37e-6
-dy = 1.0/(ny+1)#0.37e-6
-dz = 1.0/(nz+1)#0.37e-6
+dx = 0.37e-6#1.0/(nx+1)#0.37e-6
+dy = 0.37e-6#1.0/(ny+1)#0.37e-6
+dz = 0.37e-6#1.0/(nz+1)#0.37e-6
 
 newIntensity = np.zeros(nx*ny*nz)
 
@@ -111,7 +126,8 @@ print ("Phase Set!")
 # Set diffusivity.
 print ("Setting D...")
 t5 = time.time()
-D = 1.0e-3*phase + 1.0*(1.0-phase)
+D = 1.0e-3*phase + 1.0*(1.0-phase) 
+#D = 1.0e-10*phase + 1.0e-7*(1.0-phase) # Original, but doesnt work (div by zero)
 t6 = time.time()
 print ("D Set!")
 
@@ -149,15 +165,8 @@ print(concentration)
 #Define and solve steady state diffusion equation
 
 diffTerm = DiffusionTerm(coeff=D);
+diffTerm.solve(var=concentration, solver=LinearBicgstabSolver(tolerance=1.0e-6, iterations=int(1e8)))
 
-#os.environ["FIPY_DISPLAY_MATRIX"] = "1"
-#os.environ["QT_QPA_PLATFORM_PLUGIN_PATH "] = "C:\Users\vkrs\Miniconda2\Library\plugins\platforms"
-
-diffTerm.solve(var=concentration, solver=LinearBicgstabSolver(tolerance=1.0e-6, iterations=int(1e5)))
-
-
-print("diffterm matrix:")
-print(diffTerm.matrix)
 
 #DiffusionTerm(coeff=D).solve(var=concentration, solver=LinearGMRESSolver(tolerance=1.0e-6, iterations=int(1e9)))
 ##DiffusionTerm(coeff=D).solve(var=concentration, solver=LinearLUSolver())

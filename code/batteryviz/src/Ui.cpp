@@ -360,8 +360,8 @@ void Ui::update(double dt)
 
 
 
-	if (ImGui::Button("Reset Simulation")) {
-		_app.resetSA();
+	if (ImGui::Button("Reload")) {
+		_app.reset();
 	}
 
 

@@ -31,6 +31,7 @@
 
 //#define DATA_FOLDER "../../data/graphite/SL43_C5_1c5bar_Data/"
 #define DATA_FOLDER "../../data/graphiteSections/SL43_C5_1c5bar_Data/SL43_C5_1c5bar_section001/"
+//#define DATA_FOLDER "C:/!/battery/battery/code/python/vol"
 //#define DATA_FOLDER "../../data/graphite/Cropped/"
 
 
@@ -114,10 +115,7 @@ BatteryApp::BatteryApp()
 	}
 
 	resetGL();
-
-
 	
-
 	
 	{
 		auto errMsg = loadShaders(_shaders);
@@ -135,82 +133,10 @@ BatteryApp::BatteryApp()
 	_quadric = { 0.988,1.605,1.084 };
 	_autoUpdate = false;
 
-	/*
-		Load data
-	*/
-	bool loadDefualt = false;
-#ifdef _DEBUG
-	loadDefualt = false;
-#endif
-
-	loadDefualt = true;
-
-	_volume = make_unique<blib::Volume>();
-
-
-
-
-	if(loadDefualt){			
-		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));	
-		assert(batteryID == CHANNEL_BATTERY);
-
-		_volume->getChannel(CHANNEL_BATTERY).resize({ 0,0,0 }, { 64,64,64 });
-		_volume->binarize(CHANNEL_BATTERY,1.0f);
-
-		//Add concetration channel
-		auto concetrationID = _volume->addChannel(
-			_volume->getChannel(CHANNEL_BATTERY).dim(),
-			TYPE_FLOAT
-		);
-		assert(concetrationID == CHANNEL_CONCETRATION);
-
-		_volume->getChannel(CHANNEL_CONCETRATION).clear();
-
-		auto dim = _volume->getChannel(CHANNEL_BATTERY).dim();
-		std::cout << "Resolution: " << dim.x << " x " << dim.y << " x " << dim.z <<
-			" = " << dim.x*dim.y*dim.z << " voxels (" << (dim.x*dim.y*dim.z)/(1024*1024.0f) << "M)" << std::endl;
-				
-	}
-	else {
-		int res = 16;
-		ivec3 d = ivec3(res,res-1,res);
-		auto batteryID = _volume->addChannel(d, TYPE_UCHAR);	
-
-		//Add concetration channel
-		auto concetrationID = _volume->addChannel(
-			_volume->getChannel(CHANNEL_BATTERY).dim(),
-			TYPE_FLOAT
-		);
-		assert(concetrationID == CHANNEL_CONCETRATION);
-
-
-		resetSA();
-		
-		
-		//Test for fipy cmp
-		auto & c = _volume->getChannel(batteryID);
-		uchar* data = (uchar*)c.getCurrentPtr().getCPU();
-		
-		for (auto i = 1; i <d[0] -1; i++) {
-			for (auto j = 1; j <d[1] -1; j++) {
-				for (auto k = 1; k < d[2] -1; k++) {
-
-					data[i + j*c.dim().x + k*c.dim().y*c.dim().x] = 255;
-				}
-			}
-		}
-		c.getCurrentPtr().commit();
-		
-		//generateSpheresVolume(*_volume, 128, 0.15f);
-		
-
-		
-	}	
 	
-	
+	//INIT
+	reset();
 
-	_volumeRaycaster->setVolume(*_volume, 0);
-	
 
 	/*
 		Scene init
@@ -298,7 +224,6 @@ void BatteryApp::update(double dt)
 
 	
 	
-
 
 	return;
 }
@@ -485,7 +410,7 @@ void BatteryApp::callbackKey(GLFWwindow * w, int key, int scancode, int action, 
 			_autoUpdate = !_autoUpdate;
 
 		if (key == GLFW_KEY_Q)
-			resetSA();
+			reset();
 
 
 		if (key == GLFW_KEY_1) {
@@ -524,156 +449,76 @@ void BatteryApp::callbackChar(GLFWwindow * w, unsigned int code)
 	_ui.callbackChar(w, code);
 }
 
-void BatteryApp::resetSA()
+
+
+void BatteryApp::reset()
 {
 
-	//generateSpheresVolume(*_volume, _options["Generator"].get<int>("SphereCount"), _options["Generator"].get<float>("SphereRadius"));		
-	_volume->getChannel(CHANNEL_CONCETRATION).clear();
 	_simulationTime = 0.0f;
 	_convergenceTime = -1.0f;
-	
 
-/*
-	_saEllipsoid.score = [&](const vector<Ellipsoid> & vals) {
+	bool loadDefault = _options["Input"].get<bool>("Default");
 
-		vector<Eigen::Affine3f> transforms(vals.size());
-		for (auto i = 0; i < vals.size(); i++) {
-			transforms[i] = vals[i].transform.getAffine().inverse();
-		}
+	_volume = make_unique<blib::Volume>();
 
-		_volume.setZero();
-		const auto dims = _volume.dimensions();
+	if (loadDefault) {
+		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
+		assert(batteryID == CHANNEL_BATTERY);
 
-		vector<int> collisions(dims[0]);
+		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(64));
+		_volume->binarize(CHANNEL_BATTERY, 1.0f);
 
-		#pragma omp parallel for schedule(dynamic)
-		for (auto x = 0; x < dims[0]; x++) {
-			int thisColl = 0;
-			for (auto y = 0; y < dims[1]; y++) {
-				for (auto z = 0; z < dims[2]; z++) {
-					Eigen::Vector3f pos =
-						Eigen::Vector3f(x / float(dims[0]), y / float(dims[1]), z / float(dims[2])) * 2.0f
-						- Eigen::Vector3f(1.0f, 1.0f, 1.0f);
+		//Add concetration channel
+		auto concetrationID = _volume->addChannel(
+			_volume->getChannel(CHANNEL_BATTERY).dim(),
+			TYPE_FLOAT
+		);
+		assert(concetrationID == CHANNEL_CONCETRATION);
 
-					for (auto i = 0; i < vals.size(); i++) {
+		_volume->getChannel(CHANNEL_CONCETRATION).clear();
 
-						auto inSpace = transforms[i] * pos;
-						
-						if (vals[i].isPointIn(inSpace)) {
-							if (_volume(x, y, z) == 255)
-								thisColl++;
+		auto dim = _volume->getChannel(CHANNEL_BATTERY).dim();
+		std::cout << "Resolution: " << dim.x << " x " << dim.y << " x " << dim.z <<
+			" = " << dim.x*dim.y*dim.z << " voxels (" << (dim.x*dim.y*dim.z) / (1024 * 1024.0f) << "M)" << std::endl;
 
-							_volume(x, y, z) = 255;
-						}
-					}
+	}
+	else {
+		int res = 4;
+		ivec3 d = ivec3(res, res, res);
+		auto batteryID = _volume->addChannel(d, TYPE_UCHAR);
+
+		//Add concetration channel
+		auto concetrationID = _volume->addChannel(
+			_volume->getChannel(CHANNEL_BATTERY).dim(),
+			TYPE_FLOAT
+		);
+		assert(concetrationID == CHANNEL_CONCETRATION);
+
+		
+		//Test for fipy cmp
+		auto & c = _volume->getChannel(batteryID);
+		uchar* data = (uchar*)c.getCurrentPtr().getCPU();
+
+		/*
+		x here is z in python
+		solving for -x here  (dir=1)
+		*/
+
+		for (auto i = 0; i <d[0] - 0; i++) {
+			for (auto j = 0; j <d[1] - 1; j++) {
+				for (auto k = 0; k < d[2] - 0; k++) {
+
+					data[i + j*c.dim().x + k*c.dim().y*c.dim().x] = 255;
 				}
 			}
-
-			collisions[x] = thisColl;
 		}
+		c.getCurrentPtr().commit();
 
-		int collTotal = std::accumulate(collisions.begin(), collisions.end(), 0);
-
-
-		int sum = 0;
-		//todo reduce
-		for (auto x = 0; x < dims[0]; x++) {
-			for (auto y = 0; y < dims[1]; y++) {
-				for (auto z = 0; z < dims[2]; z++) {
-					if (_volume(x, y, z) == 255)
-						sum++;
-				}
-			}
-		}
-
-		//return 1.0f;
-		auto totalVoxels = dims[0] * dims[1] * dims[2];
-
-		float score = (1.0 - sum / float(totalVoxels));// +2 * collTotal / float(totalVoxels);
-
-													   //std::cout << "porosity: " << score << "\n";
-
-		score += 10 * collTotal / float(totalVoxels);
-		//score += (collisions / static_cast<float>(pairs)) * 10;
+		//generateSpheresVolume(*_volume, 128, 0.15f);
 
 
-		return score * 1000;		
-	};
 
-	_saEllipsoid.getNeighbour = [&](const vector<Ellipsoid> & vals) {
-
-		const float step = _options["Optim"]["SA"].get<float>("neighbourStep");
-
-		vector<Ellipsoid> newVals = vals;
-
-		using namespace Eigen;
-
-		auto &v = newVals[uniformDistInt.next() % newVals.size()].transform;
-		
-		if (_options["Optim"]["SA"].get<bool>("doScale")){
-			v.scale += 0.5f * step * Vector3f(normalDist.next(), normalDist.next(), normalDist.next());
-			v.scale = v.scale.cwiseMax(Vector3f{ 0.1f,0.1f,0.1f });
-			v.scale = v.scale.cwiseMin(Vector3f{ 1.0f,1.0f,1.0f });
-		}
-		
-		if (_options["Optim"]["SA"].get<bool>("doTranslate")) {
-			v.translation += step * Vector3f(normalDist.next(), normalDist.next(), normalDist.next());
-			v.translation = v.translation.cwiseMax(Vector3f{ -1,-1,-1 });
-			v.translation = v.translation.cwiseMin(Vector3f{ 1, 1, 1 });
-		}
-
-		if (_options["Optim"]["SA"].get<bool>("doRotate")) {			
-			Quaternionf q[3];
-			float angleStep = step;
-			q[0] = AngleAxisf(step * normalDist.next(), Vector3f{ 1,0,0 });
-			q[1] = AngleAxisf(step * normalDist.next(), Vector3f{ 0,1,0 });
-			q[2] = AngleAxisf(step * normalDist.next(), Vector3f{ 0,0,1 });
-			v.rotation = v.rotation * q[0] * q[1] * q[2];			
-		}
-
-
-		return newVals;
-	};
-
-	vector<Ellipsoid> initVec(_options["Optim"]["SA"].get<int>("N"));
-
-	
-	const Eigen::Vector3f alignmentAxis = Eigen::Vector3f::UnitX();
-	const float MRD = _options["Optim"]["SA"].get<float>("MRD");
-	const float MRDDelta = _options["Optim"]["SA"].get<float>("MRDDeltaRad");
-	const float scaleInit = _options["Optim"]["SA"].get<float>("scaleInit");
-	const float scaleMultMin = _options["Optim"]["SA"].get<float>("scaleMultMin");
-	const float scaleMultMax = _options["Optim"]["SA"].get<float>("scaleMultMax");	
-
-	for (auto & v : initVec) {
-						
-		auto & T = v.transform;	
-
-		T.scale = Eigen::Vector3f(scaleInit, scaleInit, scaleInit) + 
-			Eigen::Vector3f(
-				0, 1.0f + normalDist.next(), 0
-			);
-		
-		T.scale = T.scale.cwiseMax(scaleInit * scaleMultMin);
-		T.scale = T.scale.cwiseMin(scaleInit * scaleMultMax);
-
-		T.translation = Eigen::Vector3f(normalDist.next(), normalDist.next(), normalDist.next()) * 1.0f;// - Eigen::Vector3f(1.0f,1.0f,1.0f);
-		T.translation = T.translation.cwiseMax(Eigen::Vector3f{ -1,-1,-1 });
-		T.translation = T.translation.cwiseMin(Eigen::Vector3f{ 1, 1, 1 });
-
-		//;
-
-		auto targetAxis = randomOrientationGauss(normalDist,uniformDist, MRD, alignmentAxis, MRDDelta, true);
-		auto longestAxis = v.longestAxis().normalized();
-		auto rotAxis = longestAxis.cross(targetAxis);
-		float angle = acos(targetAxis.dot(longestAxis));
-		T.rotation = Eigen::AngleAxisf(angle, rotAxis);		
-	
 	}
 
-	_saEllipsoid.getTemperature = temperatureExp;
-
-	_saEllipsoid.init(initVec, _options["Optim"].get<int>("maxSteps"));
-	*/
-
+	_volumeRaycaster->setVolume(*_volume, 0);
 }

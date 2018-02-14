@@ -21,7 +21,7 @@
             "type": 2
         },
         "direction": {
-            "data": 0,
+            "data": 1,
             "type": 2
         },
         "voxelSize": {
@@ -37,6 +37,12 @@
         "SphereRadius": {
             "data": 0.200000002980232,
             "type": 3
+        }
+    },
+    "Input": {
+        "Default": {
+            "data": true,
+            "type": 5
         }
     },
     "Optim": {
@@ -97,7 +103,7 @@
     },
     "Render": {
         "channel": {
-            "data": 1,
+            "data": 0,
             "type": 2
         },
         "ellipsoids": {

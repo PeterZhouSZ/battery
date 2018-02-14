@@ -34,6 +34,7 @@ public:
 		
 	
 protected:
+	
 	virtual void update(double dt) override;
 	virtual void render(double dt) override;
 
@@ -43,7 +44,9 @@ protected:
 	virtual void callbackScroll(GLFWwindow * w, double xoffset, double yoffset) override;
 	virtual void callbackChar(GLFWwindow * w, unsigned int code) override;
 
-	virtual void resetSA();
+	
+
+	virtual void reset();
 
 	OptionSet _options;
 

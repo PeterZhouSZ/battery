@@ -36,7 +36,7 @@ namespace blib {
 			float tolerance = 1.0e-6f
 		);
 
-		BLIB_EXPORT float tortuosityCPU(
+		BLIB_EXPORT double tortuosityCPU(
 			const VolumeChannel & mask,
 			const VolumeChannel & concetration,
 			Dir dir

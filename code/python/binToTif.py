@@ -2,7 +2,7 @@ import os, sys, time, psutil, math, cPickle
 import argparse
 import scipy.misc
 
-from PIL import Image #install Pillow
+#from PIL import Image #install Pillow
 
 optionparser = argparse.ArgumentParser(prog='Numpy to .tif convertor')
 optionparser.add_argument('input', metavar = 'INPUT FILE')
@@ -52,7 +52,7 @@ print ("Saving tiff ...")
 for i in range(0,N):
 	istr = "%04d" % (i,)		
 	scipy.misc.imsave(args.output + filename + '_' + istr +  '.tiff', getSlice(i))
-	if(i % (N/10) == 0):
+	if(i % ((N + 9)/10) == 0):
 		print(str(i*100.0 / N ) + '%')
 
 print ('100%, done.')
