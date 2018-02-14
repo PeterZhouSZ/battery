@@ -3,6 +3,7 @@
 #include <chrono>
 #include <iostream>
 #include <fstream>
+#include <numeric>
 
 #include <Eigen/IterativeLinearSolvers>
 #include <Eigen/SparseLU>
@@ -272,7 +273,7 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, float d0, 
 	_rhs.resize(M);	
 	_x.resize(N);
 
-	std::vector<Eigen::Triplet<T>> triplets(M);
+	
 	
 	//D data
 	const uchar * D = (uchar *)volChannel.getCurrentPtr().getCPU();	
@@ -302,6 +303,13 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, float d0, 
 	//Default spacing
 	const vec3 h_general = { 1.0f / (dim.x + 1), 1.0f / (dim.y + 1), 1.0f / (dim.z + 1) };
 
+	size_t d0Count = 0;
+	size_t d1Count = 0;
+		
+	_A.resize(M, N);
+	_A.reserve(Eigen::VectorXi::Constant(N, 7));
+
+
 	//Build matrix
 	for (auto z = 0; z < dim.z; z++) {
 		for (auto y = 0; y < dim.y; y++) {
@@ -316,9 +324,9 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, float d0, 
 				//Adjust spacing on boundary
 				for (auto k = 0; k < 3; k++) {
 					if (ipos[k] == 0)
-						hneg[k] *= 0.5;					
+						hneg[k] *= 1.0 / sqrt(2);//0.5;					
 					else if (ipos[k] >= dim[k] - 1)
-						hpos[k] *= 0.5;					
+						hpos[k] *= 1.0 / sqrt(2); //0.5;
 				}
 				const vec3 invHneg = vec3(1.0) / hneg;
 				vec3 invHneg2 = invHneg*invHneg;
@@ -335,19 +343,27 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, float d0, 
 				colId[4] = i + 1;
 				colId[5] = i + dim.x;
 				colId[6] = i + dim.y*dim.x;
+							
+				T Di = getD(ipos);
+				if (Di == d0)
+					d0Count++;
+				else
+					d1Count++;
+				
 
-				auto Dcur = vec3(getD(ipos));				
+				auto Dvec = vec3(Di);						
+
 				auto Dneg = (vec3(
 					sample(ipos, X_NEG),
 					sample(ipos, Y_NEG),
 					sample(ipos, Z_NEG)
-				) + vec3(Dcur)) * T(0.5) * invHneg2;
+				) + vec3(Dvec)) * T(0.5) * invHneg2;
 
 				auto Dpos = (vec3(
 					sample(ipos, X_POS),
 					sample(ipos, Y_POS),
 					sample(ipos, Z_POS)
-				) + vec3(Dcur)) * T(0.5) * invHpos2;
+				) + vec3(Dvec)) * T(0.5) * invHpos2;
 				
 				T diagVal = 0.0f;
 				
@@ -360,17 +376,14 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, float d0, 
 				}
 
 				//Boundary conditions
-				if (ipos[dirPrimary] == 0) {
-					bval = -T(0.5) * sample(ipos, getDir(dirPrimary, -1)) * concetrationBegin * invHneg2[dirPrimary];
-					T c = T(0.5) * invHneg2[dirPrimary] * sample(ipos, getDir(dirPrimary, -1));;
-					diagVal -= c;
+				if (ipos[dirPrimary] == 0) {					
+					bval = -Dneg[dirPrimary] * concetrationBegin;
+					diagVal -= Dneg[dirPrimary];
 
 				}
-				else if (ipos[dirPrimary] == dim[dirPrimary] - 1) {
-					bval = -T(0.5) * sample(ipos, getDir(dirPrimary, +1)) * concetrationEnd  * invHpos2[dirPrimary];
-					T c = T(0.5)* invHpos2[dirPrimary] * sample(ipos, getDir(dirPrimary, +1));
-					diagVal -= c;
-
+				else if (ipos[dirPrimary] == dim[dirPrimary] - 1) {					
+					bval = - Dpos[dirPrimary] * concetrationEnd;					
+					diagVal -= Dpos[dirPrimary];
 				}
 
 
@@ -392,8 +405,8 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, float d0, 
 
 				
 				for (auto k = 0; k < 7; k++) {
-					if (colId[k] < 0 || colId[k] >= N || vals[k] == 0.0f) continue;
-					triplets.push_back(Eigen::Triplet<T>(i, colId[k], vals[k]));					
+					if (colId[k] < 0 || colId[k] >= N || vals[k] == 0.0f) continue;					
+					_A.insert(i, colId[k]) = vals[k];
 				}
 
 			}
@@ -401,13 +414,9 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, float d0, 
 	}
 
 
-	//Todo fill directly
-	_A.resize(M, N);
-	_A.setFromTriplets(triplets.begin(), triplets.end());
-	_A.makeCompressed();	
+	_porosity = T(d0Count) / T(d0Count + d1Count);
 
-
-
+	_A.makeCompressed();
 	_solver.compute(_A);
 
 	return true;
@@ -475,406 +484,6 @@ bool DiffusionSolver<T>::resultToVolume(VolumeChannel & vol)
 
 }
 
-
-
-template <typename T>
-bool DiffusionSolver<T>::solve(
-	VolumeChannel & volChannel, 
-	VolumeChannel * outVolume, 
-	Dir dir, 
-	float d0,
-	float d1,
-	float tolerance	
-)
-{	
-	using vec3 = glm::tvec3<T,glm::highp>;
-	
-
-	const auto & c = volChannel;
-	auto dim = c.dim();
-	
-	uint dirPrimary = getDirIndex(dir);
-	uint dirSecondary[2] = { (dirPrimary + 1) % 3, (dirPrimary + 2) % 3 };
-
-
-	const T highConc = 1.0f;
-	const T lowConc = 0.0f;
-
-	const T concetrationBegin = (getDirSgn(dir) == 1) ? highConc : lowConc;
-	const T concetrationEnd = (getDirSgn(dir) == 1) ? lowConc : highConc;
-
-	
-	if(_verbose)
-		std::cout << "DIM " << dim.x << ", " << dim.y << ", " << dim.z << " nnz:" << dim.x*dim.y*dim.z / (1024 * 1024.0f) << "M" << std::endl;
-
-	//Matrix dimensions	
-	size_t N = dim.x * dim.y * dim.z; //cols
-	size_t M = N; //rows
-	//size_t nnz = _maxElemPerRow * M; //total elems
-	
-
-	//Reallocate if needed
-	/*if (nnz > _nnz) {
-		//Update dims
-		_nnz = nnz;
-		_M = M;
-		_N = N;	
-	}*/
-
-	
-
-
-	
-
-	auto start0 = std::chrono::system_clock::now();
-	
-
-	std::vector<Eigen::Triplet<T>> triplets;
-	Eigen::Matrix<T, Eigen::Dynamic, 1> b(M);
-	b.setZero();
-	Eigen::Matrix<T, Eigen::Dynamic, 1> X(N);
-
-			
-
-	volChannel.getCurrentPtr().retrieve();
-	assert(volChannel.type() == TYPE_UCHAR);
-	uchar * D = (uchar *)volChannel.getCurrentPtr().getCPU();
-
-	const auto linIndex = [dim](int x, int y, int z) -> size_t {
-		return x + dim.x * y + dim.x * dim.y * z;
-	};
-
-
-	const auto getD = [D,d0,d1, &linIndex](ivec3 pos) {
-		return (D[linIndex(pos.x, pos.y, pos.z)] == 0) ? d0 : d1;
-	};
-
-	const auto sample = [&getD, dim, D, d0, d1](ivec3 pos, Dir dir/*, vec3 invH2*/) {
-
-		const int k = getDirIndex(dir);
-
-		assert(pos.x >= 0 && pos.y >= 0 && pos.z >= 0);
-		assert(pos.x < dim.x && pos.y < dim.y && pos.z < dim.z);
-		
-		ivec3 newPos = pos;
-
-		int sgn = getDirSgn(dir);
-
-		
-		if (pos[k] + sgn < 0 || pos[k] + sgn >= dim[k]) {			
-			//do nothing
-		}
-		else {
-			newPos[k] += getDirSgn(dir);
-		}
-		
-		return getD(newPos);
-	};
-
-
-	const vec3 h_general = { 1.0f / (dim.x + 1), 1.0f / (dim.y + 1), 1.0f / (dim.z + 1) };		
-
-	int curRowPtr = 0;
-	for (auto z = 0; z < dim.z; z++) {
-		for (auto y = 0; y < dim.y; y++) {
-			for (auto x = 0; x < dim.x; x++) {
-
-				const ivec3 ipos = { x,y,z };
-
-				vec3 hneg = h_general;
-				vec3 hpos = h_general;
-
-				//Spacing on boundary
-				for (auto k = 0; k < 3; k++) {					
-					if (ipos[k] == 0) {
-						hneg[k] *= 0.5;
-					}
-					else if (ipos[k] >= dim[k] - 1) {
-						hpos[k] *= 0.5;
-					}
-				}				
-
-				const vec3 invHneg = vec3(1.0) / hneg;
-				vec3 invHneg2 = invHneg*invHneg;
-				const vec3 invHpos = vec3(1.0) / hpos;
-				vec3 invHpos2 = invHpos*invHpos;				
-
-				auto i = linIndex(x, y, z);
-
-				T bval = 0.0f;
-				T vals[7] = { 0.0f,0.0f ,0.0f ,0.0f ,0.0f ,0.0f ,0.0f };
-				int colId[7];
-				colId[0] = i - dim.y*dim.x;
-				colId[1] = i - dim.x;
-				colId[2] = i - 1;
-
-				colId[3] = i;
-
-				colId[4] = i + 1;
-				colId[5] = i + dim.x;
-				colId[6] = i + dim.y*dim.x;
-
-
-
-				auto Dcur = vec3(getD(ipos)); // vec x vec product
-
-				auto DAtNeg = vec3(
-					sample(ipos, X_NEG),
-					sample(ipos, Y_NEG),
-					sample(ipos, Z_NEG)
-				);
-				auto Dneg = (DAtNeg + vec3(Dcur)) * T(0.5) * invHneg2;
-
-				auto Dpos = (vec3(
-					sample(ipos, X_POS),
-					sample(ipos, Y_POS),
-					sample(ipos, Z_POS)
-				) + vec3(Dcur)) * T(0.5) * invHpos2;
-
-			
-				
-
-
-				T diagVal = 0.0f;
-				
-
-
-				//(is first order accurate von neumann for secondary axes)
-				for (auto k = 0; k < 3; k++) {
-					
-					if (ipos[k] > 0)
-						diagVal += -Dneg[k];
-					if (ipos[k] < dim[k] - 1)
-						diagVal += -Dpos[k];					
-				}
-
-				
-
-
-				//Boundary conditions
-				if (ipos[dirPrimary] == 0) {
-								
-					bval =  -T(0.5) * sample(ipos, getDir(dirPrimary, -1)) * concetrationBegin * invHneg2[dirPrimary];
-
-				
-					T c = T(0.5)* invHneg2[dirPrimary] * sample(ipos, getDir(dirPrimary, -1));;
-					diagVal -= c;
-					
-				}
-				else if (ipos[dirPrimary] == dim[dirPrimary] - 1) {
-					
-					bval = -T(0.5) * sample(ipos, getDir(dirPrimary, +1)) * concetrationEnd  * invHpos2[dirPrimary];
-					
-					T c = T(0.5)* invHpos2[dirPrimary] * sample(ipos, getDir(dirPrimary, +1));
-					diagVal -= c;
-					
-				}
-
-				assert(diagVal != 0.0f);
-
-				if (z > 0) vals[0] = Dneg.z;
-				
-
-				if (y > 0) vals[1] = Dneg.y;
-			
-
-				if (x > 0) vals[2] = Dneg.x;
-				
-
-				if (x < dim.x - 1) vals[4] = Dpos.x;
-			
-				if (y < dim.y - 1) vals[5] = Dpos.y;
-			
-				if (z < dim.z - 1) vals[6] = Dpos.z;
-			
-
-				
-
-				
-				
-
-				vals[3] = diagVal;
-				
-				
-
-
-				
-
-				
-
-					b[i] = bval;
-
-					//initial guess
-					if (getDirSgn(dir) == 1)
-						X[i] = 1.0f - (ipos[dirPrimary] / T(dim[dirPrimary] + 1));
-					else
-						X[i] = (ipos[dirPrimary] / T(dim[dirPrimary] + 1));
-				
-			
-		
-				int inRow = 0;
-				for (auto k = 0; k < 7; k++) {					
-					if(vals[k] == 0.0f) continue;
-
-					triplets.push_back(Eigen::Triplet<T>(i, colId[k], vals[k]));
-
-					
-					inRow++;
-				}
-
-
-				curRowPtr += inRow;
-			}
-		}
-	}
-
-
-	Eigen::SparseMatrix<T,Eigen::RowMajor> A(M, N);
-	A.setFromTriplets(triplets.begin(), triplets.end());
-	A.makeCompressed();
-
-	
-
-
-
-#ifdef DS_LINSYS_TO_FILE
-	{
-		std::ofstream f("A.txt");
-		f << A.toDense();
-		f.close();
-	}
-	{
-		std::ofstream f("b.vec");
-		f << b;
-		f.close();
-	}
-#endif
-
-	
-
-	auto end0 = std::chrono::system_clock::now();
-
-	std::chrono::duration<double> elapsed_seconds0 = end0 - start0;
-	if (_verbose) {
-		std::cout << "prep elapsed time: " << elapsed_seconds0.count() << "s\n";
-	}
-
-
-
-
-	
-	auto start = std::chrono::system_clock::now();
-
-	omp_set_num_threads(8);
-	Eigen::setNbThreads(8);
-
-
-	//auto Xinit = X;
-
-	//solveJacobi<float>(A, b, X, tolerance, 150000, true);
-	
-
-	//X = Xinit;
-	
-	Eigen::BiCGSTAB<Eigen::SparseMatrix<T,Eigen::RowMajor>> stab;
-	//Eigen::ConjugateGradient<Eigen::SparseMatrix<float>> stab;		
-	//Eigen::SparseLU<Eigen::SparseMatrix<float>> stab;		
-	//stab.analyzePattern(A);
-	//stab.factorize(A);
-	//x = stab.solve(b);
-	//x = stab.compute(A).solve(b);
-
-	const int maxIter = 1500;
-	const int iterPerStep = 100;
-
-	stab.setTolerance(tolerance);
-	stab.setMaxIterations(iterPerStep);
-	stab.compute(A);
-
-
-
-
-
-	for (auto i = 0; i < maxIter; i += iterPerStep) {
-		X = stab.solveWithGuess(b, X);
-		double er = stab.error();
-		if (_verbose) {
-
-			
-			//memcpy(outVolume->getCurrentPtr().getCPU(), X.data(), X.size() * sizeof(float));
-			std::cout << "i:" << i << ", estimated error: " << er << std::endl;
-			if (std::is_same<float, T>::value)
-			{
-				memcpy(outVolume->getCurrentPtr().getCPU(), X.data(), X.size() * sizeof(float));
-				float tau = tortuosityCPU(
-					volChannel,
-					*outVolume,
-					dir
-				);
-				std::cout << "tau = " << tau << "\n";
-			}
-		}
-		if (er <= tolerance)
-			break;
-	}	
-
-
-
-
-	auto end = std::chrono::system_clock::now();
-
-	if (_verbose) {
-		std::chrono::duration<double> elapsed_seconds = end - start;
-		std::cout << "#iterations:     " << stab.iterations() << std::endl;
-		std::cout << "estimated error: " << stab.error() << std::endl;
-		std::cout << "solve host elapsed time: " << elapsed_seconds.count() << "s\n";				
-		std::cout << "host avg conc: " << X.mean() << std::endl;
-		std::cout << "tolerance: " << tolerance << std::endl;
-
-		std::cout << "res.norm : " << (b - A*X).norm()  << std::endl;
-		
-
-	}
-
-#ifdef DS_LINSYS_TO_FILE
-	{
-		std::ofstream f("x.vec");
-		f << X;
-		f.close();
-	}
-#endif
-
-
-
-
-
-
-	
-	
-
-	if (outVolume) {
-#ifdef DS_USEGPU
-		memcpy(outVolume->getCurrentPtr().getCPU(), resDeviceX.data(), resDeviceX.size() * sizeof(float));
-#else		
-
-		//if using float
-		if (std::is_same<float, T>::value) {
-			memcpy(outVolume->getCurrentPtr().getCPU(), X.data(), X.size() * sizeof(float));
-		}
-		//conv from double
-		else {
-			Eigen::Matrix<float, Eigen::Dynamic, 1> xfloat = X.cast<float>();
-			memcpy(outVolume->getCurrentPtr().getCPU(), xfloat.data(), xfloat.size() * sizeof(float));
-		}
-#endif
-	
-	
-	}
-	
-	
-	
-	return true;
-}
 
 
 
@@ -1075,87 +684,54 @@ BLIB_EXPORT bool DiffusionSolver<T>::solveWithoutParticles(
 }
 
 template <typename T>
-BLIB_EXPORT T blib::DiffusionSolver<T>::tortuosityCPU(const VolumeChannel & mask, const VolumeChannel & concetration, Dir dir)
+BLIB_EXPORT T blib::DiffusionSolver<T>::tortuosity(const VolumeChannel & mask, Dir dir)
 {
 	
 	
 	assert(mask.type() == TYPE_UCHAR || mask.type() == TYPE_CHAR);
-	assert(concetration.type() == TYPE_FLOAT);
-	assert(mask.dim().x == concetration.dim().x);
-	assert(mask.dim().y == concetration.dim().y);
-	assert(mask.dim().z == concetration.dim().z);
-	const auto dim = mask.dim();
-	
-	const auto totalElem = dim.x * dim.y * dim.z;
+	const auto dim = mask.dim();		
 
-
-	const float * concData = (float *)concetration.getCurrentPtr().getCPU();
-	const uchar * cdata = (uchar *)mask.getCurrentPtr().getCPU();
-
-	int zeroElem = 0;
-	for (auto i = 0; i < totalElem; i++) {
-		zeroElem += (cdata[i] == 0) ? 1 : 0;
-	}
-	double porosity = zeroElem / float(totalElem);
-
-
-	
+	const T * concData = _x.data();
+	const uchar * cdata = (uchar *)mask.getCurrentPtr().getCPU();	
 
 	const int primaryDim = getDirIndex(dir);
 	const int secondaryDims[2] = { (primaryDim + 1) % 3, (primaryDim + 2) % 3 };
 	
-	double sum = 0.0f;
-	//float sumHigh = 0.0f;
-	int n = 0;	
-	int k = (getDirSgn(dir) == -1) ? 0 : dim[primaryDim] - 1;
-	int kHigh = (getDirSgn(dir) == 1) ? 0 : dim[primaryDim] - 1;
 
+	int n = dim[secondaryDims[0]] * dim[secondaryDims[1]];
+	int k = (getDirSgn(dir) == -1) ? 0 : dim[primaryDim] - 1;	
+
+	/*
+		Calculate average in low concetration plane
+	*/
 	bool zeroOutPart = true;
-
+	std::vector<T> isums(dim[secondaryDims[0]], T(0));
+	
+	#pragma omp parallel for
 	for (auto i = 0; i < dim[secondaryDims[0]]; i++) {
+		T jsum = T(0);
 		for (auto j = 0; j < dim[secondaryDims[1]]; j++) {
 			ivec3 pos;
 			pos[primaryDim] = k;
 			pos[secondaryDims[0]] = i;
 			pos[secondaryDims[1]] = j;
 
-
 			if(zeroOutPart && cdata[linearIndex(dim, pos)] == 0)
-				sum += concData[linearIndex(dim, pos)];
-			
-			/*pos[primaryDim] = kHigh;
-			sumHigh += concData[linearIndex(dim, pos)];*/
-
-			n++;
+				jsum += concData[linearIndex(dim, pos)];			
 		}
+		isums[i] = jsum;
 	}
-
-	//const float d0 = 0.001f;
 	
+	T sum = std::accumulate(isums.begin(),isums.end(),T(0));
 
 	double dc = sum / n;
 	double dx = 1.0f / (dim[primaryDim] + 1);
-	double tau = /*dx * */porosity / (dc * /*dx **/ dim[primaryDim] * 2); /// (dx * (dim[primaryDim]+1) );
+	double tau = /*dx * */_porosity / (dc * /*dx **/ dim[primaryDim] * 2);
 
-
-	std::cout << "dc: " << dc << std::endl;
-
-	/*float avgJ = sum / n;
-	//float h = 1.0f / dim[primaryDim];	
-
-	float high = 1.0f;
-	float low = 0.0f;
-	float dc = high - low;
-	float dx = 1.0f;
-
-	float tau = d0 * porosity * dc / (avgJ * dx);
-
-	std::cout << "AvgJ: " << avgJ << std::endl;
-	std::cout << "Deff: " << (avgJ * dx) / dc << std::endl;*/
-	std::cout << "porosity: " << porosity << std::endl;
-
-	//float t = (d0 * (1.0f * porosity) / dc);
-	//float t2 = h * porosity / dc / 1.0f / 2.0f;
+	if (_verbose) {
+		std::cout << "dc: " << dc << std::endl;
+		std::cout << "porosity: " << _porosity << std::endl;
+	}	
 
 	return tau;
 

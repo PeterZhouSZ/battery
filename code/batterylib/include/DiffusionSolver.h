@@ -57,9 +57,8 @@ namespace blib {
 			float tolerance = 1.0e-6f
 		);
 
-		BLIB_EXPORT T tortuosityCPU(
-			const VolumeChannel & mask,
-			const VolumeChannel & concetration,
+		BLIB_EXPORT T tortuosity(
+			const VolumeChannel & mask,			
 			Dir dir
 		);
 
@@ -74,6 +73,8 @@ namespace blib {
 
 		Eigen::BiCGSTAB<Eigen::SparseMatrix<T, Eigen::RowMajor>> _solver;
 
+
+		T _porosity;
 
 	};
 

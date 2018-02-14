@@ -11,7 +11,7 @@
 
 #include <batterylib/include/VolumeIO.h>
 
-
+#include <chrono>
 #include <iostream>
 #include <fstream>
 
@@ -392,6 +392,9 @@ void Ui::update(double dt)
 		float tol = powf(10.0f, -_app._options["Diffusion"].get<int>("Tolerance"));
 
 		
+		std::chrono::duration<double> tPrep;
+		std::chrono::duration<double> tSolve;
+		std::chrono::duration<double> tTort;
 
 		if (particleAsBoundary) {
 			_app._diffSolver.solveWithoutParticles(
@@ -404,31 +407,48 @@ void Ui::update(double dt)
 		}
 		else {
 			
+			auto t0 = std::chrono::system_clock::now();
 			_app._diffSolver.prepare(
 				_app._volume->getChannel(CHANNEL_BATTERY), dir,
 				_app._options["Diffusion"].get<float>("D_zero"),
 				_app._options["Diffusion"].get<float>("D_one")
 			);
+			auto t1 = std::chrono::system_clock::now();
 			_app._diffSolver.solve(tol, 2000, 100);
-			_app._diffSolver.resultToVolume(_app._volume->getChannel(CHANNEL_CONCETRATION));
+			auto t2 = std::chrono::system_clock::now();
+
+			tPrep = t1 - t0;
+			tSolve = t2 - t1;
+
+			_app._diffSolver.resultToVolume(_app._volume->getChannel(CHANNEL_CONCETRATION));			
 		}
 
 		//Update to GPU
 		_app._volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().commit();
 
-		float tau = _app._diffSolver.tortuosityCPU(
-			_app._volume->getChannel(CHANNEL_BATTERY),
-			_app._volume->getChannel(CHANNEL_CONCETRATION),
+		auto tt0 = std::chrono::system_clock::now();
+		float tau = _app._diffSolver.tortuosity(
+			_app._volume->getChannel(CHANNEL_BATTERY),			
 			dir
 		);
+		auto tt1 = std::chrono::system_clock::now();
+
+		tTort = tt1 - tt0;
+
 		std::cout << "tau = " << tau << "\n";
+
+		std::cout << "Time " << 
+			"| Prep: " << tPrep.count() << 
+			"s | Solve: " << tSolve.count() << 
+			"s | Tau: " << tTort.count() << "\n";
+
+		
 	}
 
 	ImGui::SameLine();
 	if (ImGui::Button("Tortuosity")) {
-		float tau = _app._diffSolver.tortuosityCPU(
-			_app._volume->getChannel(CHANNEL_BATTERY),
-			_app._volume->getChannel(CHANNEL_CONCETRATION),
+		float tau = _app._diffSolver.tortuosity(
+			_app._volume->getChannel(CHANNEL_BATTERY),			
 			dir
 		);
 		std::cout << "tau = " << tau << "\n";
