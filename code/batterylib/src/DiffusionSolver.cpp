@@ -1,13 +1,5 @@
 #include "DiffusionSolver.h"
 
-#include "CudaUtility.h"
-
-using namespace blib;
-
-
-//#define DS_USEGPU
-//#define DS_LINSYS_TO_FILE
-
 #include <chrono>
 #include <iostream>
 #include <fstream>
@@ -16,100 +8,18 @@ using namespace blib;
 #include <Eigen/SparseLU>
 
 #include <omp.h>
-
-#include "PrimitiveTypes.h"
-
 #include <stack>
 
+#include "PrimitiveTypes.h"
+#include "JacobiSolver.h"
 
+//#define DS_LINSYS_TO_FILE
 
-template <typename T>
-void solveJacobi(
-	const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
-	const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
-	Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
-	float tolerance = 1e-4,
-	size_t maxIter = 20000,
-	bool verbose = false
+using namespace blib;
 
-){
-	Eigen::Matrix<T, Eigen::Dynamic, 1> xprime(x.size());	
-	Eigen::Matrix<T, Eigen::Dynamic, 1> res(x.size());
+template class DiffusionSolver<float>;
+template class DiffusionSolver<double>;
 
-	maxIter = (maxIter / 2) * 2; //divisible by two
-
-
-	float bsqnorm = b.squaredNorm();
-	float tol2 = tolerance * tolerance * bsqnorm;
-
-	for (auto i = 0; i < maxIter; ++i) {
-
-		auto & curX = (i % 2 == 0) ? x : xprime;
-		auto & nextX = (i % 2 == 0) ? xprime : x;
-
-		res = b - A*curX;
-
-		float err = res.squaredNorm();// / bsqnorm;
-
-		//float err = res.mean();
-
-		if (verbose && i % 128 == 0) {
-
-			float tol_error = sqrt(err / bsqnorm);
-
-			std::cout << "jacobi i: " << i << " err: " << err << ", tol_error: " << tol_error << std::endl;
-		}
-
-		if (err <= tol2) {
-			
-
-			if (verbose) {
-				float tol_error = sqrt(err / bsqnorm);
-				std::cout << "solved " << err << " <= " << tol2 << std::endl;
-				std::cout << "tol_error" << tol_error << std::endl;
-			}
-
-			if (&x != &curX) {
-				std::swap(x, curX);
-			}				
-			break;
-		}
-		jacobiStep(A, b, curX, nextX);
-
-	}
-
-}
-
-template <typename T>
-void jacobiStep(
-	const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
-	const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
-	Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
-	Eigen::Matrix<T, Eigen::Dynamic, 1> & xnew
-) {
-
-	
-	#pragma omp parallel for
-	for (auto i = 0; i < A.rows(); i++) {		
-
-		float sum = 0.0f;
-		float diag = 0.0f;
-		for (Eigen::SparseMatrix<float, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
-			auto  j = it.col();
-			if (j == i) {				
-				diag = it.value();				
-				continue;
-			}
-			sum += it.value() * x[j];
-		}
-
-		if (diag == 0.0f) {
-			char k;
-			k = 0;
-		}		
-		xnew[i] = (b[i] - sum) / diag;
-	}	
-}
 
 
 enum NeighType {
@@ -325,56 +235,250 @@ void buildNodeList(std::vector<Node> & nodeList, std::vector<size_t> & indices, 
 }
 
 
-
-DiffusionSolver::DiffusionSolver(bool verbose)
-	: _verbose(verbose),
-	 _maxElemPerRow(7) //diagonal and +-x|y|z
+template <typename T>
+DiffusionSolver<T>::DiffusionSolver(bool verbose)
+	: _verbose(verbose)	 
 {
-
-#ifdef DS_USEGPU
-
-		//Handle to cusolver lib
-		_CUSOLVER(cusolverSpCreate(&_handle));
-
-		//Handle to cusparse
-		_CUSPARSE(cusparseCreate(&_cusparseHandle));
-
-		//Create new stream
-		_CUDA(cudaStreamCreate(&_stream));
-		_CUSPARSE(cusparseSetStream(_cusparseHandle, _stream));
-
-		//Matrix description
-		_CUSPARSE(cusparseCreateMatDescr(&_descrA));
-		_CUSPARSE(cusparseSetMatType(_descrA, CUSPARSE_MATRIX_TYPE_GENERAL));
-		//todo matrix type - perhaps symmetrical?
-
-		_CUSPARSE(cusparseSetMatIndexBase(_descrA, CUSPARSE_INDEX_BASE_ZERO));
-
-#endif // DS_USEGPU
-
-
-}
-
-blib::DiffusionSolver::~DiffusionSolver()
-{
-#ifdef DS_USEGPU
-		if (_handle) { _CUSOLVER(cusolverSpDestroy(_handle)); }
-		if (_cusparseHandle) { _CUSPARSE(cusparseDestroy(_cusparseHandle)); }
-		if (_stream) { _CUDA(cudaStreamDestroy(_stream)); }
-		if (_descrA) { _CUSPARSE(cusparseDestroyMatDescr(_descrA)); }
-
-		if (_deviceA)  _CUDA(cudaFree(_deviceA));
-		if (_deviceRowPtr)  _CUDA(cudaFree(_deviceRowPtr));
-		if (_deviceColInd)  _CUDA(cudaFree(_deviceColInd));
-
-		if (_deviceB)  _CUDA(cudaFree(_deviceB));
-		if (_deviceX)  _CUDA(cudaFree(_deviceX));
 	
-#endif // DS_USEGPU
+}
+
+template <typename T>
+DiffusionSolver<T>::~DiffusionSolver()
+{
 
 }
 
-bool blib::DiffusionSolver::solve(
+
+template <typename T>
+bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, float d0, float d1)
+{
+
+	using vec3 = glm::tvec3<T, glm::highp>;
+	
+	auto dim = volChannel.dim();
+	assert(volChannel.type() == TYPE_UCHAR);
+	assert(dim.x > 0 && dim.y > 0 && dim.z > 0);
+	
+	uint dirPrimary = getDirIndex(dir);
+	uint dirSecondary[2] = { (dirPrimary + 1) % 3, (dirPrimary + 2) % 3 };
+	const T highConc = 1.0f;
+	const T lowConc = 0.0f;
+	const T concetrationBegin = (getDirSgn(dir) == 1) ? highConc : lowConc;
+	const T concetrationEnd = (getDirSgn(dir) == 1) ? lowConc : highConc;
+
+	size_t N = dim.x * dim.y * dim.z;
+	size_t M = N; 
+
+	_rhs.resize(M);	
+	_x.resize(N);
+
+	std::vector<Eigen::Triplet<T>> triplets(M);
+	
+	//D data
+	const uchar * D = (uchar *)volChannel.getCurrentPtr().getCPU();	
+	
+	//D getter
+	const auto getD = [dim, D, d0, d1](ivec3 pos) {
+		return (D[linearIndex(dim, pos)] == 0) ? d0 : d1;
+	};
+
+	const auto sample = [&getD, dim, D, d0, d1](ivec3 pos, Dir dir) {
+		const int k = getDirIndex(dir);
+		assert(pos.x >= 0 && pos.y >= 0 && pos.z >= 0);
+		assert(pos.x < dim.x && pos.y < dim.y && pos.z < dim.z);
+
+		ivec3 newPos = pos;
+		int sgn = getDirSgn(dir);
+		if (pos[k] + sgn < 0 || pos[k] + sgn >= dim[k]) {
+			//do nothing
+		}
+		else {
+			newPos[k] += getDirSgn(dir);
+		}
+		return getD(newPos);
+	};
+
+
+	//Default spacing
+	const vec3 h_general = { 1.0f / (dim.x + 1), 1.0f / (dim.y + 1), 1.0f / (dim.z + 1) };
+
+	//Build matrix
+	for (auto z = 0; z < dim.z; z++) {
+		for (auto y = 0; y < dim.y; y++) {
+			for (auto x = 0; x < dim.x; x++) {
+
+				const ivec3 ipos = { x,y,z };
+				auto i = linearIndex(dim, ipos);
+
+				vec3 hneg = h_general;
+				vec3 hpos = h_general;
+
+				//Adjust spacing on boundary
+				for (auto k = 0; k < 3; k++) {
+					if (ipos[k] == 0)
+						hneg[k] *= 0.5;					
+					else if (ipos[k] >= dim[k] - 1)
+						hpos[k] *= 0.5;					
+				}
+				const vec3 invHneg = vec3(1.0) / hneg;
+				vec3 invHneg2 = invHneg*invHneg;
+				const vec3 invHpos = vec3(1.0) / hpos;
+				vec3 invHpos2 = invHpos*invHpos;
+
+				T bval = 0.0f;
+				T vals[7] = { 0.0f,0.0f ,0.0f ,0.0f ,0.0f ,0.0f ,0.0f };
+				size_t colId[7];
+				colId[0] = i - dim.y*dim.x;
+				colId[1] = i - dim.x;
+				colId[2] = i - 1;
+				colId[3] = i;
+				colId[4] = i + 1;
+				colId[5] = i + dim.x;
+				colId[6] = i + dim.y*dim.x;
+
+				auto Dcur = vec3(getD(ipos));				
+				auto Dneg = (vec3(
+					sample(ipos, X_NEG),
+					sample(ipos, Y_NEG),
+					sample(ipos, Z_NEG)
+				) + vec3(Dcur)) * T(0.5) * invHneg2;
+
+				auto Dpos = (vec3(
+					sample(ipos, X_POS),
+					sample(ipos, Y_POS),
+					sample(ipos, Z_POS)
+				) + vec3(Dcur)) * T(0.5) * invHpos2;
+				
+				T diagVal = 0.0f;
+				
+				//(is first order accurate von neumann for secondary axes)
+				for (auto k = 0; k < 3; k++) {
+					if (ipos[k] > 0)
+						diagVal += -Dneg[k];
+					if (ipos[k] < dim[k] - 1)
+						diagVal += -Dpos[k];
+				}
+
+				//Boundary conditions
+				if (ipos[dirPrimary] == 0) {
+					bval = -T(0.5) * sample(ipos, getDir(dirPrimary, -1)) * concetrationBegin * invHneg2[dirPrimary];
+					T c = T(0.5) * invHneg2[dirPrimary] * sample(ipos, getDir(dirPrimary, -1));;
+					diagVal -= c;
+
+				}
+				else if (ipos[dirPrimary] == dim[dirPrimary] - 1) {
+					bval = -T(0.5) * sample(ipos, getDir(dirPrimary, +1)) * concetrationEnd  * invHpos2[dirPrimary];
+					T c = T(0.5)* invHpos2[dirPrimary] * sample(ipos, getDir(dirPrimary, +1));
+					diagVal -= c;
+
+				}
+
+
+				if (z > 0) vals[0] = Dneg.z;
+				if (y > 0) vals[1] = Dneg.y;
+				if (x > 0) vals[2] = Dneg.x;
+				vals[3] = diagVal;
+				if (x < dim.x - 1) vals[4] = Dpos.x;
+				if (y < dim.y - 1) vals[5] = Dpos.y;
+				if (z < dim.z - 1) vals[6] = Dpos.z;
+
+				_rhs[i] = bval;
+
+				//initial guess
+				if (getDirSgn(dir) == 1)
+					_x[i] = 1.0f - (ipos[dirPrimary] / T(dim[dirPrimary] + 1));
+				else
+					_x[i] = (ipos[dirPrimary] / T(dim[dirPrimary] + 1));
+
+				
+				for (auto k = 0; k < 7; k++) {
+					if (colId[k] < 0 || colId[k] >= N || vals[k] == 0.0f) continue;
+					triplets.push_back(Eigen::Triplet<T>(i, colId[k], vals[k]));					
+				}
+
+			}
+		}
+	}
+
+
+	//Todo fill directly
+	_A.resize(M, N);
+	_A.setFromTriplets(triplets.begin(), triplets.end());
+	_A.makeCompressed();	
+
+
+
+	_solver.compute(_A);
+
+	return true;
+
+}
+
+
+
+template <typename T>
+T DiffusionSolver<T>::solve(float tolerance, size_t maxIterations, size_t iterPerStep)
+{
+	
+	iterPerStep = std::min(iterPerStep, maxIterations);
+	_solver.setTolerance(tolerance);
+	_solver.setMaxIterations(iterPerStep);
+
+	T err = std::numeric_limits<T>::max();
+
+	for (auto i = 0; i < maxIterations; i += iterPerStep) {
+
+		_x = _solver.solveWithGuess(_rhs, _x);
+		err = _solver.error();
+
+		if (_verbose) {
+			std::cout << "i:" << i << ", estimated error: " << err << std::endl;			
+		}
+
+		if (err <= tolerance)
+			break;		
+	}
+
+
+	return err;
+
+}
+
+
+template <typename T>
+bool DiffusionSolver<T>::resultToVolume(VolumeChannel & vol)
+{
+
+	void * destPtr = vol.getCurrentPtr().getCPU();
+
+	//Copy directly if same type
+	if ((std::is_same<float, T>::value && vol.type() == TYPE_FLOAT) ||
+		(std::is_same<double, T>::value && vol.type() == TYPE_DOUBLE)) {
+		memcpy(destPtr, _x.data(), _x.size() * sizeof(T));
+	}
+	else {
+		if (vol.type() == TYPE_FLOAT) {
+			Eigen::Matrix<float, Eigen::Dynamic, 1> tmpX = _x.cast<float>();
+			memcpy(destPtr, tmpX.data(), tmpX.size() * sizeof(float));
+		}
+		else if (vol.type() == TYPE_DOUBLE) {
+			Eigen::Matrix<double, Eigen::Dynamic, 1> tmpX = _x.cast<double>();
+			memcpy(destPtr, tmpX.data(), tmpX.size() * sizeof(double));
+		}
+		else {
+			return false;
+		}
+	}	
+	
+	return true;
+
+
+}
+
+
+
+template <typename T>
+bool DiffusionSolver<T>::solve(
 	VolumeChannel & volChannel, 
 	VolumeChannel * outVolume, 
 	Dir dir, 
@@ -382,8 +486,7 @@ bool blib::DiffusionSolver::solve(
 	float d1,
 	float tolerance	
 )
-{
-	using T = float;
+{	
 	using vec3 = glm::tvec3<T,glm::highp>;
 	
 
@@ -407,24 +510,21 @@ bool blib::DiffusionSolver::solve(
 	//Matrix dimensions	
 	size_t N = dim.x * dim.y * dim.z; //cols
 	size_t M = N; //rows
-	size_t nnz = _maxElemPerRow * M; //total elems
+	//size_t nnz = _maxElemPerRow * M; //total elems
 	
 
 	//Reallocate if needed
-	if (nnz > _nnz) {
+	/*if (nnz > _nnz) {
 		//Update dims
 		_nnz = nnz;
 		_M = M;
 		_N = N;	
-	}
+	}*/
 
 	
 
 
-	//Copy data
-	if (_verbose)
-		std::cout << nnz << " elems, " << "vol: ~" << dim[dirPrimary] << " ^3" << std::endl;
-
+	
 
 	auto start0 = std::chrono::system_clock::now();
 	
@@ -472,11 +572,7 @@ bool blib::DiffusionSolver::solve(
 	};
 
 
-	const vec3 h_general = { 1.0f / (dim.x + 1), 1.0f / (dim.y + 1), 1.0f / (dim.z + 1) };	
-
-
-	
-
+	const vec3 h_general = { 1.0f / (dim.x + 1), 1.0f / (dim.y + 1), 1.0f / (dim.z + 1) };		
 
 	int curRowPtr = 0;
 	for (auto z = 0; z < dim.z; z++) {
@@ -790,8 +886,8 @@ bool blib::DiffusionSolver::solve(
 
 
 
-
-BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
+template <typename T>
+BLIB_EXPORT bool DiffusionSolver<T>::solveWithoutParticles(
 	VolumeChannel & volChannel, 
 	VolumeChannel * outVolume, 
 	float d0,
@@ -803,7 +899,7 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 	assert(false); // CPU only
 #endif
 
-	using T = float;
+	
 
 	const auto & c = volChannel;
 	auto dim = c.dim();
@@ -978,7 +1074,8 @@ BLIB_EXPORT bool blib::DiffusionSolver::solveWithoutParticles(
 	return true;
 }
 
-BLIB_EXPORT double blib::DiffusionSolver::tortuosityCPU(const VolumeChannel & mask, const VolumeChannel & concetration, Dir dir)
+template <typename T>
+BLIB_EXPORT T blib::DiffusionSolver<T>::tortuosityCPU(const VolumeChannel & mask, const VolumeChannel & concetration, Dir dir)
 {
 	
 	

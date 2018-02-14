@@ -404,15 +404,15 @@ void Ui::update(double dt)
 		}
 		else {
 			
-			_app._diffSolver.solve(
-				_app._volume->getChannel(CHANNEL_BATTERY),
-				&_app._volume->getChannel(CHANNEL_CONCETRATION),
-				dir,
+			_app._diffSolver.prepare(
+				_app._volume->getChannel(CHANNEL_BATTERY), dir,
 				_app._options["Diffusion"].get<float>("D_zero"),
-				_app._options["Diffusion"].get<float>("D_one"),
-				tol
+				_app._options["Diffusion"].get<float>("D_one")
 			);
+			_app._diffSolver.solve(tol, 2000, 100);
+			_app._diffSolver.resultToVolume(_app._volume->getChannel(CHANNEL_CONCETRATION));
 		}
+
 		//Update to GPU
 		_app._volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().commit();
 

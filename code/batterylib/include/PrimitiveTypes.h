@@ -6,18 +6,21 @@ using uint = unsigned int;
 using uchar = unsigned char;
 
 enum PrimitiveType {
-	TYPE_FLOAT = 0,
+	TYPE_FLOAT = 0,	
 	TYPE_CHAR,
 	TYPE_UCHAR,
 	TYPE_INT,
 	TYPE_FLOAT3,
-	TYPE_FLOAT4
+	TYPE_FLOAT4,	
+	TYPE_DOUBLE,
 };
 
 inline uint primitiveSizeof(PrimitiveType type) {
 	switch (type) {
 	case TYPE_FLOAT: 
 		return sizeof(float);
+	case TYPE_DOUBLE:
+		return sizeof(double);
 	case TYPE_CHAR:
 		return sizeof(char);
 	case TYPE_UCHAR:

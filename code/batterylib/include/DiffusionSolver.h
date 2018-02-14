@@ -3,12 +3,13 @@
 #include "BatteryLibDef.h"
 #include "Volume.h"
 
-#include <cusparse.h>
-#include <cusolverSp.h>
 
+#include <Eigen/Eigen>
+#include <Eigen/IterativeLinearSolvers>
 
 namespace blib {
 
+	template <typename T>
 	class DiffusionSolver {
 
 
@@ -16,6 +17,26 @@ namespace blib {
 		BLIB_EXPORT DiffusionSolver(bool verbose = true);
 		BLIB_EXPORT ~DiffusionSolver();
 
+
+		/*
+			Assumes volChannel is synchronized on cpu
+		*/
+		BLIB_EXPORT bool prepare(
+			VolumeChannel & volChannel,
+			Dir dir,
+			float d0,
+			float d1
+		);
+
+		//Returns current error
+		BLIB_EXPORT T solve(
+			float tolerance,
+			size_t maxIterations,
+			size_t iterPerStep = size_t(-1)
+		);
+
+		//Returns false there's format mismatch and no conversion available
+		BLIB_EXPORT bool resultToVolume(VolumeChannel & vol);
 
 		//Solves stable=state diffusion equation		
 		//if dir is pos, 0 is high concetration, otherwise dim[dir]-1 is high
@@ -36,7 +57,7 @@ namespace blib {
 			float tolerance = 1.0e-6f
 		);
 
-		BLIB_EXPORT double tortuosityCPU(
+		BLIB_EXPORT T tortuosityCPU(
 			const VolumeChannel & mask,
 			const VolumeChannel & concetration,
 			Dir dir
@@ -47,23 +68,15 @@ namespace blib {
 		
 		bool _verbose;
 
-		cusolverSpHandle_t _handle = nullptr;
-		cusparseHandle_t _cusparseHandle = nullptr; // used in residual evaluation
-		cudaStream_t _stream = nullptr;
-		cusparseMatDescr_t _descrA = nullptr;
+		Eigen::Matrix<T, Eigen::Dynamic, 1> _rhs;
+		Eigen::Matrix<T, Eigen::Dynamic, 1> _x;
+		Eigen::SparseMatrix<T, Eigen::RowMajor> _A;
 
-		size_t _N = 0;
-		size_t _M = 0;
-		size_t _nnz = 0;
-		size_t _maxElemPerRow = 7;
+		Eigen::BiCGSTAB<Eigen::SparseMatrix<T, Eigen::RowMajor>> _solver;
 
-		float * _deviceA = nullptr;
-		int * _deviceRowPtr = nullptr;
-		int * _deviceColInd = nullptr;
-
-		float * _deviceB = nullptr;
-		float * _deviceX = nullptr;
 
 	};
 
+
+	
 }
