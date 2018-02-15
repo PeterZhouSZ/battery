@@ -57,12 +57,12 @@ if(args.input != None):
 	inputFile = open(args.input, 'rb')
 	intensity = cPickle.load(inputFile)
 	inputFile.close()
-	intensity = 255 - intensity;
+	#intensity = 255 - intensity;
 
 	#subvolume selection
 	o = 0 # origin
-	m = 8 # dim
-	#intensity = intensity[o:o+m,o:o+m,o:o+m]
+	m = 128 # dim
+	intensity = intensity[o:o+m,o:o+m,o:o+m]
 else:	
 	##Small test case for lin.sys comparison
 
@@ -76,10 +76,10 @@ else:
 
 
 #Converts .bin to tiff, into /vol folder
-convertToTiff = False;
+convertToTiff = True;
 if(convertToTiff):
 	outputFile = open('vol.vol', 'wb')
-	cPickle.dump(255 - intensity,outputFile)	
+	cPickle.dump(intensity,outputFile)	
 	outputFile.close()
 	os.system('python binToTif.py vol.vol')
 	
@@ -96,9 +96,9 @@ t2 = time.time()
 nx = intensity.shape[2]
 ny = intensity.shape[1]
 nz = intensity.shape[0]
-dx = 0.37e-6#1.0/(nx+1)#0.37e-6
-dy = 0.37e-6#1.0/(ny+1)#0.37e-6
-dz = 0.37e-6#1.0/(nz+1)#0.37e-6
+dx = 1.0/(nx+1)#0.37e-6
+dy = 1.0/(ny+1)#0.37e-6
+dz = 1.0/(nz+1)#0.37e-6
 
 newIntensity = np.zeros(nx*ny*nz)
 
@@ -116,6 +116,9 @@ print(newIntensity)
 t3 = time.time()
 phase=CellVariable(mesh, value = 0.0)
 phase.setValue(1 - newIntensity/255) #Thresholding step. Values less than 255 are assigned 0.
+#empty space 0-254 -> 1 - 0/255 -> 1
+#particles 255 -> 1 - 1 -> 0
+#sets empty space phase=0, particles phase=1
 
 print("phase:")
 print(phase)
@@ -127,6 +130,7 @@ print ("Phase Set!")
 print ("Setting D...")
 t5 = time.time()
 D = 1.0e-3*phase + 1.0*(1.0-phase) 
+#sets empty space to 1.0, particles to 1e-3
 #D = 1.0e-10*phase + 1.0e-7*(1.0-phase) # Original, but doesnt work (div by zero)
 t6 = time.time()
 print ("D Set!")
@@ -136,6 +140,7 @@ print(D)
 
 # Calculate porosity.
 porosity = 1.0 - (np.shape(where(phase > 0)[0])[0] / float(np.shape(phase)[0]))
+# eps = 1 - particles / total = empty / total
 
 print ('solving...')
 t7 = time.time()

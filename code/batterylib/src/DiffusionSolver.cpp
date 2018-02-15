@@ -731,6 +731,7 @@ BLIB_EXPORT T blib::DiffusionSolver<T>::tortuosity(const VolumeChannel & mask, D
 	if (_verbose) {
 		std::cout << "dc: " << dc << std::endl;
 		std::cout << "porosity: " << _porosity << std::endl;
+		std::cout << "tau: " << tau << std::endl;
 	}	
 
 	return tau;

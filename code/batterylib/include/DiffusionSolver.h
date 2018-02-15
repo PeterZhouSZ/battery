@@ -62,6 +62,8 @@ namespace blib {
 			Dir dir
 		);
 
+		BLIB_EXPORT T porosity() const { return _porosity; }
+
 	private:
 			
 		

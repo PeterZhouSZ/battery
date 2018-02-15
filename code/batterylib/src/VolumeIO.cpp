@@ -63,7 +63,7 @@ size_t directoryFileCount(const char * path)
 
 
 
-VolumeChannel blib::loadTiffFolder(const char * folder)
+VolumeChannel blib::loadTiffFolder(const char * folder, bool commitToGPU)
 {
 		
 
@@ -108,7 +108,8 @@ VolumeChannel blib::loadTiffFolder(const char * folder)
 		sliceIndex++;
 	}	
 
-	volume.getCurrentPtr().commit();
+	if(commitToGPU)
+		volume.getCurrentPtr().commit();
 
 	return volume;
 }

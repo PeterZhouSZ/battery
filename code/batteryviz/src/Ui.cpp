@@ -414,7 +414,7 @@ void Ui::update(double dt)
 				_app._options["Diffusion"].get<float>("D_one")
 			);
 			auto t1 = std::chrono::system_clock::now();
-			_app._diffSolver.solve(tol, 2000, 100);
+			_app._diffSolver.solve(tol, 2600, 250);
 			auto t2 = std::chrono::system_clock::now();
 
 			tPrep = t1 - t0;

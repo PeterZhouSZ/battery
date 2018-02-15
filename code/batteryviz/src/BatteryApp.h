@@ -80,7 +80,7 @@ protected:
 	> _saEllipsoid;
 
 
-	blib::DiffusionSolver<float> _diffSolver;
+	blib::DiffusionSolver<double> _diffSolver;
 
 
 	friend Ui;

@@ -9,6 +9,7 @@ include("premake-cuda/cuda.lua")
 --local blib = "../../batterylib" 
 local vizDir = "../batteryviz/"
 local libDir = "../batterylib/"
+local toolDir = "../batterytool/"
 
 workspace "battery"
 	configurations { "Debug", "Release" }
@@ -132,3 +133,54 @@ project "batteryviz"
 		optimize "On"
 		links {"glew32s"}
 
+project "batterytool"
+	kind "ConsoleApp"
+	language "C++"
+  	targetdir "../bin/%{cfg.buildcfg}/"
+
+  	files { 
+      toolDir .. "src/**.h", 
+      toolDir .. "src/**.cpp",
+      toolDir .. "external/*.cpp",
+      toolDir .. "external/*.h"         
+   	}
+
+   	includedirs {
+		"../",--root
+		toolDir .. "src/",				 	
+      	toolDir .. "external/",	
+		glew .. "/include",		
+		glfw .. "/include",
+		glm,
+		eigen		
+	}
+
+	libdirs {
+		glfw .. "/src/%{cfg.buildcfg}/",
+		"../bin/%{cfg.buildcfg}/",
+		glew .. "/lib/%{cfg.buildcfg}/%{cfg.platform}/"
+	}
+
+	links { 	   
+	 	"glfw3",	 	        
+	    "opengl32",
+	    "batterylib"   
+	} 
+
+	defines {
+		"GLEW_STATIC", 
+		"WIN64",		
+		"GLM_ENABLE_EXPERIMENTAL",
+		"_CRT_SECURE_NO_WARNINGS",
+		"NOMINMAX"
+	}
+
+	filter "configurations:Debug"
+    	defines { "DEBUG" }
+    	flags { "Symbols" }    
+    	links {"glew32sd"}
+
+	filter "configurations:Release"
+		defines { "NDEBUG" }
+		optimize "On"
+		links {"glew32s"}
