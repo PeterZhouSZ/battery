@@ -139,14 +139,10 @@ int main(int argc, char **argv){
 
 	blib::VolumeChannel & c = volume.getChannel(IDMask);
 
-	if (argSubvolume.Get() != 0) {
-		int newDim = argSubvolume.Get();
+	if (argSubvolume.Get() != 0) {		
 		auto dim = c.dim();
-		if (newDim > dim.x || newDim > dim.y || newDim > dim.z) {
-			std::cerr << "Subvolume larger than volume " << dim.x << " x " << dim.y << " x " << dim.z << std::endl;
-			return 1;
-		}
-		c.resize({ 0,0,0 }, blib::ivec3(newDim));
+		blib::ivec3 dd = glm::min(dim, blib::ivec3(argSubvolume.Get()));
+		c.resize({ 0,0,0 }, blib::ivec3(dd));
 	}
 
 	if (argVerbose) {
@@ -195,6 +191,10 @@ int main(int argc, char **argv){
 
 		std::chrono::duration<double> dt = t1 - t0;
 		times[i] = dt.count();
+
+		if (argVerbose) {
+			std::cout << "Elapsed: " << dt.count() << "s (" << dt.count() / 60.0 << "m)" << std::endl;
+		}
 	}
 
 	double avgTime = std::accumulate(times.begin(), times.end(),0.0) / times.size();
@@ -213,7 +213,7 @@ int main(int argc, char **argv){
 
 		os << porosity << ",\t";
 		for (auto & tau : taus) {
-			std::cout << tau << ",\t";
+			os << tau << ",\t";
 		}
 
 		os << avgTime << ",\t";
