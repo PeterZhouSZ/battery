@@ -17,11 +17,11 @@ for subdir, dirs, files in os.walk(root):
     if(subdir == root): continue
     ##print(subdir)
 
-    args = subdir + "/ -t"
+    args = subdir + "/ -t -dneg --step 128 -v -o out.csv"#--sub 16"
     print(args)
 
     subprocess.call(
-        '../bin/Release/batterytool.exe ' + args, stdout=f
+        '../bin/Release/batterytool.exe ' + args#,  stdout=f
     )
 
 f.close()

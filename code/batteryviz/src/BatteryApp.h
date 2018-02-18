@@ -15,6 +15,7 @@
 #include <batterylib/include/Transform.h>
 #include <batterylib/include/SimulatedAnnealing.h>
 #include <batterylib/include/DiffusionSolver.h>
+#include <batterylib/include/MultigridSolver.h>
 
 #include "Ui.h"
 
@@ -80,7 +81,8 @@ protected:
 	> _saEllipsoid;
 
 
-	blib::DiffusionSolver<double> _diffSolver;
+	blib::DiffusionSolver<float> _diffSolver;
+	blib::MultigridSolver<float> _multiSolver;
 
 
 	friend Ui;

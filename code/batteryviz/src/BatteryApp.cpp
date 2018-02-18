@@ -99,7 +99,8 @@ BatteryApp::BatteryApp()
 	_ui(*this),
 	_currentRenderChannel(0),
 	_simulationTime(0.0f),
-	_diffSolver(true)	
+	_diffSolver(true),
+	_multiSolver(true)
 {	
 
 
@@ -465,7 +466,7 @@ void BatteryApp::reset()
 		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
 		assert(batteryID == CHANNEL_BATTERY);
 
-		//_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(186,186,184));
+		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(32,32,32));
 		_volume->binarize(CHANNEL_BATTERY, 1.0f);
 
 		//Add concetration channel
@@ -519,6 +520,13 @@ void BatteryApp::reset()
 
 
 	}
+
+/*
+	{
+		auto & c = _volume->getChannel(CHANNEL_BATTERY);
+		uchar* data = (uchar*)c.getCurrentPtr().getCPU();
+		_multiSolver.prepare(data, c.dim(), X_POS, 1.0f, 0.001f, 3);
+	}*/
 
 	_volumeRaycaster->setVolume(*_volume, 0);
 }

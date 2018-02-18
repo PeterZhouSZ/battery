@@ -21,7 +21,7 @@
             "type": 2
         },
         "direction": {
-            "data": 1,
+            "data": 4,
             "type": 2
         },
         "voxelSize": {

@@ -52,7 +52,7 @@ std::vector<Dir> getDirs(std::string & flagStr) {
 
 int main(int argc, char **argv){
 
-	using T = float;
+	using T = double;
 
 	args::ArgumentParser parser("Battery tool", "Vojtech Krs (2018) vkrs@purdue.edu");
 	args::HelpFlag help(parser, "help", "", { 'h', "help" });
@@ -68,8 +68,11 @@ int main(int argc, char **argv){
 	args::ValueFlag<std::string> argTauDir(group, "string", "Direction (x|y|z)|all|pos|neg", { 'd', "dir" }, "x-");
 	args::ValueFlag<int> argTol(group, "tolerance", "Tolerance 1e-k", {"tol"}, 6);
 	args::ValueFlag<int> argMaxIterations(group, "maxIterations", "Max Iterations", {"iter"}, 10000);
+	args::ValueFlag<int> argStep(group, "step", "Step", { "step" }, 250);
 
 	args::ValueFlag<uint> argSubvolume(group, "subvolume", "Sub Volume", { "sub" }, 0);
+
+	args::Flag argVolumeExport(group, "Volume export", "Binary volume export", { "volExport" });
 
 	
 
@@ -97,7 +100,7 @@ int main(int argc, char **argv){
 	if (argVerbose) {
 		//std::cout << "Direction: " << argTauDir.Get() << " (" << int(tauDir) << ")" << std::endl;
 		std::cout << "Tolerance: " << argTol.Get() << std::endl;
-		std::cout << "MaxIterations: " << argMaxIterations.Get() << std::endl;
+		std::cout << "MaxIterations: " << argMaxIterations.Get() << " intermediate steps: " << argStep.Get() << std::endl;
 
 	}
 
@@ -112,7 +115,7 @@ int main(int argc, char **argv){
 
 
 	// Volume uses glTexture3D -> need opengl context
-	///todo create context without a window
+	///todo create context without a window or implement dataptr without gl interop
 	glfwInit();
 	auto wh = glfwCreateWindow(1, 1, "", NULL,NULL);
 	glfwMakeContextCurrent(wh);	 
@@ -123,13 +126,17 @@ int main(int argc, char **argv){
 
 	
 	blib::Volume volume;
+
+
 	
 
 	uint IDMask = 0;
 	try {		
 		IDMask = volume.emplaceChannel(
-			blib::loadTiffFolder(argInput.Get().c_str(), false)
+			blib::loadTiffFolder(argInput.Get().c_str(), true)
 		);
+		volume.binarize(IDMask, 1.0f);
+		
 	}
 	catch (const char * ex) {
 		std::cerr << "Failed to load: ";
@@ -144,6 +151,9 @@ int main(int argc, char **argv){
 		blib::ivec3 dd = glm::min(dim, blib::ivec3(argSubvolume.Get()));
 		c.resize({ 0,0,0 }, blib::ivec3(dd));
 	}
+
+	//Solution for export
+	uint concChannel = volume.addChannel(c.dim(), TYPE_FLOAT);
 
 	if (argVerbose) {
 		auto dim = c.dim();
@@ -182,12 +192,17 @@ int main(int argc, char **argv){
 		);
 		
 		T tol = T(pow(10.0, -argTol.Get()));
-		solver.solve(tol, argMaxIterations.Get());		
+		solver.solve(tol, argMaxIterations.Get(), argStep.Get());		
 
 		taus[i] = solver.tortuosity(c, dir);
 		porosity = solver.porosity();	
 
+		
+		
+
 		auto t1 = std::chrono::system_clock::now();
+
+
 
 		std::chrono::duration<double> dt = t1 - t0;
 		times[i] = dt.count();
@@ -195,6 +210,17 @@ int main(int argc, char **argv){
 		if (argVerbose) {
 			std::cout << "Elapsed: " << dt.count() << "s (" << dt.count() / 60.0 << "m)" << std::endl;
 		}
+
+
+		
+		if (argVolumeExport) {
+			solver.resultToVolume(volume.getChannel(concChannel));
+			bool res = blib::saveVolumeBinary((argInput.Get() + "/conc.vol").c_str(), volume.getChannel(concChannel));
+			if (argVerbose) {
+				std::cout << "export to" << (argInput.Get() + "/conc.vol") << std::endl;
+			}
+		}
+
 	}
 
 	double avgTime = std::accumulate(times.begin(), times.end(),0.0) / times.size();
@@ -204,7 +230,7 @@ int main(int argc, char **argv){
 		//If output file, open it
 		std::ofstream outFile;
 		if (argOutput) {
-			outFile.open(argOutput.Get());
+			outFile.open(argOutput.Get(), std::ios::app);
 		}
 		//Choose output stream
 		std::ostream & os = (outFile.is_open()) ? outFile : std::cout;

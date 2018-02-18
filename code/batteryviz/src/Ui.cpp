@@ -389,7 +389,8 @@ void Ui::update(double dt)
 	ImGui::SameLine();		
 		
 	if (ImGui::Button("Diffusion Solver")) {
-		float tol = powf(10.0f, -_app._options["Diffusion"].get<int>("Tolerance"));
+		decltype(_app._diffSolver)::value_type tol = 
+			powf(10.0f, -_app._options["Diffusion"].get<int>("Tolerance"));
 
 		
 		std::chrono::duration<double> tPrep;
@@ -414,7 +415,7 @@ void Ui::update(double dt)
 				_app._options["Diffusion"].get<float>("D_one")
 			);
 			auto t1 = std::chrono::system_clock::now();
-			_app._diffSolver.solve(tol, 2600, 250);
+			_app._diffSolver.solve(tol, 2600, 2500);
 			auto t2 = std::chrono::system_clock::now();
 
 			tPrep = t1 - t0;

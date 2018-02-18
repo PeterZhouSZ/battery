@@ -251,7 +251,7 @@ DiffusionSolver<T>::~DiffusionSolver()
 
 
 template <typename T>
-bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, float d0, float d1)
+bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1)
 {
 
 	using vec3 = glm::tvec3<T, glm::highp>;
@@ -426,7 +426,7 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, float d0, 
 
 
 template <typename T>
-T DiffusionSolver<T>::solve(float tolerance, size_t maxIterations, size_t iterPerStep)
+T DiffusionSolver<T>::solve(T tolerance, size_t maxIterations, size_t iterPerStep)
 {
 	
 	iterPerStep = std::min(iterPerStep, maxIterations);
@@ -438,10 +438,24 @@ T DiffusionSolver<T>::solve(float tolerance, size_t maxIterations, size_t iterPe
 	for (auto i = 0; i < maxIterations; i += iterPerStep) {
 
 		_x = _solver.solveWithGuess(_rhs, _x);
+		
 		err = _solver.error();
 
 		if (_verbose) {
-			std::cout << "i:" << i << ", estimated error: " << err << std::endl;			
+			std::cout << "i:" << i << ", estimated error: " << err << ", ";
+		
+			switch (_solver.info()) {
+			case Eigen::ComputationInfo::Success:
+				std::cout << "Success"; break;
+			case Eigen::ComputationInfo::NumericalIssue:
+				std::cout << "NumericalIssue"; break;
+			case Eigen::ComputationInfo::NoConvergence:
+				std::cout << "NoConvergence"; break;
+			case Eigen::ComputationInfo::InvalidInput:
+				std::cout << "InvalidInput"; break;
+			}
+
+			std::cout << std::endl;
 		}
 
 		if (err <= tolerance)

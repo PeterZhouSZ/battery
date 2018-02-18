@@ -80,6 +80,7 @@ VolumeChannel blib::loadTiffFolder(const char * folder, bool commitToGPU)
 	//Find first tiff
 	for (auto & f : fs::directory_iterator(path)) {
 		if (fs::is_directory(f)) continue;		
+		
 
 		if (!tiffSize(f.path().string().c_str(), &x, &y, &bytes))
 			throw "Couldn't read tiff file";

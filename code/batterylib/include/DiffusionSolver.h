@@ -14,6 +14,9 @@ namespace blib {
 
 
 	public:
+
+		using value_type = T;
+
 		BLIB_EXPORT DiffusionSolver(bool verbose = true);
 		BLIB_EXPORT ~DiffusionSolver();
 
@@ -24,13 +27,13 @@ namespace blib {
 		BLIB_EXPORT bool prepare(
 			VolumeChannel & volChannel,
 			Dir dir,
-			float d0,
-			float d1
+			T d0,
+			T d1
 		);
 
 		//Returns current error
 		BLIB_EXPORT T solve(
-			float tolerance,
+			T tolerance,
 			size_t maxIterations,
 			size_t iterPerStep = size_t(-1)
 		);
