@@ -15,6 +15,36 @@ namespace fs = std::experimental::filesystem;
 
 using namespace std;
 
+
+args::ArgumentParser parser("Battery tool", "Vojtech Krs (2018) vkrs@purdue.edu");
+args::HelpFlag help(parser, "help", "", { 'h', "help" });
+
+/*
+IO
+*/
+args::Positional<std::string> argInput(parser, "input", "Input file", args::Options::Required);
+args::ValueFlag<std::string> argOutput(parser, "output", "Output file", { 'o', "output" }, "");
+args::ValueFlag<uint> argSubvolume(parser, "subvolume", "Sub Volume", { "sub" }, 0);
+args::ValueFlag<std::string> argPrecision(parser, "precision", "Precision (float|double)", { 'p', "prec" }, "double");
+
+args::Group group(parser, "Tortuosity:", args::Group::Validators::AtLeastOne);
+
+args::Flag argTau(group, "t", "Tortuosity", { 't', "tau" });
+args::ValueFlag<std::string> argTauDir(group, "string", "Direction (x|y|z)|all|pos|neg", { 'd', "dir" }, "x-");
+args::ValueFlag<int> argTol(group, "tolerance", "Tolerance 1e-{tol}", { "tol" }, 6);
+args::ValueFlag<int> argMaxIterations(group, "maxIterations", "Max Iterations", { "iter" }, 10000);
+args::ValueFlag<int> argStep(group, "step", "Step", { "step" }, 250);
+args::Flag argVolumeExport(group, "Volume export", "Concetration volume export", { "volExport" });
+args::Flag argVerbose(group, "v", "Verbose", { 'v', "verbose" });
+
+
+/*
+	Extract what directions should be calculated from flagStr
+	all - positive and negative
+	pos, neg - three directions
+	x and/or y and/or z
+	default: x positive 
+*/
 std::vector<Dir> getDirs(std::string & flagStr) {
 
 	if (flagStr == "all")
@@ -37,116 +67,50 @@ std::vector<Dir> getDirs(std::string & flagStr) {
 		return { X_POS };
 
 	return arr;
-
-	/*int dirSign = +1;
-	char dirChar = argTauDir.Get()[0];
-	if (argTauDir.Get().length() > 1) {
-	if (argTauDir.Get()[1] == '-')
-	dirSign = -1;
-	}
-	int dirIndex = (dirChar == 'x') ? 0 : ((dirChar == 'y') ? 1 : 2);
-	Dir tauDir = getDir(dirIndex, dirSign);*/
-	
-
 }
 
-int main(int argc, char **argv){
-
-	using T = double;
-
-	args::ArgumentParser parser("Battery tool", "Vojtech Krs (2018) vkrs@purdue.edu");
-	args::HelpFlag help(parser, "help", "", { 'h', "help" });
-	
-
-	args::Positional<std::string> argInput(parser, "input", "Input file", args::Options::Required);
-	args::ValueFlag<std::string> argOutput(parser, "output", "Output file", { 'o', "output" }, "");
-
-	
-	args::Group group(parser, "Output (select at least one):", args::Group::Validators::AtLeastOne);
-	
-	args::Flag argTau(group, "t", "Tortuosity", { 't', "tau", "tortuosity" });
-	args::ValueFlag<std::string> argTauDir(group, "string", "Direction (x|y|z)|all|pos|neg", { 'd', "dir" }, "x-");
-	args::ValueFlag<int> argTol(group, "tolerance", "Tolerance 1e-k", {"tol"}, 6);
-	args::ValueFlag<int> argMaxIterations(group, "maxIterations", "Max Iterations", {"iter"}, 10000);
-	args::ValueFlag<int> argStep(group, "step", "Step", { "step" }, 250);
-
-	args::ValueFlag<uint> argSubvolume(group, "subvolume", "Sub Volume", { "sub" }, 0);
-
-	args::Flag argVolumeExport(group, "Volume export", "Binary volume export", { "volExport" });
+template <typename T>
+bool tortuosity() {
 
 	
 
 
-	args::Flag argPorosity(group, "p", "Porosity", { 'p', "porosity" });
-	args::Flag argTime(group, "time", "Time", { "time" });
-	args::Flag argVerbose(group, "v", "Verbose", { 'v', "verbose" });
-	args::CompletionFlag completion(parser, { "complete" });
-	
-	try{
-		parser.ParseCLI(argc, argv);
-	}	
-	catch (args::Help){
-		std::cout << parser;
-		return 0;
-	}
-	catch (args::Error e) {
-		std::cerr << e.what() << std::endl;
-		std::cerr << parser;
-		return 1;
-	}	
-
-	
-	
 	if (argVerbose) {
-		//std::cout << "Direction: " << argTauDir.Get() << " (" << int(tauDir) << ")" << std::endl;
+		std::cout << "Precision: " << argPrecision.Get() << std::endl;
 		std::cout << "Tolerance: " << argTol.Get() << std::endl;
 		std::cout << "MaxIterations: " << argMaxIterations.Get() << " intermediate steps: " << argStep.Get() << std::endl;
-
 	}
 
 
-	
-	
-	
-
-
-	 
-	
-
-
-	// Volume uses glTexture3D -> need opengl context
+	//VolumeChannel.DataPtr uses glTexture3D -> need opengl context
 	///todo create context without a window or implement dataptr without gl interop
 	glfwInit();
-	auto wh = glfwCreateWindow(1, 1, "", NULL,NULL);
-	glfwMakeContextCurrent(wh);	 
-	
-
-	
+	auto wh = glfwCreateWindow(1, 1, "", NULL, NULL);
+	glfwMakeContextCurrent(wh);
 
 
-	
+	/*
+	Load input volume
+	*/
 	blib::Volume volume;
-
-
-	
-
 	uint IDMask = 0;
-	try {		
+	try {
 		IDMask = volume.emplaceChannel(
 			blib::loadTiffFolder(argInput.Get().c_str(), true)
 		);
 		volume.binarize(IDMask, 1.0f);
-		
+
 	}
 	catch (const char * ex) {
 		std::cerr << "Failed to load: ";
-		std::cerr << ex << std::endl;		
-		return 1;
+		std::cerr << ex << std::endl;
+		return false;
 	}
 
 	blib::VolumeChannel & c = volume.getChannel(IDMask);
 
-	if (argSubvolume.Get() != 0) {		
+	//Resize volume if desired
+	if (argSubvolume.Get() != 0) {
 		auto dim = c.dim();
 		blib::ivec3 dd = glm::min(dim, blib::ivec3(argSubvolume.Get()));
 		c.resize({ 0,0,0 }, blib::ivec3(dd));
@@ -161,22 +125,19 @@ int main(int argc, char **argv){
 			" = " << dim.x*dim.y*dim.z << " voxels "
 			<< "(" << (dim.x*dim.y*dim.z) / (1024 * 1024.0f) << "M)" << std::endl;
 
-	
+
 	}
 
-	
-	std::vector<Dir> dirs = getDirs(argTauDir.Get());
 
+	std::vector<Dir> dirs = getDirs(argTauDir.Get());
 	std::vector<T> taus(dirs.size());
+	T porosity;
 	std::vector<double> times(dirs.size());
-	
+
 	T d0 = 1.0f;
 	T d1 = 0.001f;
 
 	blib::DiffusionSolver<T> solver(argVerbose);
-
-	T porosity;
-
 	for (auto i = 0; i < dirs.size(); i++) {
 		auto dir = dirs[i];
 		if (argVerbose) {
@@ -184,24 +145,22 @@ int main(int argc, char **argv){
 		}
 
 		auto t0 = std::chrono::system_clock::now();
+		//Prepare linear system
 		solver.prepare(
 			c,
 			dir,
 			d0,
 			d1
 		);
-		
+
 		T tol = T(pow(10.0, -argTol.Get()));
-		solver.solve(tol, argMaxIterations.Get(), argStep.Get());		
+		//Solve to desired tolerance
+		solver.solve(tol, argMaxIterations.Get(), argStep.Get());
 
+		//Calculate tortuosity and porosity
 		taus[i] = solver.tortuosity(c, dir);
-		porosity = solver.porosity();	
-
-		
-		
-
+		porosity = solver.porosity();
 		auto t1 = std::chrono::system_clock::now();
-
 
 
 		std::chrono::duration<double> dt = t1 - t0;
@@ -211,8 +170,7 @@ int main(int argc, char **argv){
 			std::cout << "Elapsed: " << dt.count() << "s (" << dt.count() / 60.0 << "m)" << std::endl;
 		}
 
-
-		
+		//Export calculated concetration volume
 		if (argVolumeExport) {
 			const std::string exportPath = (argInput.Get() + std::string("/conc_dir") + char(char(dir) + '0') + std::string(".vol"));
 			solver.resultToVolume(volume.getChannel(concChannel));
@@ -224,9 +182,11 @@ int main(int argc, char **argv){
 
 	}
 
-	double avgTime = std::accumulate(times.begin(), times.end(),0.0) / times.size();
 
 
+	/*
+	Output result
+	*/
 	{
 		//If output file, open it
 		std::ofstream outFile;
@@ -243,6 +203,7 @@ int main(int argc, char **argv){
 			os << tau << ",\t";
 		}
 
+		double avgTime = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
 		os << avgTime << ",\t";
 
 		auto dim = c.dim();
@@ -251,7 +212,39 @@ int main(int argc, char **argv){
 		os << "\n";
 	}
 
-	
-	return 0;
+	return true;
 
+}
+
+
+
+int main(int argc, char **argv){
+
+		
+	try{
+		parser.ParseCLI(argc, argv);
+	}	
+	catch (args::Help){
+		std::cout << parser;
+		return 0;
+	}
+	catch (args::Error e) {
+		std::cerr << e.what() << std::endl;
+		std::cerr << parser;
+		return 1;
+	}	
+
+	
+
+	bool res = true;
+
+	if (argPrecision.Get() == "float")
+		res &= tortuosity<float>();
+	else
+		res &= tortuosity<double>();
+
+
+	
+	if (res) return 0;
+	return 2;
 }
