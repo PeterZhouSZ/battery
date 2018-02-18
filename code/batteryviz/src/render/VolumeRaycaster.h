@@ -32,12 +32,12 @@ struct VolumeRaycaster {
 
 	void render(
 		const Camera & camera,
-		ivec4 viewport,
-		Shader & shaderPosition,
-		Shader & shaderRaycast
+		ivec4 viewport
 	);
 
 	void renderSlice(int axis, ivec2 screenPos, ivec2 screenSize) const;
+
+	void renderGrid(const Camera & camera, ivec4 viewport, Shader & shader, float opacity = 0.1f);
 
 	vec3 sliceMin;
 	vec3 sliceMax;
@@ -47,6 +47,8 @@ struct VolumeRaycaster {
 
 	bool preserveAspectRatio;
 	bool showGradient;
+
+	
 
 	void setTransferJet();
 	void setTransferGray();

@@ -6,6 +6,8 @@
 #include <Eigen/Eigen>
 #include <Eigen/IterativeLinearSolvers>
 
+#include "Volume.h"
+
 #include <array>
 
 namespace blib {
@@ -20,7 +22,13 @@ namespace blib {
 
 		BLIB_EXPORT MultigridSolver(bool verbose);
 
-		BLIB_EXPORT bool prepare(const uchar * D, ivec3 dim, Dir dir, T d0, T d1, uint levels);
+		BLIB_EXPORT bool prepare(
+			Volume & v,
+			const uchar * D, 
+			ivec3 dim, 
+			Dir dir, 
+			T d0, T d1, 
+			uint levels);
 
 		BLIB_EXPORT T solve(
 			T tolerance,
@@ -40,8 +48,12 @@ namespace blib {
 
 		bool _verbose;
 		uint _lv; //0 = fine level, _lv-1 = coarsest level
+		std::vector<ivec3> _dims;
 
-		std::array<T,27> _restrictOp;
+		std::array<T, 27> _restrictOp;
+		std::array<T, 27> _interpOp;
+
+		
 
 	};
 

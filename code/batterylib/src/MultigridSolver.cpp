@@ -5,6 +5,9 @@ using namespace blib;
 template class MultigridSolver<float>;
 template class MultigridSolver<double>;
 
+#include <Eigen/SparseLU>
+#include "JacobiSolver.h"
+
 
 template <typename T>
 MultigridSolver<T>::MultigridSolver(bool verbose)
@@ -16,9 +19,12 @@ MultigridSolver<T>::MultigridSolver(bool verbose)
 		1,2,1 , 2,4,2 , 1,2,1,
 		0,1,0 , 1,2,1 , 0,1,0
 	};
-	/*for (auto & v : _restrictOp) 
-		v *= T(1.0 / 28.0);*/
-	
+
+	_interpOp = std::array<T, 27>{
+		1,1,1, 2,4,2, 1,2,1,
+		2,4,2, 4,8,4, 2,4,2,
+		1,2,1, 2,4,2, 1,2,1
+	};
 
 	
 }
@@ -31,8 +37,6 @@ void conv3D(
 ) {
 	
 	auto srcStride = { 1, srcDim.x, srcDim.x * srcDim.y };
-	
-	//For each in dest dim
 
 	for (auto z = 0; z < destDim.z; z++) {
 		for (auto y = 0; y < destDim.y; y++) {
@@ -68,49 +72,146 @@ void conv3D(
 			}
 		}
 	}
+
+
+}
+
+template <typename T>
+void interp3D(
+	T * src, ivec3 srcDim,
+	T * dest, ivec3 destDim //higher	
+) {
+
 	
+
+	for (auto z = 0; z < destDim.z; z++) {
+		for (auto y = 0; y < destDim.y; y++) {
+			for (auto x = 0; x < destDim.x; x++) {
+				auto destI = linearIndex(destDim, { x,y,z });
+
+				ivec3 srcStride = { 1, srcDim.x, srcDim.x * srcDim.y };
+				if (x == destDim.x-1) srcStride[0] = 0;
+				if (y == destDim.y-1) srcStride[1] = 0;
+				if (z == destDim.z-1) srcStride[2] = 0;
+
+
+				vec3 sPos = vec3(x, y, z) * 0.5f;
+				ivec3 ipos = ivec3(sPos);
+				vec3 fract = glm::fract(sPos);
+
+				auto srcI = linearIndex(srcDim, ipos);
+							
+				T vals[8] = {
+					src[srcI],														//0
+					src[srcI + srcStride[0]],										//1
+					src[srcI +					srcStride[1]],						//2
+					src[srcI + srcStride[0] +	srcStride[1]],						//3
+					src[srcI									+ srcStride[2]],	//4
+					src[srcI + srcStride[0]						+ srcStride[2]],	//5
+					src[srcI +					srcStride[1]	+ srcStride[2]],	//6
+					src[srcI + srcStride[0] +	srcStride[1]	+ srcStride[2]]		//7
+				};
+
+				T x0 = glm::mix(
+					glm::mix(vals[0], vals[2], fract.y), //0,0,0 vs 0,1,0
+					glm::mix(vals[4], vals[6], fract.y), //0,0,1 vs 0,1,1
+					fract.z
+				);
+				T x1 = glm::mix(
+					glm::mix(vals[1], vals[3], fract.y), //1,0,0 vs 1,1,0
+					glm::mix(vals[5], vals[7], fract.y), //1,0,1 vs 1,1,1
+					fract.z
+				);
+
+				float val = glm::mix(x0, x1, fract.x);
+
+				dest[destI] = val;
+
+			}
+		}
+	}
+
 
 
 }
 
 template <typename T>
 bool MultigridSolver<T>::prepare(
+	Volume & v, 
 	const uchar * D, ivec3 origDim, Dir dir, T d0, T d1,
 	uint levels
 ){
+
+	bool res = true;
+
 	_lv = levels;
 
+	//Prepare lin. system for all levels
 	_A.resize(_lv);
 	_rhs.resize(_lv);
 	_x.resize(_lv);
+	_dims.resize(_lv);
+
+	//Generate D volume for smaller resolutions
+	std::vector<std::vector<float>> Dlevels(_lv);
+	std::vector<std::vector<float>> Dlevels_interp(_lv);
+	
 
 	const size_t origTotal = origDim.x * origDim.y * origDim.z;
-	std::vector<std::vector<float>> Dlevels(_lv);
-	std::vector<ivec3> dims(_lv);
+	//Generate first level of D
+	{
+		Dlevels.front().resize(origTotal);
+		_dims.front() = origDim;
+
+		for (auto i = 0; i < origTotal; i++) {
+			Dlevels.front()[i] = (D[i] == 0) ? d0 : d1;
+		}
+
+		res &= prepareAtLevel(Dlevels[0].data(), _dims[0], dir, 0);
 
 
-	Dlevels.front().resize(origTotal);
-	dims.front() = origDim;
-
-	for (auto i = 0; i < origTotal; i++) {
-		Dlevels.front()[i] = (D[i] == 0) ? d0 : d1;
+		Dlevels_interp[0].resize(origTotal, 0.0f);
 	}
 
-	bool res = true;	
-
-	res &= prepareAtLevel(Dlevels[0].data(), dims[0], dir, 0);
+	//Generate rest of levels, based on higher resolution
 	for (uint i = 1; i < _lv; i++) {
 		const int divFactor = (1 << i);
 		const ivec3 dim = origDim / divFactor;
 		const size_t total = dim.x * dim.y * dim.z;
 
-		dims[i] = dim;
+		_dims[i] = dim;
 		Dlevels[i].resize(total);
-		conv3D(Dlevels[i - 1].data(), dims[i - 1], Dlevels[i].data(), dims[i], _restrictOp);
+		conv3D(Dlevels[i - 1].data(), _dims[i - 1], Dlevels[i].data(), _dims[i], _restrictOp);
+		
+		Dlevels_interp[i].resize(total, 0.0f);
+		
 
-		res &= prepareAtLevel(Dlevels[i].data(), dims[i], dir, i);
+		res &= prepareAtLevel(Dlevels[i].data(), _dims[i], dir, i);
 	}
 
+
+
+
+	for (uint i = 0; i < _lv; i++) {
+
+		{
+			auto id = v.addChannel(_dims[i], TYPE_FLOAT);
+			auto & c = v.getChannel(id);
+			memcpy(c.getCurrentPtr().getCPU(), Dlevels[i].data(), _dims[i].x * _dims[i].y * _dims[i].z * sizeof(float));
+			c.getCurrentPtr().commit();
+		}
+
+		if(i < _lv - 1){
+			interp3D(Dlevels[i + 1].data(), _dims[i + 1], Dlevels_interp[i].data(), _dims[i]);		
+			auto id = v.addChannel(_dims[i], TYPE_FLOAT);
+			auto & c = v.getChannel(id);
+			memcpy(c.getCurrentPtr().getCPU(), Dlevels_interp[i].data(), _dims[i].x * _dims[i].y * _dims[i].z * sizeof(float));
+			c.getCurrentPtr().commit();
+		}
+
+
+
+	}
 	
 	return res;
 }
@@ -297,14 +398,71 @@ T MultigridSolver<T>::solve(T tolerance, size_t maxIterations)
 {
 
 
+	std::vector<Vector> r(_lv);	
+	std::vector<Vector> tmpx(_lv); //temp vecs
+	std::vector<Vector> & f = _rhs;
+	std::vector<Vector> & v = _x;
+	std::vector<SparseMat> & A = _A;
+
+	for (auto i = 0; i < _lv; i++) {
+		r[i].resize(_x[i].size());
+		tmpx[i].resize(_x[i].size());
+	}
+
+
+	Eigen::SparseLU<SparseMat> exactSolver;
+	exactSolver.compute(A.back());
+	
+	
 	
 
+	
+
+	//maxIterations = 0;
+	//maxIterations V cycle
+	for (auto k = 0; k < maxIterations; k++) {
+		
+		std::cout << "k = " << k << std::endl;
+		
+		for (auto i = 0; i < _lv - 1; i++) {
+
+			if (i > 0) v[i].setZero();
+			//Pre smoothing, v[i] is initial guess & result
+			//Residual saved in r[i]
+			solveJacobi(A[i], f[i], v[i], tmpx[i], r[i], tolerance, 4, true);
+			
+			//Restrict residual r[i] and use it as f[i+1]
+			conv3D(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1], _restrictOp);
+						
+		}
+
+		std::cout << "exact solve" << std::endl;
+		/*std::cout << v[_lv - 1];*/
+		v[_lv - 1] = exactSolver.solve(f[_lv - 1]);
+
+		//Up step
+		for (int i = _lv - 2; i >= 0; i--) {
+
+			//Interpolate v[i+1] to temp
+			interp3D<T>(v[i + 1].data(), _dims[i + 1], tmpx[i].data(), _dims[i]);
+
+			//Add temp to v[i]
+			v[i] += tmpx[i];
+			
+			//Post smoothing, v[i] is initial guess & result		
+			solveJacobi(A[i], f[i], v[i], tmpx[i], r[i], tolerance, 4, true);
+		}
+
+		std::cout << "k = " << k << ", res: " << sqrt(v[0].squaredNorm() / f[0].squaredNorm()) << std::endl;
+	
+	}
 
 
 
 
 	//Steps
 	//0.0: define Ax = b on finest grid (done)
+	//0.05 define Ax = b on multi grid
 	//0.1: define initial guess of u ~ x 
 	//1. Smooth error e
 		//using restriction of residual to a coarser grid

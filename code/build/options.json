@@ -157,6 +157,14 @@
         "volume": {
             "data": true,
             "type": 5
+        },
+        "volumeGrid": {
+            "data": false,
+            "type": 5
+        },
+        "volumeGridOpacity": {
+            "data": 0.0500000007450581,
+            "type": 3
         }
     }
 }

@@ -341,10 +341,23 @@ void BatteryApp::render(double dt)
 			_volumeRaycaster->setTransferJet();
 
 		_camera.setWindowDimensions(_window.width, _window.height - static_cast<int>(_window.height * sliceHeight));
-		_volumeRaycaster->render(_camera, {
+
+		ivec4 viewport = {
 			0, _window.height * sliceHeight, _window.width, _window.height - _window.height * sliceHeight
-		}, *_shaders[SHADER_POSITION], *_shaders[SHADER_VOLUME_RAYCASTER]);
+		};
+
+		_volumeRaycaster->render(_camera, viewport);
+
+		if (_options["Render"].get<bool>("volumeGrid")) {
+			_volumeRaycaster->renderGrid(_camera, viewport, *_shaders[SHADER_FLAT],
+				_options["Render"].get<float>("volumeGridOpacity")
+
+			);
+		}
+
 	}
+
+	
 
 	/*
 		UI render and update
@@ -466,7 +479,7 @@ void BatteryApp::reset()
 		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
 		assert(batteryID == CHANNEL_BATTERY);
 
-		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(32,32,32));
+		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(96));
 		_volume->binarize(CHANNEL_BATTERY, 1.0f);
 
 		//Add concetration channel
@@ -521,11 +534,12 @@ void BatteryApp::reset()
 
 	}
 
-/*
-	{
+
+	/*{
 		auto & c = _volume->getChannel(CHANNEL_BATTERY);
 		uchar* data = (uchar*)c.getCurrentPtr().getCPU();
-		_multiSolver.prepare(data, c.dim(), X_POS, 1.0f, 0.001f, 3);
+		_multiSolver.prepare(*_volume, data, c.dim(), X_POS, 1.0f, 0.001f, 5);
+		_multiSolver.solve(1e-5, 5);
 	}*/
 
 	_volumeRaycaster->setVolume(*_volume, 0);

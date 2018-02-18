@@ -99,7 +99,8 @@ VolumeRaycaster::VolumeRaycaster(std::shared_ptr<Shader> shaderPosition,
 	  _transferTexture(GL_TEXTURE_1D, 16, 1, 0),
 	  _volTexture(0),
 	  _volDim({0,0,0}),
-	  showGradient(false) {
+	  showGradient(false)
+	  {
 
   {
     			  
@@ -119,10 +120,7 @@ bool VolumeRaycaster::setVolume(const blib::Volume & volume, int channel)
 	return true;
 }
 
-void VolumeRaycaster::render(const Camera &camera, ivec4 viewport,
-                             Shader &shaderPosition, Shader &shaderRaycast) {
-
-
+void VolumeRaycaster::render(const Camera &camera, ivec4 viewport) {
 	GL(glEnable(GL_TEXTURE_3D));
   _enterExit.resize(viewport[2], viewport[3]);
 
@@ -130,7 +128,7 @@ void VolumeRaycaster::render(const Camera &camera, ivec4 viewport,
 
   // Render enter/exit texture
   {
-    auto &shader = shaderPosition;
+    auto &shader = *_shaderPosition;
 
     mat4 M = mat4(1.0f);
     if (preserveAspectRatio) {
@@ -181,7 +179,7 @@ void VolumeRaycaster::render(const Camera &camera, ivec4 viewport,
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
     glDisable(GL_CULL_FACE);
 
-    auto &shader = shaderRaycast;
+    auto &shader = *_shaderRaycast;
 
     shader.bind();
     shader["transferFunc"] = _transferTexture.bindTo(GL_TEXTURE0);
@@ -212,6 +210,10 @@ void VolumeRaycaster::render(const Camera &camera, ivec4 viewport,
 
     shader.unbind();
   }
+
+
+
+
 }
 
 void VolumeRaycaster::renderSlice(int axis, ivec2 screenPos,
@@ -246,6 +248,45 @@ void VolumeRaycaster::renderSlice(int axis, ivec2 screenPos,
   _quad.render();
 
   shader.unbind();
+}
+
+void VolumeRaycaster::renderGrid(const Camera & camera, ivec4 viewport, Shader & shader, float opacity)
+{	
+	GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+	GL(glViewport(0, 0, viewport[2], viewport[3]));
+
+
+	glPushAttrib(GL_ENABLE_BIT | GL_POLYGON_BIT);
+	glDisable(GL_CULL_FACE);
+	glDisable(GL_DEPTH_TEST);	
+	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+	GL(shader.bind());
+	shader["useUniformColor"] = true;
+	shader["uniformColor"] = vec4(0,0,0, opacity);
+	shader["PV"] = camera.getPV();
+
+	vec3 scaleVec = vec3(1.0f / _volDim.x, 1.0f / _volDim.y, 1.0f / _volDim.z);
+	mat4 scale = glm::translate(mat4(1.0f), -vec3(1.0f) + scaleVec) * glm::scale(mat4(1.0f), scaleVec);
+
+	for (auto x = 0; x < _volDim.x; x++) {
+		for (auto y = 0; y < _volDim.y; y++) {
+			for (auto z = 0; z < _volDim.z; z++) {				
+				mat4 M = glm::translate(mat4(1.0f), vec3(x, y, z) * scaleVec * 2.0f) * scale;
+				shader["M"] = M;
+				shader["NM"] = M;
+				GL(_cube.render());
+			}
+		}
+	}
+
+	
+
+	GL(shader.unbind());
+	
+
+	glPopAttrib();
+
 }
 
 void VolumeRaycaster::setTransferJet()
