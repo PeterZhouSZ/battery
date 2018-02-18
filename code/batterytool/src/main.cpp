@@ -214,10 +214,11 @@ int main(int argc, char **argv){
 
 		
 		if (argVolumeExport) {
+			const std::string exportPath = (argInput.Get() + std::string("/conc_dir") + char(char(dir) + '0') + std::string(".vol"));
 			solver.resultToVolume(volume.getChannel(concChannel));
-			bool res = blib::saveVolumeBinary((argInput.Get() + "/conc.vol").c_str(), volume.getChannel(concChannel));
+			bool res = blib::saveVolumeBinary(exportPath.c_str(), volume.getChannel(concChannel));
 			if (argVerbose) {
-				std::cout << "export to" << (argInput.Get() + "/conc.vol") << std::endl;
+				std::cout << "export to" << (exportPath) << std::endl;
 			}
 		}
 

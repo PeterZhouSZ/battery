@@ -17,7 +17,7 @@ for subdir, dirs, files in os.walk(root):
     if(subdir == root): continue
     ##print(subdir)
 
-    args = subdir + "/ -t -dneg --step 128 -v -o out.csv"#--sub 16"
+    args = subdir + "/ -t -dneg --step 128 -v -o out.csv "#--sub 16 --volExport"
     print(args)
 
     subprocess.call(
