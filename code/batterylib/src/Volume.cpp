@@ -12,7 +12,8 @@ using namespace blib;
 bool glewInited = false;
 
 blib::VolumeChannel::VolumeChannel(ivec3 dim, PrimitiveType type, bool doubleBuffered)
-	: _dim(dim), _type(type), _current(0), _doubleBuffered(doubleBuffered)
+	: _dim(dim), _type(type), _current(0), _doubleBuffered(doubleBuffered),
+	_name("Unnamed channel")
 {	
 
 
@@ -162,6 +163,16 @@ ivec3 blib::VolumeChannel::dim() const
 PrimitiveType blib::VolumeChannel::type() const
 {
 	return _type;
+}
+
+void blib::VolumeChannel::setName(const std::string & name)
+{
+	_name = name;
+}
+
+std::string blib::VolumeChannel::getName() const
+{
+	return _name;
 }
 
 ///////////////////////////

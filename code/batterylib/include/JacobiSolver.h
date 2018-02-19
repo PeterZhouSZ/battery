@@ -65,7 +65,7 @@ void solveJacobi(
 }
 
 template <typename T>
-void solveJacobi(
+T solveJacobi(
 	const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
 	const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
 	Eigen::Matrix<T, Eigen::Dynamic, 1> & x,	
@@ -78,11 +78,12 @@ void solveJacobi(
 	assert(xprime.size() == x.size());
 	assert(residual.size() == x.size());
 
-	maxIter = (maxIter / 2) * 2; //divisible by two
+	maxIter = ((maxIter+1) / 2) * 2; //divisible by two
 
 
-	float bsqnorm = b.squaredNorm();
-	float tol2 = tolerance * tolerance * bsqnorm;
+	T bsqnorm = b.squaredNorm();
+	T tol2 = tolerance * tolerance * bsqnorm;
+	T tol_error = T(1);
 
 	for (auto i = 0; i < maxIter; ++i) {
 
@@ -94,22 +95,15 @@ void solveJacobi(
 		float err = residual.squaredNorm();// / bsqnorm;
 
 									  //float err = res.mean();
-		float tol_error = sqrt(err / bsqnorm);
+		tol_error = sqrt(err / bsqnorm);
 
 		if (verbose && i % 128 == 0) {
-
-			float tol_error = sqrt(err / bsqnorm);
-
 			std::cout << "jacobi i: " << i << " err: " << err << ", tol_error: " << tol_error << std::endl;
 		}
 
-		if (err <= tol2) {
-
-
-			if (verbose) {
-				float tol_error = sqrt(err / bsqnorm);
-				std::cout << "solved " << err << " <= " << tol2 << std::endl;
-				std::cout << "tol_error" << tol_error << std::endl;
+		if (tol_error <= tolerance) {
+			if (verbose) {				
+				std::cout << "solved " << tol_error << " <= " << tolerance << std::endl;				
 			}
 
 			if (&x != &curX) {
@@ -120,6 +114,13 @@ void solveJacobi(
 		jacobiStep(A, b, curX, nextX);
 
 	}
+
+	if (verbose) {
+		if (tol_error > tolerance)
+			std::cout << "jacobi not converged" << tol_error << " vs " << tolerance << std::endl;
+	}
+
+	return tol_error;
 
 }
 

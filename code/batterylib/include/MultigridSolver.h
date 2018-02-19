@@ -23,7 +23,7 @@ namespace blib {
 		BLIB_EXPORT MultigridSolver(bool verbose);
 
 		BLIB_EXPORT bool prepare(
-			Volume & v,
+			Volume & v, //to remove, for debug only
 			const uchar * D, 
 			ivec3 dim, 
 			Dir dir, 
@@ -31,11 +31,23 @@ namespace blib {
 			uint levels);
 
 		BLIB_EXPORT T solve(
+			Volume &v,  //to remove, for debug only
 			T tolerance,
 			size_t maxIterations			
 		);
 
 		BLIB_EXPORT bool resultToVolume(VolumeChannel & vol);
+
+		BLIB_EXPORT bool generateErrorVolume(Volume & vol);
+
+		BLIB_EXPORT T tortuosity(
+			const VolumeChannel & mask,
+			Dir dir
+		);
+
+		BLIB_EXPORT void setVerbose(bool val) {
+			_verbose = val;
+		}
 
 	private:
 
@@ -45,8 +57,10 @@ namespace blib {
 		);
 
 		std::vector<SparseMat> _A;		
-		std::vector<Vector> _rhs;
+		std::vector<Vector> _f;
 		std::vector<Vector> _x;
+		std::vector<Vector> _tmpx;
+		std::vector<Vector> _r;
 
 		bool _verbose;
 		uint _lv; //0 = fine level, _lv-1 = coarsest level
@@ -55,7 +69,7 @@ namespace blib {
 		std::array<T, 27> _restrictOp;
 		std::array<T, 27> _interpOp;
 
-		
+		T _porosity;
 
 	};
 

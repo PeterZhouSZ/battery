@@ -340,6 +340,8 @@ void BatteryApp::render(double dt)
 		else
 			_volumeRaycaster->setTransferJet();
 
+			
+
 		_camera.setWindowDimensions(_window.width, _window.height - static_cast<int>(_window.height * sliceHeight));
 
 		ivec4 viewport = {
@@ -414,7 +416,7 @@ void BatteryApp::callbackKey(GLFWwindow * w, int key, int scancode, int action, 
 	App::callbackKey(w, key, scancode, action, mods);
 		
 
-	if (action == GLFW_RELEASE) {
+	if (action == GLFW_RELEASE || action == GLFW_REPEAT) {
 		
 		if (key == GLFW_KEY_R) {
 			std::cerr << loadShaders(_shaders) << std::endl;			
@@ -439,6 +441,20 @@ void BatteryApp::callbackKey(GLFWwindow * w, int key, int scancode, int action, 
 		}
 		if (key == GLFW_KEY_4 && _volume->hasChannel(3)) {
 			_options["Render"].get<int>("channel") = 3;
+		}
+
+		if (key == GLFW_KEY_RIGHT) {
+			_options["Render"].get<int>("channel")++;
+			
+			if (_options["Render"].get<int>("channel") >= _volume->numChannels())
+				_options["Render"].get<int>("channel") = 0;
+
+		}
+
+		if (key == GLFW_KEY_LEFT) {
+			_options["Render"].get<int>("channel")--;
+			if (_options["Render"].get<int>("channel") < 0)
+				_options["Render"].get<int>("channel") = int(_volume->numChannels()) -1;
 		}
 
 	}
@@ -530,17 +546,31 @@ void BatteryApp::reset()
 
 		//generateSpheresVolume(*_volume, 128, 0.15f);
 
-
-
 	}
 
+	_volume->getChannel(CHANNEL_BATTERY).setName("Battery");
+	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");
 
-	{
+	const bool multigridTest = false;
+	if(multigridTest){
 		auto & c = _volume->getChannel(CHANNEL_BATTERY);
 		uchar* data = (uchar*)c.getCurrentPtr().getCPU();
-		_multiSolver.prepare(*_volume, data, c.dim(), X_POS, 1.0f, 0.001f, 5);
-		_multiSolver.solve(1e-5, 5);
+		
+		auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
+		auto minDim = 4;
+		int levels = std::log2(maxDim) - std::log2(minDim) + 1;
+
+		_multiSolver.setVerbose(true);
+		_multiSolver.prepare(*_volume, data, c.dim(), X_POS, 1.0f, 0.001f, levels);
+		_multiSolver.solve(*_volume, 1e-5, 8);
+
+		
+
 		_multiSolver.resultToVolume(_volume->getChannel(CHANNEL_CONCETRATION));
+		_volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().commit();
+	//	_multiSolver.generateErrorVolume(*_volume);
+		_multiSolver.setVerbose(true);
+		_multiSolver.tortuosity(_volume->getChannel(CHANNEL_BATTERY), X_POS);
 	}
 
 	_volumeRaycaster->setVolume(*_volume, 0);

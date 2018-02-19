@@ -5,8 +5,38 @@ using namespace blib;
 template class MultigridSolver<float>;
 template class MultigridSolver<double>;
 
-#include <Eigen/SparseLU>
+
 #include "JacobiSolver.h"
+#include <cassert>
+#include "../../batteryviz/src/utility/IOUtility.h"
+#include <numeric>
+
+#include <Eigen/SparseLU>
+#include <Eigen/IterativeLinearSolvers>
+
+
+template <typename T>
+void addDebugChannel(Volume & vol, const Eigen::Matrix<T, Eigen::Dynamic, 1> & v, ivec3 dim, const std::string & name, int levnum = -1, bool normalize = false) {
+		
+	auto & c = vol.getChannel(vol.addChannel(dim, TYPE_FLOAT));
+	
+	Eigen::Matrix<T, Eigen::Dynamic, 1> tmp = v;
+	if (normalize) {
+		tmp = v.cwiseAbs();
+		/*auto maxc = tmp.maxCoeff();
+		auto minc = tmp.minCoeff();
+		tmp = (tmp.array() - minc) / (maxc - minc);*/
+		tmp *= T(10);
+	}
+
+	memcpy(c.getCurrentPtr().getCPU(), tmp.data(), dim.x * dim.z* dim.y * sizeof(float));
+	c.getCurrentPtr().commit();
+
+	char buf[24]; itoa(levnum, buf, 10);
+	c.setName(name + buf);
+
+
+}
 
 
 template <typename T>
@@ -72,7 +102,112 @@ void conv3D(
 			}
 		}
 	}
+}
 
+template <typename T>
+void restriction(
+	T * src, ivec3 srcDim,
+	T * dest, ivec3 destDim 	
+) {
+	assert(srcDim.x == destDim.x * 2);
+	assert(srcDim.y == destDim.y * 2);
+	assert(srcDim.z == destDim.z * 2);
+
+	for (auto z = 0; z < destDim.z; z++) {
+		for (auto y = 0; y < destDim.y; y++) {
+			for (auto x = 0; x < destDim.x; x++) {
+				ivec3 ipos = ivec3(x, y, z);
+				auto srcI = linearIndex(srcDim, 2 * ipos);
+				auto destI = linearIndex(destDim, ipos);
+				dest[destI] = src[srcI];
+			}
+		}
+	}
+
+
+}
+
+
+template <typename T>
+void interpolation(
+	T * src, ivec3 srcDim,
+	T * dest, ivec3 destDim //higher	
+) {
+
+	
+
+	for (auto z = 0; z < destDim.z; z++) {
+		for (auto y = 0; y < destDim.y; y++) {
+			for (auto x = 0; x < destDim.x; x++) {
+				ivec3 ipos = { x,y,z };
+				ivec3 iposSrc = ipos / 2;
+				auto destI = linearIndex(destDim, ipos);
+				auto srcI = linearIndex(srcDim, iposSrc);
+
+				ivec3 srcStride = { 1, srcDim.x, srcDim.x * srcDim.y };
+				if (x == destDim.x - 1) srcStride[0] = 0;
+				if (y == destDim.y - 1) srcStride[1] = 0;
+				if (z == destDim.z - 1) srcStride[2] = 0;
+
+				const ivec3 mods = { x % 2, y % 2, z % 2 };
+				const int modSum = mods.x + mods.y + mods.z;
+
+
+				T val = T(0);
+				
+				//Colocated				
+				if (modSum == 0) {					
+					val = src[srcI];
+				}
+				//Edge interpolation
+				else if (modSum == 1) {
+					int index = (mods[0] == 1) ? 0 : ((mods[1] == 1) ? 1 : 2);
+					
+					ivec3 dx = ivec3(0);
+					dx[index] = 1;
+
+					//assert(srcI + srcStride[index] == linearIndex(srcDim, iposSrc + dx));
+
+					val = (
+						src[srcI] +
+						src[srcI + srcStride[index]]
+						) * T(1.0 / 2.0);
+
+
+				}
+				//Face interpolation
+				else if (modSum == 2) {
+					int coIndex = (mods[0] == 0) ? 0 : ((mods[1] == 0) ? 1 : 2);
+					int i0 = (coIndex + 1) % 3;
+					int i1 = (coIndex + 2) % 3;		
+
+					val = (
+						src[srcI] +
+						src[srcI + srcStride[i1]] +
+						src[srcI + srcStride[i0]] +
+						src[srcI + srcStride[i0] + srcStride[i1]]
+						) * T(1.0 / 4.0);
+				}
+				//Cube interpolation  //modSum == 3
+				else {
+					val = (
+						src[srcI] +
+						src[srcI + srcStride[0]] +
+						src[srcI + srcStride[1]] +
+						src[srcI + srcStride[0] + srcStride[1]] +
+						src[srcI + srcStride[2]] +
+						src[srcI + srcStride[1] + srcStride[2]] +
+						src[srcI + srcStride[0] + srcStride[2]] +
+						src[srcI + srcStride[0] + srcStride[1] + srcStride[2]]
+						) * T(1.0 / 8.0);					
+				}
+
+
+				dest[destI] = val;				
+
+			}
+		}
+	}
 
 }
 
@@ -81,8 +216,7 @@ void interp3D(
 	T * src, ivec3 srcDim,
 	T * dest, ivec3 destDim //higher	
 ) {
-
-	
+		
 
 	for (auto z = 0; z < destDim.z; z++) {
 		for (auto y = 0; y < destDim.y; y++) {
@@ -100,6 +234,8 @@ void interp3D(
 				vec3 fract = glm::fract(sPos);
 
 				auto srcI = linearIndex(srcDim, ipos);
+
+				assert(srcI >= 0 && srcI < srcDim.x * srcDim.x * srcDim.y);
 							
 				T vals[8] = {
 					src[srcI],														//0
@@ -142,14 +278,19 @@ bool MultigridSolver<T>::prepare(
 	uint levels
 ){
 
+
+	
+
 	bool res = true;
 
 	_lv = levels;
 
 	//Prepare lin. system for all levels
 	_A.resize(_lv);
-	_rhs.resize(_lv);
+	_f.resize(_lv);
 	_x.resize(_lv);
+	_tmpx.resize(_lv);
+	_r.resize(_lv);
 	_dims.resize(_lv);
 
 	//Generate D volume for smaller resolutions
@@ -158,6 +299,13 @@ bool MultigridSolver<T>::prepare(
 	
 
 	const size_t origTotal = origDim.x * origDim.y * origDim.z;
+
+	size_t cntd0 = 0;
+	for (auto i = 0; i < origTotal; i++) {
+		if (D[i] == 0) cntd0++;
+	}
+	_porosity = cntd0 / T(origTotal);
+
 	//Generate first level of D
 	{
 		Dlevels.front().resize(origTotal);
@@ -182,6 +330,7 @@ bool MultigridSolver<T>::prepare(
 		_dims[i] = dim;
 		Dlevels[i].resize(total);
 		conv3D(Dlevels[i - 1].data(), _dims[i - 1], Dlevels[i].data(), _dims[i], _restrictOp);
+		//restriction(Dlevels[i - 1].data(), _dims[i - 1], Dlevels[i].data(), _dims[i]);
 		
 		Dlevels_interp[i].resize(total, 0.0f);
 		
@@ -194,23 +343,24 @@ bool MultigridSolver<T>::prepare(
 
 	for (uint i = 0; i < _lv; i++) {
 
-		{
-			auto id = v.addChannel(_dims[i], TYPE_FLOAT);
-			auto & c = v.getChannel(id);
-			memcpy(c.getCurrentPtr().getCPU(), Dlevels[i].data(), _dims[i].x * _dims[i].y * _dims[i].z * sizeof(float));
-			c.getCurrentPtr().commit();
-		}
+		//addDebugChannel<T>(v, Dlevels[i].data(), _dims[i], "D ", i, false);
 
-		if(i < _lv - 1){
+		
+
+		/*if(i < _lv - 1){
 			interp3D(Dlevels[i + 1].data(), _dims[i + 1], Dlevels_interp[i].data(), _dims[i]);		
 			auto id = v.addChannel(_dims[i], TYPE_FLOAT);
 			auto & c = v.getChannel(id);
 			memcpy(c.getCurrentPtr().getCPU(), Dlevels_interp[i].data(), _dims[i].x * _dims[i].y * _dims[i].z * sizeof(float));
 			c.getCurrentPtr().commit();
-		}
+		}*/
 
 
 
+	}
+
+	if (_verbose) {
+		std::cout << "Prepared multigrid with L = " << _lv << " res: " << origDim.x << ", "<< origDim.y << ", " << origDim.z << std::endl;
 	}
 	
 	return res;
@@ -271,7 +421,7 @@ bool MultigridSolver<T>::prepareAtLevel(
 
 		
 	
-	_rhs[level].resize(M);
+	_f[level].resize(M);
 	_x[level].resize(N);
 	_A[level].resize(M, N);
 	_A[level].reserve(Eigen::VectorXi::Constant(N, 7));
@@ -360,7 +510,7 @@ bool MultigridSolver<T>::prepareAtLevel(
 				if (y < dim.y - 1) vals[5] = Dpos.y;
 				if (z < dim.z - 1) vals[6] = Dpos.z;
 
-				_rhs[level][i] = bval;
+				_f[level][i] = bval;
 
 				//initial guess
 				if (getDirSgn(dir) == 1)
@@ -394,66 +544,135 @@ bool MultigridSolver<T>::prepareAtLevel(
 
 
 template <typename T>
-T MultigridSolver<T>::solve(T tolerance, size_t maxIterations)
+T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 {
 
+	//_verbose = false;
 
-	std::vector<Vector> r(_lv);	
-	std::vector<Vector> tmpx(_lv); //temp vecs
-	std::vector<Vector> & f = _rhs;
+	std::vector<Vector> & r = _r;		
+	std::vector<Vector> & f = _f;
 	std::vector<Vector> & v = _x;
+	std::vector<Vector> & tmpx = _tmpx;
 	std::vector<SparseMat> & A = _A;
 
 	for (auto i = 0; i < _lv; i++) {
-		r[i].resize(_x[i].size());
-		tmpx[i].resize(_x[i].size());
+		r[i].resize(v[i].size());
+		tmpx[i].resize(v[i].size());
 	}
 
 
+	const int preN = 8;
+	const int postN = 8;
+	const int lastLevel = _lv - 1;
+
 	Eigen::SparseLU<SparseMat> exactSolver;
-	exactSolver.compute(A.back());
+	//Eigen::BiCGSTAB<SparseMat> exactSolver;
+	//exactSolver.setTolerance(tolerance / 2.0f);
+
+	exactSolver.compute(A[lastLevel]);
 	
-	
-	
+		
+	auto tabs = [](int n){
+		return std::string(n, '\t');
+	};
 
 	
-
-	//maxIterations = 0;
 	//maxIterations V cycle
 	for (auto k = 0; k < maxIterations; k++) {
 		
-		std::cout << "k = " << k << std::endl;
+		/*		
+			SMOOTHING DISABLED
+		*/
 		
-		for (auto i = 0; i < _lv - 1; i++) {
+		
+		for (auto i = 0; i < lastLevel; i++) {
 
+			//Initial guess is zero for all except first level
 			if (i > 0) v[i].setZero();
+			
+			if (_verbose) {
+				std::cout << tabs(i) << "Level: " << i << " dim: " << _dims[i].x << ", " << _dims[i].y << ", " << _dims[i].z << std::endl;
+				std::cout << tabs(i) << "Pre-smoothing: ";
+			}
+
 			//Pre smoothing, v[i] is initial guess & result
 			//Residual saved in r[i]
-			solveJacobi(A[i], f[i], v[i], tmpx[i], r[i], tolerance, 4, true);
+			T err = solveJacobi(A[i], f[i], v[i], tmpx[i], r[i], tolerance, preN, false);
+			if(preN == 0) r[i] = f[i] - A[i]*v[i];
 			
-			//Restrict residual r[i] and use it as f[i+1]
+			if (_verbose) {
+				std::cout << err << std::endl;				
+
+				addDebugChannel(vol, _r[i], _dims[i], "Pre ", i, true);				
+			}
+
+			
+			if (_verbose) {
+				std::cout << tabs(i) << "Restriction r[" << i << "]" << " to " << "f["<< (i+1) << "]" << std::endl;
+			}
+			//Restrict residual r[i] to f[i+1] and use it as f[i+1] in next iteration
 			conv3D(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1], _restrictOp);
+			//restriction(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1]);
 						
 		}
 
-		std::cout << "exact solve" << std::endl;
-		/*std::cout << v[_lv - 1];*/
-		v[_lv - 1] = exactSolver.solve(f[_lv - 1]);
+		if (_verbose) {
+			std::cout << tabs(lastLevel) << "Exact solve at Level " << lastLevel << std::endl;
+		}		
+		//Direct solver
+		v[lastLevel] = exactSolver.solve(f[lastLevel]);
 
-		//Up step
-		for (int i = _lv - 2; i >= 0; i--) {
+		//Iterative solver
+		//v[lastLevel].setZero();
+		//v[lastLevel] = exactSolver.solveWithGuess(f[lastLevel], v[lastLevel]);
 
-			//Interpolate v[i+1] to temp
-			interp3D<T>(v[i + 1].data(), _dims[i + 1], tmpx[i].data(), _dims[i]);
+		//Iterative Jacobi
+		//T errExact = solveJacobi(A[lastLevel], f[lastLevel], v[lastLevel], tmpx[lastLevel], r[lastLevel], 1e-6, 512, true);
+		//std::cout << "exact error" << errExact << std::endl;
 
-			//Add temp to v[i]
-			v[i] += tmpx[i];
-			
-			//Post smoothing, v[i] is initial guess & result		
-			solveJacobi(A[i], f[i], v[i], tmpx[i], r[i], tolerance, 4, true);
+		if (_verbose) {
+			addDebugChannel(vol, v[lastLevel], _dims[lastLevel], "Exact solution", lastLevel, true);
 		}
 
-		std::cout << "k = " << k << ", res: " << sqrt(v[0].squaredNorm() / f[0].squaredNorm()) << std::endl;
+		//Up step
+		for (int i = lastLevel - 1; i >= 0; i--) {
+
+			if (_verbose) {
+				std::cout << tabs(i) << "Interpolation from v[" << (i+1) << "]" << " to " << "Iv[" << (i+1) << "]" << std::endl;
+			}
+			//Interpolate v[i+1] to temp[i]
+			interpolation<T>(v[i + 1].data(), _dims[i + 1], tmpx[i].data(), _dims[i]);
+
+			if (_verbose) {
+				std::cout << tabs(i) << "Correction v[" << i << "]" << " += " << "Iv[" << (i+1) << "]" << std::endl;
+			}
+			//Add temp to v[i]
+			v[i] += tmpx[i];
+
+			if (_verbose) {				
+				std::cout << tabs(i) << "Post-smoothing: ";
+			}
+
+			//Post smoothing, v[i] is initial guess & result		
+			T err = solveJacobi(A[i], f[i], v[i], tmpx[i], r[i], tolerance, postN, false);
+			if (postN == 0) r[i] = f[i] - A[i]*v[i];
+
+			if (_verbose) {	
+				std::cout << err << std::endl;
+				//addDebugChannel(vol, r[i], _dims[i], "Post ", i, true);
+				addDebugChannel(vol, tmpx[i], _dims[i], "Interpolated corr ", i, true);
+				
+			}
+		}
+
+
+		T err = sqrt(r[0].squaredNorm() / f[0].squaredNorm());
+		std::cout << "k = " << k << " err: " << err << std::endl;		
+
+		if (err < tolerance || isinf(err) || isnan(err))
+			return err;
+
+		//std::cout << "k = " << k << ", res: " << << std::endl;
 	
 	}
 
@@ -534,3 +753,75 @@ BLIB_EXPORT bool blib::MultigridSolver<T>::resultToVolume(VolumeChannel & vol)
 }
 
 
+
+
+
+template <typename T>
+BLIB_EXPORT bool blib::MultigridSolver<T>::generateErrorVolume(Volume & v)
+{
+
+	//assert(std::is_same<float, T>::value == true);
+
+	for (uint i = 0; i < _lv; i++) {		
+		auto id = v.addChannel(_dims[i], TYPE_FLOAT);
+		auto & c = v.getChannel(id);
+		memcpy(c.getCurrentPtr().getCPU(), _r[i].data(), _dims[i].x * _dims[i].y * _dims[i].z * sizeof(float));
+		c.getCurrentPtr().commit();				
+	}
+
+	return true;
+}
+
+
+
+template <typename T>
+BLIB_EXPORT T blib::MultigridSolver<T>::tortuosity(const VolumeChannel & mask, Dir dir)
+{
+	assert(mask.type() == TYPE_UCHAR || mask.type() == TYPE_CHAR);
+	const auto dim = mask.dim();
+
+	const T * concData = _x[0].data();
+	const uchar * cdata = (uchar *)mask.getCurrentPtr().getCPU();
+
+	const int primaryDim = getDirIndex(dir);
+	const int secondaryDims[2] = { (primaryDim + 1) % 3, (primaryDim + 2) % 3 };
+
+
+	int n = dim[secondaryDims[0]] * dim[secondaryDims[1]];
+	int k = (getDirSgn(dir) == -1) ? 0 : dim[primaryDim] - 1;
+
+	/*
+	Calculate average in low concetration plane
+	*/
+	bool zeroOutPart = true;
+	std::vector<T> isums(dim[secondaryDims[0]], T(0));
+
+	#pragma omp parallel for
+	for (auto i = 0; i < dim[secondaryDims[0]]; i++) {
+		T jsum = T(0);
+		for (auto j = 0; j < dim[secondaryDims[1]]; j++) {
+			ivec3 pos;
+			pos[primaryDim] = k;
+			pos[secondaryDims[0]] = i;
+			pos[secondaryDims[1]] = j;
+
+			if (zeroOutPart && cdata[linearIndex(dim, pos)] == 0)
+				jsum += concData[linearIndex(dim, pos)];
+		}
+		isums[i] = jsum;
+	}
+
+	T sum = std::accumulate(isums.begin(), isums.end(), T(0));
+
+	double dc = sum / n;
+	double dx = 1.0f / (dim[primaryDim] + 1);
+	double tau = /*dx * */_porosity / (dc * /*dx **/ dim[primaryDim] * 2);
+
+	if (_verbose) {
+		std::cout << "dc: " << dc << std::endl;
+		std::cout << "porosity: " << _porosity << std::endl;
+		std::cout << "tau: " << tau << std::endl;
+	}
+
+	return tau;
+}

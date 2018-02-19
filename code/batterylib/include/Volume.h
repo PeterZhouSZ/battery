@@ -14,7 +14,10 @@ namespace blib{
 
 	struct VolumeChannel {
 
-		BLIB_EXPORT VolumeChannel(ivec3 dim, PrimitiveType type, bool doubleBuffered = true);
+		BLIB_EXPORT VolumeChannel(
+			ivec3 dim, 
+			PrimitiveType type, 
+			bool doubleBuffered = true);
 		
 
 		BLIB_EXPORT Texture3DPtr & getCurrentPtr();
@@ -42,8 +45,11 @@ namespace blib{
 
 		BLIB_EXPORT bool isDoubleBuffered() const;
 
-		BLIB_EXPORT ivec3 dim() const;;
+		BLIB_EXPORT ivec3 dim() const;
 		BLIB_EXPORT PrimitiveType type() const;
+
+		BLIB_EXPORT void setName(const std::string & name);
+		BLIB_EXPORT std::string getName() const;
 		
 
 	private:		
@@ -52,6 +58,8 @@ namespace blib{
 		bool _doubleBuffered;
 		uchar _current;
 		std::array<Texture3DPtr, 2> _ptr;
+		
+		std::string _name;
 		
 	};
 

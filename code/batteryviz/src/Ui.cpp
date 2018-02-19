@@ -335,6 +335,10 @@ void Ui::update(double dt)
 		0, _app._volume->numChannels() - 1
 	);
 
+	ImGui::TextColored(ImVec4(1, 1, 0, 1), "%s",
+		_app._volume->getChannel(_app._options["Render"].get<int>("channel")).getName().c_str()
+	);
+
 
 	/*
 	Volume
