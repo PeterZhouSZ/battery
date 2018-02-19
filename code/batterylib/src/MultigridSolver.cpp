@@ -502,3 +502,35 @@ T MultigridSolver<T>::solve(T tolerance, size_t maxIterations)
 
 }
 
+
+template <typename T>
+BLIB_EXPORT bool blib::MultigridSolver<T>::resultToVolume(VolumeChannel & vol)
+{
+
+	assert(_x.size() > 0);
+
+	void * destPtr = vol.getCurrentPtr().getCPU();
+
+	//Copy directly if same type
+	if ((std::is_same<float, T>::value && vol.type() == TYPE_FLOAT) ||
+		(std::is_same<double, T>::value && vol.type() == TYPE_DOUBLE)) {
+		memcpy(destPtr, _x[0].data(), _x[0].size() * sizeof(T));
+	}
+	else {
+		if (vol.type() == TYPE_FLOAT) {
+			Eigen::Matrix<float, Eigen::Dynamic, 1> tmpX = _x[0].cast<float>();
+			memcpy(destPtr, tmpX.data(), tmpX.size() * sizeof(float));
+		}
+		else if (vol.type() == TYPE_DOUBLE) {
+			Eigen::Matrix<double, Eigen::Dynamic, 1> tmpX = _x[0].cast<double>();
+			memcpy(destPtr, tmpX.data(), tmpX.size() * sizeof(double));
+		}
+		else {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+

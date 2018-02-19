@@ -35,6 +35,8 @@ namespace blib {
 			size_t maxIterations			
 		);
 
+		BLIB_EXPORT bool resultToVolume(VolumeChannel & vol);
+
 	private:
 
 		BLIB_EXPORT bool prepareAtLevel(
