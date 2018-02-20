@@ -1,0 +1,1036 @@
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 283 x 184 = 14736376 voxels (14.0537M)
+Direction 1
+i:0, estimated error: 2.85686e-05, NoConvergence
+i:128, estimated error: 4.06335e-06, NoConvergence
+i:256, estimated error: 1.74943e-06, NoConvergence
+i:384, estimated error: 9.57306e-07, Success
+dc: 0.000760948
+porosity: 0.607467
+tau: 1.41043
+Elapsed: 161.172s (2.6862m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section001//conc.vol
+Direction 3
+i:0, estimated error: 2.79234e-05, NoConvergence
+i:128, estimated error: 2.72648e-06, NoConvergence
+i:256, estimated error: 9.96749e-07, Success
+dc: 0.0007744
+porosity: 0.607467
+tau: 1.38593
+Elapsed: 133.568s (2.22613m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section001//conc.vol
+Direction 5
+i:0, estimated error: 5.81214e-05, NoConvergence
+i:128, estimated error: 1.39035e-05, NoConvergence
+i:256, estimated error: 4.40268e-06, NoConvergence
+i:384, estimated error: 1.68877e-06, NoConvergence
+i:512, estimated error: 9.96462e-07, Success
+dc: 0.000772467
+porosity: 0.607467
+tau: 2.13695
+Elapsed: 246.407s (4.10679m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section001//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 283 x 184 = 14736376 voxels (14.0537M)
+Direction 1
+i:0, estimated error: 3.70874e-05, NoConvergence
+i:128, estimated error: 4.76099e-06, NoConvergence
+i:256, estimated error: 1.90924e-06, NoConvergence
+i:384, estimated error: 9.9009e-07, Success
+dc: 0.000763708
+porosity: 0.617643
+tau: 1.42887
+Elapsed: 174.855s (2.91424m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section002//conc.vol
+Direction 3
+i:0, estimated error: 3.63672e-05, NoConvergence
+i:128, estimated error: 4.2158e-06, NoConvergence
+i:256, estimated error: 1.69267e-06, NoConvergence
+i:384, estimated error: 9.97792e-07, Success
+dc: 0.000759536
+porosity: 0.617643
+tau: 1.43672
+Elapsed: 171.725s (2.86209m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section002//conc.vol
+Direction 5
+i:0, estimated error: 9.60481e-05, NoConvergence
+i:128, estimated error: 1.23882e-05, NoConvergence
+i:256, estimated error: 4.40884e-06, NoConvergence
+i:384, estimated error: 2.96567e-06, NoConvergence
+i:512, estimated error: 1.08993e-06, NoConvergence
+i:640, estimated error: 9.95463e-07, Success
+dc: 0.000844575
+porosity: 0.617643
+tau: 1.98725
+Elapsed: 265.121s (4.41869m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section002//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 283 x 184 = 14736376 voxels (14.0537M)
+Direction 1
+i:0, estimated error: 2.47398e-05, NoConvergence
+i:128, estimated error: 6.9722e-06, NoConvergence
+i:256, estimated error: 2.97517e-06, NoConvergence
+i:384, estimated error: 9.97897e-07, Success
+dc: 0.000789415
+porosity: 0.622627
+tau: 1.3935
+Elapsed: 183.487s (3.05812m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section003//conc.vol
+Direction 3
+i:0, estimated error: 2.63424e-05, NoConvergence
+i:128, estimated error: 4.21923e-06, NoConvergence
+i:256, estimated error: 1.80517e-06, NoConvergence
+i:384, estimated error: 9.63911e-07, Success
+dc: 0.000801043
+porosity: 0.622627
+tau: 1.37327
+Elapsed: 172.096s (2.86827m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section003//conc.vol
+Direction 5
+i:0, estimated error: 5.98845e-05, NoConvergence
+i:128, estimated error: 1.55889e-05, NoConvergence
+i:256, estimated error: 8.2049e-06, NoConvergence
+i:384, estimated error: 3.6045e-06, NoConvergence
+i:512, estimated error: 1.9303e-06, NoConvergence
+i:640, estimated error: 9.60528e-07, Success
+dc: 0.000846956
+porosity: 0.622627
+tau: 1.99765
+Elapsed: 269.05s (4.48416m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section003//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 283 x 184 = 14736376 voxels (14.0537M)
+Direction 1
+i:0, estimated error: 2.86321e-05, NoConvergence
+i:128, estimated error: 5.47574e-06, NoConvergence
+i:256, estimated error: 1.50905e-06, NoConvergence
+i:384, estimated error: 9.33762e-07, Success
+dc: 0.000789342
+porosity: 0.61588
+tau: 1.37852
+Elapsed: 170.468s (2.84114m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section004//conc.vol
+Direction 3
+i:0, estimated error: 3.06534e-05, NoConvergence
+i:128, estimated error: 7.09531e-06, NoConvergence
+i:256, estimated error: 2.6877e-06, NoConvergence
+i:384, estimated error: 9.98321e-07, Success
+dc: 0.000798115
+porosity: 0.61588
+tau: 1.36337
+Elapsed: 197.531s (3.29218m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section004//conc.vol
+Direction 5
+i:0, estimated error: 7.74702e-05, NoConvergence
+i:128, estimated error: 1.14366e-05, NoConvergence
+i:256, estimated error: 5.47254e-06, NoConvergence
+i:384, estimated error: 2.19235e-06, NoConvergence
+i:512, estimated error: 9.97675e-07, Success
+dc: 0.000813056
+porosity: 0.61588
+tau: 2.05839
+Elapsed: 245.482s (4.09137m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section004//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 284 x 184 = 14788448 voxels (14.1034M)
+Direction 1
+i:0, estimated error: 3.78834e-05, NoConvergence
+i:128, estimated error: 9.05026e-06, NoConvergence
+i:256, estimated error: 2.61566e-06, NoConvergence
+i:384, estimated error: 1.08422e-06, NoConvergence
+i:512, estimated error: 9.9707e-07, Success
+dc: 0.000766269
+porosity: 0.622093
+tau: 1.43436
+Elapsed: 201.151s (3.35251m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section005//conc.vol
+Direction 3
+i:0, estimated error: 3.32395e-05, NoConvergence
+i:128, estimated error: 7.48279e-06, NoConvergence
+i:256, estimated error: 1.89828e-06, NoConvergence
+i:384, estimated error: 9.42516e-07, Success
+dc: 0.000797335
+porosity: 0.622093
+tau: 1.37362
+Elapsed: 171.366s (2.8561m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section005//conc.vol
+Direction 5
+i:0, estimated error: 9.8077e-05, NoConvergence
+i:128, estimated error: 4.60439e-05, NoConvergence
+i:256, estimated error: 2.33498e-05, NoConvergence
+i:384, estimated error: 1.06968e-05, NoConvergence
+i:512, estimated error: 5.08711e-06, NoConvergence
+i:640, estimated error: 2.3532e-06, NoConvergence
+i:768, estimated error: 1.26501e-06, NoConvergence
+i:896, estimated error: 9.69835e-07, Success
+dc: 0.00080825
+porosity: 0.622093
+tau: 2.09152
+Elapsed: 367.176s (6.1196m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section005//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 284 x 283 x 184 = 14788448 voxels (14.1034M)
+Direction 1
+i:0, estimated error: 2.62314e-05, NoConvergence
+i:128, estimated error: 3.14903e-06, NoConvergence
+i:256, estimated error: 9.77917e-07, Success
+dc: 0.000789775
+porosity: 0.609487
+tau: 1.35867
+Elapsed: 138.445s (2.30742m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section006//conc.vol
+Direction 3
+i:0, estimated error: 3.23777e-05, NoConvergence
+i:128, estimated error: 8.3425e-06, NoConvergence
+i:256, estimated error: 3.17041e-06, NoConvergence
+i:384, estimated error: 8.86726e-07, Success
+dc: 0.000797679
+porosity: 0.609487
+tau: 1.34996
+Elapsed: 194.332s (3.23886m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section006//conc.vol
+Direction 5
+i:0, estimated error: 8.11404e-05, NoConvergence
+i:128, estimated error: 2.5015e-05, NoConvergence
+i:256, estimated error: 3.65759e-05, NoConvergence
+i:384, estimated error: 1.46824e-05, NoConvergence
+i:512, estimated error: 7.17095e-06, NoConvergence
+i:640, estimated error: 2.30192e-06, NoConvergence
+i:768, estimated error: 1.1252e-06, NoConvergence
+i:896, estimated error: 8.60301e-07, Success
+dc: 0.000769626
+porosity: 0.609487
+tau: 2.15197
+Elapsed: 345.536s (5.75893m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section006//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 284 x 283 x 184 = 14788448 voxels (14.1034M)
+Direction 1
+i:0, estimated error: 2.89695e-05, NoConvergence
+i:128, estimated error: 5.78771e-06, NoConvergence
+i:256, estimated error: 2.13671e-06, NoConvergence
+i:384, estimated error: 9.7297e-07, Success
+dc: 0.000795001
+porosity: 0.626155
+tau: 1.38665
+Elapsed: 178.086s (2.96811m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section007//conc.vol
+Direction 3
+i:0, estimated error: 3.19009e-05, NoConvergence
+i:128, estimated error: 8.16303e-06, NoConvergence
+i:256, estimated error: 8.40706e-06, NoConvergence
+i:384, estimated error: 1.30851e-06, NoConvergence
+i:512, estimated error: 9.80889e-07, Success
+dc: 0.000793605
+porosity: 0.626155
+tau: 1.39399
+Elapsed: 210.57s (3.50949m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section007//conc.vol
+Direction 5
+i:0, estimated error: 6.35966e-05, NoConvergence
+i:128, estimated error: 1.21164e-05, NoConvergence
+i:256, estimated error: 4.96772e-06, NoConvergence
+i:384, estimated error: 2.7087e-06, NoConvergence
+i:512, estimated error: 1.04632e-06, NoConvergence
+i:640, estimated error: 9.97986e-07, Success
+dc: 0.000880293
+porosity: 0.626155
+tau: 1.93289
+Elapsed: 260.803s (4.34671m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section007//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 284 x 184 = 14788448 voxels (14.1034M)
+Direction 1
+i:0, estimated error: 3.845e-05, NoConvergence
+i:128, estimated error: 6.76643e-06, NoConvergence
+i:256, estimated error: 1.47838e-06, NoConvergence
+i:384, estimated error: 9.95019e-07, Success
+dc: 0.000779945
+porosity: 0.619059
+tau: 1.40234
+Elapsed: 170.141s (2.83568m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section008//conc.vol
+Direction 3
+i:0, estimated error: 3.28921e-05, NoConvergence
+i:128, estimated error: 7.60543e-06, NoConvergence
+i:256, estimated error: 2.02891e-06, NoConvergence
+i:384, estimated error: 9.41486e-07, Success
+dc: 0.000759117
+porosity: 0.619059
+tau: 1.43574
+Elapsed: 180.55s (3.00917m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section008//conc.vol
+Direction 5
+i:0, estimated error: 9.63331e-05, NoConvergence
+i:128, estimated error: 3.04483e-05, NoConvergence
+i:256, estimated error: 1.52988e-05, NoConvergence
+i:384, estimated error: 1.13545e-05, NoConvergence
+i:512, estimated error: 6.50028e-06, NoConvergence
+i:640, estimated error: 3.54406e-06, NoConvergence
+i:768, estimated error: 1.41107e-06, NoConvergence
+i:896, estimated error: 9.42826e-07, Success
+dc: 0.000827432
+porosity: 0.619059
+tau: 2.03307
+Elapsed: 365.45s (6.09084m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section008//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 284 x 284 x 184 = 14840704 voxels (14.1532M)
+Direction 1
+i:0, estimated error: 2.53632e-05, NoConvergence
+i:128, estimated error: 5.18932e-06, NoConvergence
+i:256, estimated error: 2.37708e-06, NoConvergence
+i:384, estimated error: 9.79582e-07, Success
+dc: 0.000784275
+porosity: 0.615719
+tau: 1.38218
+Elapsed: 179.456s (2.99093m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section009//conc.vol
+Direction 3
+i:0, estimated error: 3.12824e-05, NoConvergence
+i:128, estimated error: 7.68229e-06, NoConvergence
+i:256, estimated error: 3.20561e-06, NoConvergence
+i:384, estimated error: 9.89703e-07, Success
+dc: 0.00077668
+porosity: 0.615719
+tau: 1.3957
+Elapsed: 179.695s (2.99492m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section009//conc.vol
+Direction 5
+i:0, estimated error: 7.2562e-05, NoConvergence
+i:128, estimated error: 1.45762e-05, NoConvergence
+i:256, estimated error: 7.85284e-06, NoConvergence
+i:384, estimated error: 3.06784e-06, NoConvergence
+i:512, estimated error: 1.77389e-06, NoConvergence
+i:640, estimated error: 9.98162e-07, Success
+dc: 0.000809028
+porosity: 0.615719
+tau: 2.0681
+Elapsed: 274.289s (4.57149m)
+export to../../data/graphiteSections/dataset/SL43_C5_1c5bar_section009//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 283 x 211 = 16898779 voxels (16.1159M)
+Direction 1
+i:0, estimated error: 2.90732e-05, NoConvergence
+i:128, estimated error: 6.77956e-06, NoConvergence
+i:256, estimated error: 2.54008e-06, NoConvergence
+i:384, estimated error: 9.38911e-07, Success
+dc: 0.000541812
+porosity: 0.49338
+tau: 1.60885
+Elapsed: 225.248s (3.75414m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section001//conc.vol
+Direction 3
+i:0, estimated error: 2.66653e-05, NoConvergence
+i:128, estimated error: 4.11552e-06, NoConvergence
+i:256, estimated error: 1.56534e-06, NoConvergence
+i:384, estimated error: 9.92114e-07, Success
+dc: 0.000547364
+porosity: 0.49338
+tau: 1.59254
+Elapsed: 192.588s (3.20979m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section001//conc.vol
+Direction 5
+i:0, estimated error: 6.3707e-05, NoConvergence
+i:128, estimated error: 1.01424e-05, NoConvergence
+i:256, estimated error: 6.58351e-06, NoConvergence
+i:384, estimated error: 3.43491e-06, NoConvergence
+i:512, estimated error: 1.83335e-06, NoConvergence
+i:640, estimated error: 1.08512e-06, NoConvergence
+i:768, estimated error: 9.92177e-07, Success
+dc: 0.000407612
+porosity: 0.49338
+tau: 2.86828
+Elapsed: 350.919s (5.84864m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section001//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 283 x 211 = 16898779 voxels (16.1159M)
+Direction 1
+i:0, estimated error: 2.80501e-05, NoConvergence
+i:128, estimated error: 4.45085e-06, NoConvergence
+i:256, estimated error: 2.46871e-06, NoConvergence
+i:384, estimated error: 9.94606e-07, Success
+dc: 0.000545193
+porosity: 0.487909
+tau: 1.58115
+Elapsed: 197.647s (3.29412m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section002//conc.vol
+Direction 3
+i:0, estimated error: 3.34273e-05, NoConvergence
+i:128, estimated error: 6.53727e-06, NoConvergence
+i:256, estimated error: 2.05599e-06, NoConvergence
+i:384, estimated error: 1.0839e-06, NoConvergence
+i:512, estimated error: 9.98686e-07, Success
+dc: 0.000527772
+porosity: 0.487909
+tau: 1.63334
+Elapsed: 237.489s (3.95814m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section002//conc.vol
+Direction 5
+i:0, estimated error: 6.85616e-05, NoConvergence
+i:128, estimated error: 1.97436e-05, NoConvergence
+i:256, estimated error: 1.29387e-05, NoConvergence
+i:384, estimated error: 5.82848e-06, NoConvergence
+i:512, estimated error: 4.31342e-06, NoConvergence
+i:640, estimated error: 2.23548e-06, NoConvergence
+i:768, estimated error: 1.77269e-06, NoConvergence
+i:896, estimated error: 8.83331e-07, Success
+dc: 0.000377053
+porosity: 0.487909
+tau: 3.06637
+Elapsed: 424.86s (7.08101m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section002//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 283 x 211 = 16898779 voxels (16.1159M)
+Direction 1
+i:0, estimated error: 2.55649e-05, NoConvergence
+i:128, estimated error: 4.05031e-06, NoConvergence
+i:256, estimated error: 2.26566e-06, NoConvergence
+i:384, estimated error: 9.66985e-07, Success
+dc: 0.000531128
+porosity: 0.486869
+tau: 1.61956
+Elapsed: 208.526s (3.47544m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section003//conc.vol
+Direction 3
+i:0, estimated error: 3.0337e-05, NoConvergence
+i:128, estimated error: 6.90888e-06, NoConvergence
+i:256, estimated error: 2.60965e-06, NoConvergence
+i:384, estimated error: 9.97977e-07, Success
+dc: 0.000552465
+porosity: 0.486869
+tau: 1.55701
+Elapsed: 203.213s (3.38688m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section003//conc.vol
+Direction 5
+i:0, estimated error: 3.96728e-05, NoConvergence
+i:128, estimated error: 8.51716e-06, NoConvergence
+i:256, estimated error: 3.12288e-06, NoConvergence
+i:384, estimated error: 1.69769e-06, NoConvergence
+i:512, estimated error: 1.06789e-06, NoConvergence
+i:640, estimated error: 9.5348e-07, Success
+dc: 0.000394252
+porosity: 0.486869
+tau: 2.92634
+Elapsed: 292.418s (4.87363m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section003//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 283 x 211 = 16898779 voxels (16.1159M)
+Direction 1
+i:0, estimated error: 3.05452e-05, NoConvergence
+i:128, estimated error: 6.88199e-06, NoConvergence
+i:256, estimated error: 6.14116e-06, NoConvergence
+i:384, estimated error: 8.32325e-07, Success
+dc: 0.00054111
+porosity: 0.488236
+tau: 1.59414
+Elapsed: 220.901s (3.68168m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section004//conc.vol
+Direction 3
+i:0, estimated error: 2.66965e-05, NoConvergence
+i:128, estimated error: 5.47568e-06, NoConvergence
+i:256, estimated error: 1.9247e-06, NoConvergence
+i:384, estimated error: 9.3323e-07, Success
+dc: 0.000530726
+porosity: 0.488236
+tau: 1.62533
+Elapsed: 203.778s (3.3963m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section004//conc.vol
+Direction 5
+i:0, estimated error: 5.71604e-05, NoConvergence
+i:128, estimated error: 1.65788e-05, NoConvergence
+i:256, estimated error: 1.02177e-05, NoConvergence
+i:384, estimated error: 5.33725e-06, NoConvergence
+i:512, estimated error: 3.1079e-06, NoConvergence
+i:640, estimated error: 2.16249e-06, NoConvergence
+i:768, estimated error: 1.46182e-06, NoConvergence
+i:896, estimated error: 9.87733e-07, Success
+dc: 0.000411058
+porosity: 0.488236
+tau: 2.81458
+Elapsed: 414.169s (6.90281m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section004//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 284 x 211 = 16958492 voxels (16.1729M)
+Direction 1
+i:0, estimated error: 2.7005e-05, NoConvergence
+i:128, estimated error: 9.73036e-06, NoConvergence
+i:256, estimated error: 2.28252e-06, NoConvergence
+i:384, estimated error: 9.92731e-07, Success
+dc: 0.00051199
+porosity: 0.48728
+tau: 1.68152
+Elapsed: 226.46s (3.77434m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section005//conc.vol
+Direction 3
+i:0, estimated error: 3.35808e-05, NoConvergence
+i:128, estimated error: 5.32727e-06, NoConvergence
+i:256, estimated error: 1.93841e-06, NoConvergence
+i:384, estimated error: 9.25701e-07, Success
+dc: 0.000523378
+porosity: 0.48728
+tau: 1.63914
+Elapsed: 192.066s (3.20111m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section005//conc.vol
+Direction 5
+i:0, estimated error: 5.96272e-05, NoConvergence
+i:128, estimated error: 1.74569e-05, NoConvergence
+i:256, estimated error: 1.28888e-05, NoConvergence
+i:384, estimated error: 5.72076e-06, NoConvergence
+i:512, estimated error: 4.19401e-06, NoConvergence
+i:640, estimated error: 1.71798e-06, NoConvergence
+i:768, estimated error: 1.47219e-06, NoConvergence
+i:896, estimated error: 9.76785e-07, Success
+dc: 0.000423984
+porosity: 0.48728
+tau: 2.72344
+Elapsed: 400.562s (6.67603m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section005//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 284 x 283 x 211 = 16958492 voxels (16.1729M)
+Direction 1
+i:0, estimated error: 2.7377e-05, NoConvergence
+i:128, estimated error: 5.15599e-06, NoConvergence
+i:256, estimated error: 2.3705e-06, NoConvergence
+i:384, estimated error: 9.87766e-07, Success
+dc: 0.000548719
+porosity: 0.48718
+tau: 1.56312
+Elapsed: 201.276s (3.3546m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section006//conc.vol
+Direction 3
+i:0, estimated error: 3.16986e-05, NoConvergence
+i:128, estimated error: 7.18329e-06, NoConvergence
+i:256, estimated error: 3.36209e-06, NoConvergence
+i:384, estimated error: 1.1028e-06, NoConvergence
+i:512, estimated error: 9.90653e-07, Success
+dc: 0.000544054
+porosity: 0.48718
+tau: 1.58209
+Elapsed: 250.341s (4.17235m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section006//conc.vol
+Direction 5
+i:0, estimated error: 4.18213e-05, NoConvergence
+i:128, estimated error: 1.86777e-05, NoConvergence
+i:256, estimated error: 1.23697e-05, NoConvergence
+i:384, estimated error: 6.48315e-06, NoConvergence
+i:512, estimated error: 4.09068e-06, NoConvergence
+i:640, estimated error: 2.4435e-06, NoConvergence
+i:768, estimated error: 1.55077e-06, NoConvergence
+i:896, estimated error: 9.84592e-07, Success
+dc: 0.00037973
+porosity: 0.48718
+tau: 3.0402
+Elapsed: 408.98s (6.81633m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section006//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 284 x 283 x 211 = 16958492 voxels (16.1729M)
+Direction 1
+i:0, estimated error: 2.54784e-05, NoConvergence
+i:128, estimated error: 5.8266e-06, NoConvergence
+i:256, estimated error: 2.42995e-06, NoConvergence
+i:384, estimated error: 9.30733e-07, Success
+dc: 0.000526351
+porosity: 0.483963
+tau: 1.61878
+Elapsed: 202.324s (3.37207m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section007//conc.vol
+Direction 3
+i:0, estimated error: 2.44936e-05, NoConvergence
+i:128, estimated error: 5.46592e-06, NoConvergence
+i:256, estimated error: 1.81816e-06, NoConvergence
+i:384, estimated error: 9.80307e-07, Success
+dc: 0.000540791
+porosity: 0.483963
+tau: 1.58113
+Elapsed: 195.265s (3.25442m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section007//conc.vol
+Direction 5
+i:0, estimated error: 4.87937e-05, NoConvergence
+i:128, estimated error: 1.29512e-05, NoConvergence
+i:256, estimated error: 4.53523e-06, NoConvergence
+i:384, estimated error: 4.69305e-06, NoConvergence
+i:512, estimated error: 9.96259e-07, Success
+dc: 0.0004008
+porosity: 0.483963
+tau: 2.86136
+Elapsed: 273.559s (4.55931m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section007//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 284 x 211 = 16958492 voxels (16.1729M)
+Direction 1
+i:0, estimated error: 2.97277e-05, NoConvergence
+i:128, estimated error: 7.19151e-06, NoConvergence
+i:256, estimated error: 3.48245e-06, NoConvergence
+i:384, estimated error: 1.17665e-06, NoConvergence
+i:512, estimated error: 9.99251e-07, Success
+dc: 0.000517602
+porosity: 0.489739
+tau: 1.67168
+Elapsed: 257.114s (4.28524m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section008//conc.vol
+Direction 3
+i:0, estimated error: 3.64563e-05, NoConvergence
+i:128, estimated error: 5.35552e-06, NoConvergence
+i:256, estimated error: 1.84572e-06, NoConvergence
+i:384, estimated error: 9.91779e-07, Success
+dc: 0.000510915
+porosity: 0.489739
+tau: 1.68759
+Elapsed: 210.663s (3.51106m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section008//conc.vol
+Direction 5
+i:0, estimated error: 6.03639e-05, NoConvergence
+i:128, estimated error: 2.24991e-05, NoConvergence
+i:256, estimated error: 1.08177e-05, NoConvergence
+i:384, estimated error: 5.65147e-06, NoConvergence
+i:512, estimated error: 4.59689e-06, NoConvergence
+i:640, estimated error: 1.31325e-06, NoConvergence
+i:768, estimated error: 1.4322e-06, NoConvergence
+i:896, estimated error: 9.51299e-07, Success
+dc: 0.000409141
+porosity: 0.489739
+tau: 2.83648
+Elapsed: 396.792s (6.6132m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section008//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 284 x 284 x 211 = 17018416 voxels (16.23M)
+Direction 1
+i:0, estimated error: 2.5296e-05, NoConvergence
+i:128, estimated error: 3.12492e-06, NoConvergence
+i:256, estimated error: 9.90854e-07, Success
+dc: 0.000541062
+porosity: 0.487247
+tau: 1.58546
+Elapsed: 156.282s (2.60469m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section009//conc.vol
+Direction 3
+i:0, estimated error: 3.71458e-05, NoConvergence
+i:128, estimated error: 6.86741e-06, NoConvergence
+i:256, estimated error: 2.14319e-06, NoConvergence
+i:384, estimated error: 9.97104e-07, Success
+dc: 0.000521833
+porosity: 0.487247
+tau: 1.64388
+Elapsed: 194.469s (3.24115m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section009//conc.vol
+Direction 5
+i:0, estimated error: 5.33732e-05, NoConvergence
+i:128, estimated error: 9.50355e-06, NoConvergence
+i:256, estimated error: 3.36413e-06, NoConvergence
+i:384, estimated error: 9.95537e-07, Success
+dc: 0.000392348
+porosity: 0.487247
+tau: 2.94283
+Elapsed: 224.57s (3.74284m)
+export to../../data/graphiteSections/dataset/SL44_C4_1c5bar_section009//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 283 x 91 = 7288099 voxels (6.95047M)
+Direction 1
+i:0, estimated error: 5.71705e-05, NoConvergence
+i:128, estimated error: 1.35959e-05, NoConvergence
+i:256, estimated error: 8.42631e-06, NoConvergence
+i:384, estimated error: 1.66395e-06, NoConvergence
+i:512, estimated error: 9.63964e-07, Success
+dc: 0.000325031
+porosity: 0.411391
+tau: 2.23622
+Elapsed: 112.766s (1.87944m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section001//conc.vol
+Direction 3
+i:0, estimated error: 5.39963e-05, NoConvergence
+i:128, estimated error: 1.56208e-05, NoConvergence
+i:256, estimated error: 6.39358e-06, NoConvergence
+i:384, estimated error: 2.86598e-06, NoConvergence
+i:512, estimated error: 1.51747e-06, NoConvergence
+i:640, estimated error: 9.56526e-07, Success
+dc: 0.000334427
+porosity: 0.411391
+tau: 2.17339
+Elapsed: 131.835s (2.19726m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section001//conc.vol
+Direction 5
+i:0, estimated error: 0.000373109, NoConvergence
+i:128, estimated error: 8.59106e-05, NoConvergence
+i:256, estimated error: 3.69198e-05, NoConvergence
+i:384, estimated error: 1.49289e-05, NoConvergence
+i:512, estimated error: 1.73105e-05, NoConvergence
+i:640, estimated error: 7.17584e-06, NoConvergence
+i:768, estimated error: 3.01926e-06, NoConvergence
+i:896, estimated error: 1.372e-06, NoConvergence
+i:1024, estimated error: 9.77825e-07, Success
+dc: 0.000966492
+porosity: 0.411391
+tau: 2.33876
+Elapsed: 207.929s (3.46548m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section001//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 283 x 91 = 7288099 voxels (6.95047M)
+Direction 1
+i:0, estimated error: 4.3143e-05, NoConvergence
+i:128, estimated error: 6.03066e-06, NoConvergence
+i:256, estimated error: 1.97085e-06, NoConvergence
+i:384, estimated error: 9.8798e-07, Success
+dc: 0.00032762
+porosity: 0.381766
+tau: 2.05878
+Elapsed: 84.1266s (1.40211m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section002//conc.vol
+Direction 3
+i:0, estimated error: 4.89071e-05, NoConvergence
+i:128, estimated error: 9.87976e-06, NoConvergence
+i:256, estimated error: 6.97317e-06, NoConvergence
+i:384, estimated error: 2.09549e-06, NoConvergence
+i:512, estimated error: 1.48433e-06, NoConvergence
+i:640, estimated error: 9.83364e-07, Success
+dc: 0.000268741
+porosity: 0.381766
+tau: 2.50984
+Elapsed: 129s (2.15001m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section002//conc.vol
+Direction 5
+i:0, estimated error: 0.000304539, NoConvergence
+i:128, estimated error: 5.41491e-05, NoConvergence
+i:256, estimated error: 3.12431e-05, NoConvergence
+i:384, estimated error: 1.08315e-05, NoConvergence
+i:512, estimated error: 3.88142e-06, NoConvergence
+i:640, estimated error: 2.15087e-06, NoConvergence
+i:768, estimated error: 1.73445e-06, NoConvergence
+i:896, estimated error: 9.98313e-07, Success
+dc: 0.000872383
+porosity: 0.381766
+tau: 2.40447
+Elapsed: 176.827s (2.94711m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section002//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 283 x 91 = 7288099 voxels (6.95047M)
+Direction 1
+i:0, estimated error: 4.99656e-05, NoConvergence
+i:128, estimated error: 1.88087e-05, NoConvergence
+i:256, estimated error: 9.11538e-06, NoConvergence
+i:384, estimated error: 4.0441e-06, NoConvergence
+i:512, estimated error: 2.795e-06, NoConvergence
+i:640, estimated error: 1.16179e-06, NoConvergence
+i:768, estimated error: 9.01755e-07, Success
+dc: 0.000330131
+porosity: 0.40215
+tau: 2.15221
+Elapsed: 154.947s (2.58245m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section003//conc.vol
+Direction 3
+i:0, estimated error: 4.84698e-05, NoConvergence
+i:128, estimated error: 8.4994e-06, NoConvergence
+i:256, estimated error: 2.20836e-06, NoConvergence
+i:384, estimated error: 1.481e-06, NoConvergence
+i:512, estimated error: 9.9675e-07, Success
+dc: 0.000309321
+porosity: 0.40215
+tau: 2.29701
+Elapsed: 107.883s (1.79804m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section003//conc.vol
+Direction 5
+i:0, estimated error: 0.000377519, NoConvergence
+i:128, estimated error: 8.81585e-05, NoConvergence
+i:256, estimated error: 4.83229e-05, NoConvergence
+i:384, estimated error: 2.53181e-05, NoConvergence
+i:512, estimated error: 1.35998e-05, NoConvergence
+i:640, estimated error: 5.9039e-06, NoConvergence
+i:768, estimated error: 3.32978e-06, NoConvergence
+i:896, estimated error: 1.43737e-06, NoConvergence
+i:1024, estimated error: 9.49067e-07, Success
+dc: 0.000962569
+porosity: 0.40215
+tau: 2.29554
+Elapsed: 203.474s (3.39124m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section003//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 283 x 91 = 7288099 voxels (6.95047M)
+Direction 1
+i:0, estimated error: 4.54378e-05, NoConvergence
+i:128, estimated error: 8.50157e-06, NoConvergence
+i:256, estimated error: 1.98484e-06, NoConvergence
+i:384, estimated error: 9.98402e-07, Success
+dc: 0.000315303
+porosity: 0.383699
+tau: 2.15004
+Elapsed: 92.169s (1.53615m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section004//conc.vol
+Direction 3
+i:0, estimated error: 3.71153e-05, NoConvergence
+i:128, estimated error: 7.7148e-06, NoConvergence
+i:256, estimated error: 3.30356e-06, NoConvergence
+i:384, estimated error: 1.79249e-06, NoConvergence
+i:512, estimated error: 1.19476e-06, NoConvergence
+i:640, estimated error: 8.68893e-07, Success
+dc: 0.000285216
+porosity: 0.383699
+tau: 2.37684
+Elapsed: 130.785s (2.17975m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section004//conc.vol
+Direction 5
+i:0, estimated error: 0.000310177, NoConvergence
+i:128, estimated error: 0.000113707, NoConvergence
+i:256, estimated error: 6.30044e-05, NoConvergence
+i:384, estimated error: 2.06639e-05, NoConvergence
+i:512, estimated error: 1.23176e-05, NoConvergence
+i:640, estimated error: 5.15389e-06, NoConvergence
+i:768, estimated error: 2.75509e-06, NoConvergence
+i:896, estimated error: 1.24021e-06, NoConvergence
+i:1024, estimated error: 9.93426e-07, Success
+dc: 0.000894786
+porosity: 0.383699
+tau: 2.35613
+Elapsed: 207.609s (3.46015m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section004//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 284 x 91 = 7313852 voxels (6.97503M)
+Direction 1
+i:0, estimated error: 5.63562e-05, NoConvergence
+i:128, estimated error: 1.90306e-05, NoConvergence
+i:256, estimated error: 5.91863e-06, NoConvergence
+i:384, estimated error: 2.46745e-06, NoConvergence
+i:512, estimated error: 1.21513e-06, NoConvergence
+i:640, estimated error: 9.97405e-07, Success
+dc: 0.000320124
+porosity: 0.405837
+tau: 2.23984
+Elapsed: 133.662s (2.2277m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section005//conc.vol
+Direction 3
+i:0, estimated error: 5.52547e-05, NoConvergence
+i:128, estimated error: 1.17022e-05, NoConvergence
+i:256, estimated error: 3.24299e-06, NoConvergence
+i:384, estimated error: 9.40117e-07, Success
+dc: 0.000310452
+porosity: 0.405837
+tau: 2.30149
+Elapsed: 99.117s (1.65195m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section005//conc.vol
+Direction 5
+i:0, estimated error: 0.00034883, NoConvergence
+i:128, estimated error: 9.94198e-05, NoConvergence
+i:256, estimated error: 4.87391e-05, NoConvergence
+i:384, estimated error: 1.92069e-05, NoConvergence
+i:512, estimated error: 9.4797e-06, NoConvergence
+i:640, estimated error: 5.08498e-06, NoConvergence
+i:768, estimated error: 2.33311e-06, NoConvergence
+i:896, estimated error: 1.3903e-06, NoConvergence
+i:1024, estimated error: 9.52433e-07, Success
+dc: 0.000916751
+porosity: 0.405837
+tau: 2.43236
+Elapsed: 207.07s (3.45117m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section005//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 284 x 283 x 91 = 7313852 voxels (6.97503M)
+Direction 1
+i:0, estimated error: 4.04919e-05, NoConvergence
+i:128, estimated error: 1.02928e-05, NoConvergence
+i:256, estimated error: 3.46069e-06, NoConvergence
+i:384, estimated error: 1.22482e-06, NoConvergence
+i:512, estimated error: 9.98777e-07, Success
+dc: 0.000384222
+porosity: 0.428325
+tau: 1.96265
+Elapsed: 113.21s (1.88684m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section006//conc.vol
+Direction 3
+i:0, estimated error: 5.34982e-05, NoConvergence
+i:128, estimated error: 1.44512e-05, NoConvergence
+i:256, estimated error: 7.63499e-06, NoConvergence
+i:384, estimated error: 3.32249e-06, NoConvergence
+i:512, estimated error: 2.09006e-06, NoConvergence
+i:640, estimated error: 9.74133e-07, Success
+dc: 0.000348255
+porosity: 0.428325
+tau: 2.173
+Elapsed: 143.166s (2.38611m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section006//conc.vol
+Direction 5
+i:0, estimated error: 0.000313089, NoConvergence
+i:128, estimated error: 0.000110159, NoConvergence
+i:256, estimated error: 4.69922e-05, NoConvergence
+i:384, estimated error: 1.63138e-05, NoConvergence
+i:512, estimated error: 7.80015e-06, NoConvergence
+i:640, estimated error: 3.4214e-06, NoConvergence
+i:768, estimated error: 1.8055e-06, NoConvergence
+i:896, estimated error: 9.88616e-07, Success
+dc: 0.00104788
+porosity: 0.428325
+tau: 2.2459
+Elapsed: 184.882s (3.08136m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section006//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 284 x 283 x 91 = 7313852 voxels (6.97503M)
+Direction 1
+i:0, estimated error: 4.08998e-05, NoConvergence
+i:128, estimated error: 6.11414e-06, NoConvergence
+i:256, estimated error: 1.56687e-06, NoConvergence
+i:384, estimated error: 9.87083e-07, Success
+dc: 0.000283685
+porosity: 0.360554
+tau: 2.23762
+Elapsed: 83.3937s (1.38989m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section007//conc.vol
+Direction 3
+i:0, estimated error: 3.94909e-05, NoConvergence
+i:128, estimated error: 6.39227e-06, NoConvergence
+i:256, estimated error: 2.79712e-06, NoConvergence
+i:384, estimated error: 1.30622e-06, NoConvergence
+i:512, estimated error: 9.71552e-07, Success
+dc: 0.000252483
+porosity: 0.360554
+tau: 2.52303
+Elapsed: 109.108s (1.81847m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section007//conc.vol
+Direction 5
+i:0, estimated error: 0.000247352, NoConvergence
+i:128, estimated error: 4.79517e-05, NoConvergence
+i:256, estimated error: 2.30623e-05, NoConvergence
+i:384, estimated error: 1.3274e-05, NoConvergence
+i:512, estimated error: 6.57301e-06, NoConvergence
+i:640, estimated error: 4.13356e-06, NoConvergence
+i:768, estimated error: 1.70367e-06, NoConvergence
+i:896, estimated error: 9.96474e-07, Success
+dc: 0.000769579
+porosity: 0.360554
+tau: 2.57422
+Elapsed: 188.123s (3.13538m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section007//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 283 x 284 x 91 = 7313852 voxels (6.97503M)
+Direction 1
+i:0, estimated error: 3.24411e-05, NoConvergence
+i:128, estimated error: 8.79069e-06, NoConvergence
+i:256, estimated error: 3.25378e-06, NoConvergence
+i:384, estimated error: 1.59906e-06, NoConvergence
+i:512, estimated error: 8.74897e-07, Success
+dc: 0.000293976
+porosity: 0.367717
+tau: 2.20997
+Elapsed: 109.28s (1.82133m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section008//conc.vol
+Direction 3
+i:0, estimated error: 2.82854e-05, NoConvergence
+i:128, estimated error: 7.34303e-06, NoConvergence
+i:256, estimated error: 4.29309e-06, NoConvergence
+i:384, estimated error: 1.67744e-06, NoConvergence
+i:512, estimated error: 9.98989e-07, Success
+dc: 0.000260875
+porosity: 0.367717
+tau: 2.4816
+Elapsed: 115.298s (1.92164m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section008//conc.vol
+Direction 5
+i:0, estimated error: 0.00026706, NoConvergence
+i:128, estimated error: 4.59723e-05, NoConvergence
+i:256, estimated error: 1.33986e-05, NoConvergence
+i:384, estimated error: 6.29698e-06, NoConvergence
+i:512, estimated error: 3.97042e-06, NoConvergence
+i:640, estimated error: 2.46151e-06, NoConvergence
+i:768, estimated error: 1.12853e-06, NoConvergence
+i:896, estimated error: 8.99829e-07, Success
+dc: 0.000818748
+porosity: 0.367717
+tau: 2.4677
+Elapsed: 173.436s (2.8906m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section008//conc.vol
+Tolerance: 6
+MaxIterations: 10000 intermediate steps: 128
+Resolution: 284 x 284 x 91 = 7339696 voxels (6.99968M)
+Direction 1
+i:0, estimated error: 5.16062e-05, NoConvergence
+i:128, estimated error: 1.17551e-05, NoConvergence
+i:256, estimated error: 3.79038e-06, NoConvergence
+i:384, estimated error: 1.08597e-06, NoConvergence
+i:512, estimated error: 9.79272e-07, Success
+dc: 0.000342247
+porosity: 0.398858
+tau: 2.05178
+Elapsed: 112.247s (1.87079m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section009//conc.vol
+Direction 3
+i:0, estimated error: 5.84054e-05, NoConvergence
+i:128, estimated error: 2.41265e-05, NoConvergence
+i:256, estimated error: 1.13492e-05, NoConvergence
+i:384, estimated error: 5.06296e-05, NoConvergence
+i:512, estimated error: 1.61228e-05, NoConvergence
+i:640, estimated error: 1.53988e-05, NoConvergence
+i:768, estimated error: 5.05395e-06, NoConvergence
+i:896, estimated error: 2.70802e-06, NoConvergence
+i:1024, estimated error: 1.13916e-06, NoConvergence
+i:1152, estimated error: 9.69815e-07, Success
+dc: 0.000284933
+porosity: 0.398858
+tau: 2.46449
+Elapsed: 229.651s (3.82752m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section009//conc.vol
+Direction 5
+i:0, estimated error: 0.000344234, NoConvergence
+i:128, estimated error: 0.00012401, NoConvergence
+i:256, estimated error: 6.25177e-05, NoConvergence
+i:384, estimated error: 2.53476e-05, NoConvergence
+i:512, estimated error: 1.24815e-05, NoConvergence
+i:640, estimated error: 5.16468e-06, NoConvergence
+i:768, estimated error: 3.23635e-06, NoConvergence
+i:896, estimated error: 1.33205e-06, NoConvergence
+i:1024, estimated error: 9.96709e-07, Success
+dc: 0.000914946
+porosity: 0.398858
+tau: 2.39526
+Elapsed: 213.279s (3.55465m)
+export to../../data/graphiteSections/dataset/SL44_C4_4bar_section009//conc.vol
+../../data/graphiteSections/dataset/SL43_C5_1c5bar_section001/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL43_C5_1c5bar_section002/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL43_C5_1c5bar_section003/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL43_C5_1c5bar_section004/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL43_C5_1c5bar_section005/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL43_C5_1c5bar_section006/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL43_C5_1c5bar_section007/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL43_C5_1c5bar_section008/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL43_C5_1c5bar_section009/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_1c5bar_section001/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_1c5bar_section002/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_1c5bar_section003/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_1c5bar_section004/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_1c5bar_section005/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_1c5bar_section006/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_1c5bar_section007/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_1c5bar_section008/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_1c5bar_section009/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_4bar_section001/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_4bar_section002/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_4bar_section003/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_4bar_section004/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_4bar_section005/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_4bar_section006/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_4bar_section007/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_4bar_section008/ -t -dneg --step 128 -v -o out.csv
+../../data/graphiteSections/dataset/SL44_C4_4bar_section009/ -t -dneg --step 128 -v -o out.csv
+Total time(min): 279.732
