@@ -127,9 +127,44 @@ void restriction(
 
 }
 
-
 template <typename T>
 void interpolation(
+	T * src, ivec3 srcDim,
+	T * dest, ivec3 destDim //higher	
+) {
+
+	//#pragma omp parallel for if(destDim.x > 4)
+	for (auto z = 0; z < destDim.z; z++) {
+		for (auto y = 0; y < destDim.y; y++) {
+			for (auto x = 0; x < destDim.x; x++) {
+
+				ivec3 ipos = { x,y,z };
+				ivec3 iposSrc = ipos / 2;
+				ivec3 r = ivec3(ipos.x % 2, ipos.y % 2, ipos.z % 2 )*2 - 1;
+				auto destI = linearIndex(destDim, ipos);
+				auto srcI = linearIndex(srcDim, iposSrc);
+
+				ivec3 srcStride = { 1, srcDim.x, srcDim.x * srcDim.y };
+				if (x == destDim.x - 1 || x == 0) srcStride[0] = 0;
+				if (y == destDim.y - 1 || y == 0) srcStride[1] = 0;
+				if (z == destDim.z - 1 || z == 0) srcStride[2] = 0;
+
+				T val = T(3.0 / 4.0) * src[srcI] + T(1.0 / 12.0) * (
+					src[srcI + srcStride[0] * r[0]] + src[srcI + srcStride[1] * r[1]] + src[srcI + srcStride[2] * r[2]]);
+
+
+				dest[destI] = val;
+
+			}
+		}
+	}
+
+
+}
+
+
+template <typename T>
+void pointInterpolation(
 	T * src, ivec3 srcDim,
 	T * dest, ivec3 destDim //higher	
 ) {
@@ -644,6 +679,11 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 			interpolation<T>(v[i + 1].data(), _dims[i + 1], tmpx[i].data(), _dims[i]);
 
 			if (_verbose) {
+				addDebugChannel(vol, v[i+1], _dims[i+1], "v ", i+1, true);
+				addDebugChannel(vol, tmpx[i], _dims[i], "Iv", i, true);
+			}
+
+			if (_verbose) {
 				std::cout << tabs(i) << "Correction v[" << i << "]" << " += " << "Iv[" << (i+1) << "]" << std::endl;
 			}
 			//Add temp to v[i]
@@ -660,7 +700,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 			if (_verbose) {	
 				std::cout << err << std::endl;
 				//addDebugChannel(vol, r[i], _dims[i], "Post ", i, true);
-				addDebugChannel(vol, tmpx[i], _dims[i], "Interpolated corr ", i, true);
+				
 				
 			}
 		}
