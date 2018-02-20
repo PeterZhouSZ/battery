@@ -10,21 +10,21 @@ t0 = time.time()
 
 
 
-root = '../../data/graphiteSections/dataset/'
-f = open("output.csv",'w')
+root = '../../data/graphiteSections/dataset1/'
+#f = open("output.csv",'w')
 
 for subdir, dirs, files in os.walk(root):
     if(subdir == root): continue
     ##print(subdir)
 
-    args = subdir + "/ -t -dneg --step 128 -v -o out.csv "#--sub 16 --volExport"
+    args = subdir + "/ -t -dneg --step 128 -v -o out.csv --volExport "# --sub 16 --volExport"
     print(args)
 
     subprocess.call(
         '../bin/Release/batterytool.exe ' + args#,  stdout=f
     )
 
-f.close()
+#f.close()
 
 
 t1 = time.time()
