@@ -343,20 +343,24 @@ void Ui::update(double dt)
 	/*
 	Volume
 	*/
-	static std::string curDir = "../../data";	
-	std::string filename;
-	std::tie(curDir, filename)= imguiFileExplorer(curDir, ".tif", true);
+
+	bool tempDisabled = true;
+	if (!tempDisabled) {
+		static std::string curDir = "../../data";
+		std::string filename;
+		std::tie(curDir, filename) = imguiFileExplorer(curDir, ".tif", true);
 
 
-	if (filename != "") {
-		try {
-			auto id = _app._volume->emplaceChannel(
-				blib::loadTiffFolder(curDir.c_str())
-			);
-			_app._volumeRaycaster->setVolume(*_app._volume, id);			
-		}
-		catch (const char * ex){
-			std::cerr << ex << std::endl;
+		if (filename != "") {
+			try {
+				auto id = _app._volume->emplaceChannel(
+					blib::loadTiffFolder(curDir.c_str())
+				);
+				_app._volumeRaycaster->setVolume(*_app._volume, id);
+			}
+			catch (const char * ex) {
+				std::cerr << ex << std::endl;
+			}
 		}
 	}
 
@@ -484,7 +488,7 @@ void Ui::update(double dt)
 		ImGui::InputText("outVol", outputPath, 256);
 	}
 
-	//Input
+	//Input	
 	{
 
 		static char inputPath[256] = "volOut.vol";
