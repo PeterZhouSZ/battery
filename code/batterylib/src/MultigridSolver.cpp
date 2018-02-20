@@ -26,7 +26,7 @@ void addDebugChannel(Volume & vol, const Eigen::Matrix<T, Eigen::Dynamic, 1> & v
 		/*auto maxc = tmp.maxCoeff();
 		auto minc = tmp.minCoeff();
 		tmp = (tmp.array() - minc) / (maxc - minc);*/
-		tmp *= T(10);
+		//tmp *= T(10);
 	}
 
 	memcpy(c.getCurrentPtr().getCPU(), tmp.data(), dim.x * dim.z* dim.y * sizeof(float));
@@ -81,11 +81,36 @@ void conv3D(
 					for (auto j = 0; j < 3; j++) {
 						for (auto i = 0; i < 3; i++) {				
 
-							ivec3 srcPos = 2 * ivec3(x, y, z) + ivec3(i - 1, j - 1, k - 1);
-							if (!isValidPos(srcDim, srcPos)) continue;
-						
+
 							const T & w = kernel[i + 3 * j + k * 9];
 							if (w == T(0)) continue;
+
+							ivec3 srcPos = 2 * ivec3(x, y, z) + ivec3(i - 1, j - 1, k - 1);
+							if (!isValidPos(srcDim, srcPos)) continue;
+
+							/*if (srcPos.x < 0) {
+								val += w * 1.0f;
+								wsum += w;
+								continue;
+							}
+							else if (srcPos.x >= srcDim.x) {
+								val += w * 0.0f;
+								wsum += w;
+								continue;
+							}
+
+							if (srcPos.y < 0) {
+								srcPos.y = 0;
+							}
+							if (srcPos.z < 0) {
+								srcPos.z = 0;
+							}
+							if (srcPos.y >= srcDim.y) {
+								srcPos.y = srcDim.y - 1;
+							}
+							if (srcPos.z >= srcDim.z) {
+								srcPos.z = srcDim.z - 1;
+							}*/
 
 							auto srcI = linearIndex(srcDim, srcPos);
 							val += w * src[srcI];
@@ -105,7 +130,7 @@ void conv3D(
 }
 
 template <typename T>
-void restriction(
+void pointRestriction(
 	T * src, ivec3 srcDim,
 	T * dest, ivec3 destDim 	
 ) {
@@ -123,8 +148,42 @@ void restriction(
 			}
 		}
 	}
+}
 
+template <typename T>
+void restriction(
+	T * src, ivec3 srcDim,
+	T * dest, ivec3 destDim
+) {
+	assert(srcDim.x == destDim.x * 2);
+	assert(srcDim.y == destDim.y * 2);
+	assert(srcDim.z == destDim.z * 2);
+	
+	ivec3 s = { 1, srcDim.x, srcDim.x * srcDim.y };
 
+	for (auto z = 0; z < destDim.z; z++) {
+		for (auto y = 0; y < destDim.y; y++) {
+			for (auto x = 0; x < destDim.x; x++) {
+				ivec3 ipos = { x,y,z };
+				ivec3 iposSrc = ipos / 2;
+				auto srcI = linearIndex(srcDim, 2 * ipos);
+				auto destI = linearIndex(destDim, ipos);
+
+				T val = src[srcI] +
+					src[srcI + s[0]] +
+					src[srcI + s[1]] +
+					src[srcI + s[1] + s[0]] +
+					src[srcI + s[2]] +
+					src[srcI + s[2] + s[0]] +
+					src[srcI + s[2] + s[1]] +
+					src[srcI + s[2] + s[1] + s[0]];
+				
+				val *= T(1.0 / 8.0);
+
+				dest[destI] = val;
+			}
+		}
+	}
 }
 
 template <typename T>
@@ -314,7 +373,7 @@ bool MultigridSolver<T>::prepare(
 ){
 
 
-	
+	_iterations = 0;
 
 	bool res = true;
 
@@ -611,13 +670,25 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 		return std::string(n, '\t');
 	};
 
-	
+
+	if (_verbose) {
+		v[0].setZero();
+		addDebugChannel(vol, v[0], _dims[0], "initial guess ", 0, true);		
+	}
+
+	const auto integral = [](Vector & v) {
+		return v.sum() / v.size();
+	};
+
+
 	//maxIterations V cycle
 	for (auto k = 0; k < maxIterations; k++) {
 		
 		/*		
 			SMOOTHING DISABLED
 		*/
+		
+		
 		
 		
 		for (auto i = 0; i < lastLevel; i++) {
@@ -632,13 +703,15 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 			//Pre smoothing, v[i] is initial guess & result
 			//Residual saved in r[i]
-			T err = solveJacobi(A[i], f[i], v[i], tmpx[i], r[i], tolerance, preN, false);
+			T err = solveGaussSeidel(A[i], f[i], v[i], r[i], tolerance, preN, false); // df = f  A*v
 			if(preN == 0) r[i] = f[i] - A[i]*v[i];
+
+		
 			
 			if (_verbose) {
 				std::cout << err << std::endl;				
-
-				addDebugChannel(vol, _r[i], _dims[i], "Pre ", i, true);				
+				addDebugChannel(vol, v[i], _dims[i], "pre v ", i, true);
+				addDebugChannel(vol, _r[i], _dims[i], "pre r ", i, true);				
 			}
 
 			
@@ -646,8 +719,21 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				std::cout << tabs(i) << "Restriction r[" << i << "]" << " to " << "f["<< (i+1) << "]" << std::endl;
 			}
 			//Restrict residual r[i] to f[i+1] and use it as f[i+1] in next iteration
-			conv3D(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1], _restrictOp);
+			//conv3D(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1], _restrictOp);
+
+			//f[i + 1] *= 4.0;
+
+			restriction(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1]);
+
+			//std::cout << integral(r[i]) << " vs " << integral(f[i + 1]) << " >> " << (integral(r[i]) - integral(f[i+1])) << std::endl;
+
 			//restriction(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1]);
+
+			if (_verbose) {
+				addDebugChannel(vol, f[i+1], _dims[i+1], "f+1 ", i+1, true);
+				//addDebugChannel(vol, f[i+1], _dims[i+1], "rI = f ", i+1, true);
+			}
+
 						
 		}
 
@@ -679,32 +765,41 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 			interpolation<T>(v[i + 1].data(), _dims[i + 1], tmpx[i].data(), _dims[i]);
 
 			if (_verbose) {
-				addDebugChannel(vol, v[i+1], _dims[i+1], "v ", i+1, true);
-				addDebugChannel(vol, tmpx[i], _dims[i], "Iv", i, true);
+				//addDebugChannel(vol, v[i+1], _dims[i+1], "v ", i+1, true);
+				//addDebugChannel(vol, tmpx[i], _dims[i], "Iv", i, true);
 			}
 
 			if (_verbose) {
 				std::cout << tabs(i) << "Correction v[" << i << "]" << " += " << "Iv[" << (i+1) << "]" << std::endl;
+
+				//addDebugChannel(vol, tmpx[i], _dims[i], "tmpx ", i, true);
+				//addDebugChannel(vol, v[i], _dims[i], "BEFORE addition ", i, true);
 			}
 			//Add temp to v[i]
 			v[i] += tmpx[i];
 
 			if (_verbose) {				
+				//addDebugChannel(vol, v[i], _dims[i], "AFTER addition ", i, true);
+				
 				std::cout << tabs(i) << "Post-smoothing: ";
 			}
 
 			//Post smoothing, v[i] is initial guess & result		
-			T err = solveJacobi(A[i], f[i], v[i], tmpx[i], r[i], tolerance, postN, false);
+			T err = solveGaussSeidel(A[i], f[i], v[i], r[i], tolerance, postN, false);
 			if (postN == 0) r[i] = f[i] - A[i]*v[i];
 
 			if (_verbose) {	
+				
 				std::cout << err << std::endl;
 				//addDebugChannel(vol, r[i], _dims[i], "Post ", i, true);
-				
+				addDebugChannel(vol, v[i], _dims[i], "post v ", i, true);
+				addDebugChannel(vol, _r[i], _dims[i], "post r ", i, true);
 				
 			}
 		}
 
+
+		_iterations++;
 
 		T err = sqrt(r[0].squaredNorm() / f[0].squaredNorm());
 		std::cout << "k = " << k << " err: " << err << std::endl;		

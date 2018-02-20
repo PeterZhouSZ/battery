@@ -30,7 +30,7 @@ namespace blib {
 	}
 
 	inline bool isValidPos(const ivec3 & dim, const ivec3 & pos) {
-		return	pos.x > 0 && pos.y > 0 && pos.z > 0 &&
+		return	pos.x >= 0 && pos.y >= 0 && pos.z >= 0 &&
 				pos.x < dim.x && pos.y < dim.y && pos.z < dim.z;
 	}
 

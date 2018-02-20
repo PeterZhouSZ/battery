@@ -111,7 +111,7 @@ T solveJacobi(
 			}
 			break;
 		}
-		jacobiStep(A, b, curX, nextX);
+		gaussSeidelStep(A, b, curX, nextX);
 
 	}
 
@@ -132,8 +132,9 @@ void jacobiStep(
 	Eigen::Matrix<T, Eigen::Dynamic, 1> & xnew
 ) {
 
-
+#ifndef _DEBUG
 #pragma omp parallel for
+#endif
 	for (auto i = 0; i < A.rows(); i++) {
 
 		T sum = 0.0f;
@@ -153,4 +154,81 @@ void jacobiStep(
 		}*/
 		xnew[i] = (b[i] - sum) / diag;
 	}
+}
+
+
+template <typename T>
+T solveGaussSeidel(
+	const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+	const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+	Eigen::Matrix<T, Eigen::Dynamic, 1> & x,	
+	Eigen::Matrix<T, Eigen::Dynamic, 1> & residual,
+	float tolerance = 1e-4,
+	size_t maxIter = 20000,
+	bool verbose = false
+) {
+	
+	assert(residual.size() == x.size());
+
+	T bsqnorm = b.squaredNorm();	
+	T tol_error = T(1);
+
+	for (auto i = 0; i < maxIter; ++i) {
+		gaussSeidelStep(A, b, x);
+
+		residual = b - A*x;
+
+		float err = residual.squaredNorm();
+		tol_error = sqrt(err / bsqnorm);
+
+		if (verbose && i % 128 == 0) {
+			std::cout << "gauss seidel i: " << i << " err: " << err << ", tol_error: " << tol_error << std::endl;
+		}
+
+		if (tol_error <= tolerance) {
+			if (verbose) {
+				std::cout << "solved " << tol_error << " <= " << tolerance << std::endl;
+			}
+			break;
+		}
+
+	}
+
+	if (verbose) {
+		if (tol_error > tolerance)
+			std::cout << "jacobi not converged" << tol_error << " vs " << tolerance << std::endl;
+	}
+
+	return tol_error;
+}
+
+
+template <typename T>
+void gaussSeidelStep(
+	const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+	const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+	Eigen::Matrix<T, Eigen::Dynamic, 1> & x
+) {
+
+	for (auto i = 0; i < A.rows(); i++) {
+		T sum = T(0);
+		T diag = T(0);
+		for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
+			auto  j = it.col();
+			if (j == i) {
+				diag = it.value();
+				continue;
+			}
+			sum += it.value() * x[j];
+		}
+
+		/*if (diag == 0.0f) {
+		char k;
+		k = 0;
+		}*/
+		assert(diag != T(0));
+		x[i] = (b[i] - sum) / diag;
+	}
+
+
 }

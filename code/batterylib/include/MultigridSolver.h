@@ -49,6 +49,10 @@ namespace blib {
 			_verbose = val;
 		}
 
+		BLIB_EXPORT uint iterations() { 
+			return _iterations; 
+		}
+
 	private:
 
 		BLIB_EXPORT bool prepareAtLevel(
@@ -70,6 +74,7 @@ namespace blib {
 		std::array<T, 27> _interpOp;
 
 		T _porosity;
+		uint _iterations;
 
 	};
 

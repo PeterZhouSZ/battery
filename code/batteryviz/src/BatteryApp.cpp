@@ -507,11 +507,13 @@ void BatteryApp::reset()
 
 	_volume = make_unique<blib::Volume>();
 
+	loadDefault = true;
+
 	if (loadDefault) {
 		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
 		assert(batteryID == CHANNEL_BATTERY);
 
-		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(32));
+		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(128));
 		_volume->binarize(CHANNEL_BATTERY, 1.0f);
 
 		//Add concetration channel
@@ -523,13 +525,15 @@ void BatteryApp::reset()
 
 		_volume->getChannel(CHANNEL_CONCETRATION).clear();
 
+		
+
 		auto dim = _volume->getChannel(CHANNEL_BATTERY).dim();
 		std::cout << "Resolution: " << dim.x << " x " << dim.y << " x " << dim.z <<
 			" = " << dim.x*dim.y*dim.z << " voxels (" << (dim.x*dim.y*dim.z) / (1024 * 1024.0f) << "M)" << std::endl;
 
 	}
 	else {
-		int res = 4;
+		int res = 256;
 		ivec3 d = ivec3(res, res, res);
 		auto batteryID = _volume->addChannel(d, TYPE_UCHAR);
 
@@ -550,25 +554,30 @@ void BatteryApp::reset()
 		solving for -x here  (dir=1)
 		*/
 
-		for (auto i = 0; i <d[0] - 0; i++) {
+		/*for (auto i = 0; i <d[0] - 0; i++) {
 			for (auto j = 0; j <d[1] - 1; j++) {
 				for (auto k = 0; k < d[2] - 0; k++) {
 
 					data[i + j*c.dim().x + k*c.dim().y*c.dim().x] = 255;
 				}
 			}
-		}
+		}*/
 		c.getCurrentPtr().commit();
 
-		//generateSpheresVolume(*_volume, 128, 0.15f);
+		generateSpheresVolume(*_volume, 128, 0.15f);
 
 	}
 
 	_volume->getChannel(CHANNEL_BATTERY).setName("Battery");
 	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");
 
-	const bool multigridTest = false;
+	const bool multigridTest = true;
 	if(multigridTest){
+
+		
+
+	//	_volume->getChannel(CHANNEL_BATTERY).clear();
+
 		auto & c = _volume->getChannel(CHANNEL_BATTERY);
 		uchar* data = (uchar*)c.getCurrentPtr().getCPU();
 		
@@ -576,17 +585,38 @@ void BatteryApp::reset()
 		auto minDim = 4;
 		int levels = std::log2(maxDim) - std::log2(minDim) + 1;
 
-		_multiSolver.setVerbose(true);
+
+		std::cout << "Multigrid solver levels " << levels << std::endl;
+
+		_multiSolver.setVerbose(false);
+
+		auto t0 = std::chrono::system_clock::now();
 		_multiSolver.prepare(*_volume, data, c.dim(), X_POS, 1.0f, 0.001f, levels);
-		_multiSolver.solve(*_volume, 1e-5, 8);
+		auto t1 = std::chrono::system_clock::now();
 
-		
+		std::chrono::duration<double> prepTime = t1 - t0;
+		std::cout << "Prep time: " << prepTime.count() << std::endl;
 
-		_multiSolver.resultToVolume(_volume->getChannel(CHANNEL_CONCETRATION));
-		_volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().commit();
+		_multiSolver.solve(*_volume, 1e-6, 64);
+
+				
 	//	_multiSolver.generateErrorVolume(*_volume);
 		_multiSolver.setVerbose(true);
 		_multiSolver.tortuosity(_volume->getChannel(CHANNEL_BATTERY), X_POS);
+		auto t2 = std::chrono::system_clock::now();
+
+		_multiSolver.resultToVolume(_volume->getChannel(CHANNEL_CONCETRATION));
+		_volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().commit();
+
+
+		
+		std::chrono::duration<double> solveTime = t2 - t1;
+
+		
+		std::cout << "Solve time: " << solveTime.count() << std::endl;
+		std::cout << "Iterations: " << _multiSolver.iterations() << std::endl;
+
+
 	}
 
 	_volumeRaycaster->setVolume(*_volume, 0);
