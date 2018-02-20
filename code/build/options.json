@@ -154,6 +154,14 @@
             "data": false,
             "type": 5
         },
+        "transferDefault": {
+            "data": true,
+            "type": 5
+        },
+        "transferFunc": {
+            "data": 0,
+            "type": 2
+        },
         "volume": {
             "data": true,
             "type": 5

@@ -335,11 +335,23 @@ void BatteryApp::render(double dt)
 
 		_volumeRaycaster->setVolume(*_volume, _currentRenderChannel);
 		
-		if(_currentRenderChannel == CHANNEL_BATTERY)
-			_volumeRaycaster->setTransferGray();
-		else
-			_volumeRaycaster->setTransferJet();
 
+		if (_options["Render"].get<bool>("transferDefault")) {
+			if (_currentRenderChannel == CHANNEL_BATTERY)
+				_volumeRaycaster->setTransferGray();
+			else
+				_volumeRaycaster->setTransferJet();
+		}
+		else {
+			int t = _options["Render"].get<int>("transferFunc");
+			if(t == 0)
+				_volumeRaycaster->setTransferGray();
+			else
+				_volumeRaycaster->setTransferJet();
+		}
+
+		
+		
 			
 
 		_camera.setWindowDimensions(_window.width, _window.height - static_cast<int>(_window.height * sliceHeight));
