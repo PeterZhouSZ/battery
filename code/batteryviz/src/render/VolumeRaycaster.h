@@ -53,6 +53,8 @@ struct VolumeRaycaster {
 	void setTransferJet();
 	void setTransferGray();
 
+	void enableFiltering(bool val);
+
 private:
 	EnterExitVolume _enterExit;
 
@@ -61,7 +63,7 @@ private:
 
 	GLuint _volTexture;
 	ivec3 _volDim;
-
+	bool _enableFiltering;
 	
 
 	VertexBuffer<VertexData> _cube;

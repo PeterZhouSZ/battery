@@ -99,7 +99,8 @@ VolumeRaycaster::VolumeRaycaster(std::shared_ptr<Shader> shaderPosition,
 	  _transferTexture(GL_TEXTURE_1D, 16, 1, 0),
 	  _volTexture(0),
 	  _volDim({0,0,0}),
-	  showGradient(false)
+	  showGradient(false),
+	 _enableFiltering(true)
 	  {
 
   {
@@ -113,9 +114,10 @@ VolumeRaycaster::VolumeRaycaster(std::shared_ptr<Shader> shaderPosition,
 bool VolumeRaycaster::setVolume(const blib::Volume & volume, int channel)
 {
 
-
+	//New texture
 	_volTexture = volume.getChannel(channel).getCurrentPtr().getGlID();
-	_volDim = volume.getChannel(channel).dim();
+	_volDim = volume.getChannel(channel).dim();	
+	enableFiltering(_enableFiltering);
 
 	return true;
 }
@@ -187,6 +189,9 @@ void VolumeRaycaster::render(const Camera &camera, ivec4 viewport) {
 	{
 		GL(glActiveTexture(GL_TEXTURE1));
 		GL(glBindTexture(GL_TEXTURE_3D, _volTexture));
+
+		
+
 		shader["volumeTexture"] = int(GL_TEXTURE1 - GL_TEXTURE0);
 		shader["resolution"] =
 			vec3(1.0f / _volDim.x, 1.0f / _volDim.y,
@@ -325,4 +330,21 @@ void VolumeRaycaster::setTransferGray()
 		static_cast<GLsizei>(transferVal.size()), 0, GL_RGBA, GL_FLOAT,
 		transferVal.data()));
 	GL(glBindTexture(GL_TEXTURE_1D, 0));
+}
+
+void VolumeRaycaster::enableFiltering(bool val)
+{
+
+	_enableFiltering = val;
+	GL(glBindTexture(GL_TEXTURE_3D, _volTexture));
+
+	if (_enableFiltering) {
+		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+	}
+	else {
+		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+	}
+	GL(glBindTexture(GL_TEXTURE_3D, 0));
 }

@@ -166,6 +166,10 @@
             "data": true,
             "type": 5
         },
+        "volumeFiltering": {
+            "data": true,
+            "type": 5
+        },
         "volumeGrid": {
             "data": false,
             "type": 5

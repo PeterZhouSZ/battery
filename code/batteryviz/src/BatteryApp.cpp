@@ -350,6 +350,10 @@ void BatteryApp::render(double dt)
 				_volumeRaycaster->setTransferJet();
 		}
 
+		_volumeRaycaster->enableFiltering(
+			_options["Render"].get<bool>("volumeFiltering")
+		);
+
 		
 		
 			
