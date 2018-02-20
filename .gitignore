@@ -40,3 +40,4 @@ imgui.ini
 */build/.vs/*
 */bin/*
 */build/*.pdb
+*/build/*.vol
