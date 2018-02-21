@@ -23,9 +23,9 @@ void addDebugChannel(Volume & vol, const Eigen::Matrix<T, Eigen::Dynamic, 1> & v
 	Eigen::Matrix<T, Eigen::Dynamic, 1> tmp = v;
 	if (normalize) {
 		tmp = v.cwiseAbs();
-		/*auto maxc = tmp.maxCoeff();
+		auto maxc = tmp.maxCoeff();
 		auto minc = tmp.minCoeff();
-		tmp = (tmp.array() - minc) / (maxc - minc);*/
+		tmp = (tmp.array() - minc) / (maxc - minc);
 		//tmp *= T(10);
 	}
 
@@ -155,19 +155,24 @@ void restriction(
 	T * src, ivec3 srcDim,
 	T * dest, ivec3 destDim
 ) {
-	assert(srcDim.x == destDim.x * 2);
+	/*assert(srcDim.x == destDim.x * 2);
 	assert(srcDim.y == destDim.y * 2);
-	assert(srcDim.z == destDim.z * 2);
+	assert(srcDim.z == destDim.z * 2);*/
 	
-	ivec3 s = { 1, srcDim.x, srcDim.x * srcDim.y };
-
+	
+	#pragma omp parallel for if(destDim.x > 4)
 	for (auto z = 0; z < destDim.z; z++) {
 		for (auto y = 0; y < destDim.y; y++) {
 			for (auto x = 0; x < destDim.x; x++) {
 				ivec3 ipos = { x,y,z };
-				ivec3 iposSrc = ipos / 2;
-				auto srcI = linearIndex(srcDim, 2 * ipos);
+				ivec3 iposSrc = ipos * 2;
+				auto srcI = linearIndex(srcDim, iposSrc);
 				auto destI = linearIndex(destDim, ipos);
+
+				ivec3 s = { 1, srcDim.x, srcDim.x * srcDim.y };
+				if (iposSrc.x == srcDim.x - 1 /*|| x == 0*/) s[0] = 0;
+				if (iposSrc.y == srcDim.y - 1 /*|| y == 0*/) s[1] = 0;
+				if (iposSrc.z == srcDim.z - 1 /*|| z == 0*/) s[2] = 0;
 
 				T val = src[srcI] +
 					src[srcI + s[0]] +
@@ -192,7 +197,7 @@ void interpolation(
 	T * dest, ivec3 destDim //higher	
 ) {
 
-	//#pragma omp parallel for if(destDim.x > 4)
+	#pragma omp parallel for if(destDim.x > 4)
 	for (auto z = 0; z < destDim.z; z++) {
 		for (auto y = 0; y < destDim.y; y++) {
 			for (auto x = 0; x < destDim.x; x++) {
@@ -417,8 +422,15 @@ bool MultigridSolver<T>::prepare(
 
 	//Generate rest of levels, based on higher resolution
 	for (uint i = 1; i < _lv; i++) {
-		const int divFactor = (1 << i);
-		const ivec3 dim = origDim / divFactor;
+		//const int divFactor = (1 << i);
+		ivec3 dim = _dims[i-1] / 2;
+		if (_dims[i - 1].x % 2 == 1) dim.x++;
+		if (_dims[i - 1].y % 2 == 1) dim.y++;
+		if (_dims[i - 1].z % 2 == 1) dim.z++;
+
+		ivec3 dtmp = (_dims[i - 1] + (_dims[i - 1] - ivec3(1))) / 2;
+		
+
 		const size_t total = dim.x * dim.y * dim.z;
 
 		_dims[i] = dim;
@@ -655,8 +667,8 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 	}
 
 
-	const int preN = 8;
-	const int postN = 8;
+	const int preN = 4;
+	const int postN = 4;
 	const int lastLevel = _lv - 1;
 
 	Eigen::SparseLU<SparseMat> exactSolver;
@@ -672,7 +684,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 
 	if (_verbose) {
-		v[0].setZero();
+		//v[0].setZero();
 		addDebugChannel(vol, v[0], _dims[0], "initial guess ", 0, true);		
 	}
 
@@ -681,14 +693,10 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 	};
 
 
+	T lastError = std::numeric_limits<T>::max();
+
 	//maxIterations V cycle
 	for (auto k = 0; k < maxIterations; k++) {
-		
-		/*		
-			SMOOTHING DISABLED
-		*/
-		
-		
 		
 		
 		for (auto i = 0; i < lastLevel; i++) {
@@ -703,15 +711,15 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 			//Pre smoothing, v[i] is initial guess & result
 			//Residual saved in r[i]
-			T err = solveGaussSeidel(A[i], f[i], v[i], r[i], tolerance, preN, false); // df = f  A*v
+			T err = solveGaussSeidel(A[i], f[i], v[i], r[i], _dims[i], tolerance, preN, false); // df = f  A*v
 			if(preN == 0) r[i] = f[i] - A[i]*v[i];
 
 		
 			
 			if (_verbose) {
 				std::cout << err << std::endl;				
-				addDebugChannel(vol, v[i], _dims[i], "pre v ", i, true);
-				addDebugChannel(vol, _r[i], _dims[i], "pre r ", i, true);				
+				/*addDebugChannel(vol, v[i], _dims[i], "pre v ", i, true);
+				addDebugChannel(vol, _r[i], _dims[i], "pre r ", i, true);				*/
 			}
 
 			
@@ -730,8 +738,8 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 			//restriction(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1]);
 
 			if (_verbose) {
-				addDebugChannel(vol, f[i+1], _dims[i+1], "f+1 ", i+1, true);
-				//addDebugChannel(vol, f[i+1], _dims[i+1], "rI = f ", i+1, true);
+				addDebugChannel(vol, r[i], _dims[i], "r ", i, true);
+				addDebugChannel(vol, f[i+1], _dims[i+1], "rI = f ", i+1, true);
 			}
 
 						
@@ -752,7 +760,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 		//std::cout << "exact error" << errExact << std::endl;
 
 		if (_verbose) {
-			addDebugChannel(vol, v[lastLevel], _dims[lastLevel], "Exact solution", lastLevel, true);
+			//addDebugChannel(vol, v[lastLevel], _dims[lastLevel], "Exact solution", lastLevel, true);
 		}
 
 		//Up step
@@ -765,8 +773,8 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 			interpolation<T>(v[i + 1].data(), _dims[i + 1], tmpx[i].data(), _dims[i]);
 
 			if (_verbose) {
-				//addDebugChannel(vol, v[i+1], _dims[i+1], "v ", i+1, true);
-				//addDebugChannel(vol, tmpx[i], _dims[i], "Iv", i, true);
+				addDebugChannel(vol, v[i+1], _dims[i+1], "v ", i+1, true);
+				addDebugChannel(vol, tmpx[i], _dims[i], "Iv", i, true);
 			}
 
 			if (_verbose) {
@@ -785,15 +793,15 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 			}
 
 			//Post smoothing, v[i] is initial guess & result		
-			T err = solveGaussSeidel(A[i], f[i], v[i], r[i], tolerance, postN, false);
+			T err = solveGaussSeidel(A[i], f[i], v[i], r[i], _dims[i], tolerance, postN, false);
 			if (postN == 0) r[i] = f[i] - A[i]*v[i];
 
 			if (_verbose) {	
 				
 				std::cout << err << std::endl;
 				//addDebugChannel(vol, r[i], _dims[i], "Post ", i, true);
-				addDebugChannel(vol, v[i], _dims[i], "post v ", i, true);
-				addDebugChannel(vol, _r[i], _dims[i], "post r ", i, true);
+				//addDebugChannel(vol, v[i], _dims[i], "post v ", i, true);
+				//addDebugChannel(vol, _r[i], _dims[i], "post r ", i, true);
 				
 			}
 		}
@@ -802,7 +810,15 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 		_iterations++;
 
 		T err = sqrt(r[0].squaredNorm() / f[0].squaredNorm());
-		std::cout << "k = " << k << " err: " << err << std::endl;		
+
+		//T p = -log(err / lastError);
+		T p = (err / lastError);
+		lastError = err;
+
+		std::cout << "k = " << k << " err: " << err << ", rate: " << p << std::endl;		
+
+
+
 
 		if (err < tolerance || isinf(err) || isnan(err))
 			return err;

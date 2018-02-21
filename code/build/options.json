@@ -151,7 +151,7 @@
             "type": 7
         },
         "slices": {
-            "data": false,
+            "data": true,
             "type": 5
         },
         "transferDefault": {
@@ -167,7 +167,7 @@
             "type": 5
         },
         "volumeFiltering": {
-            "data": true,
+            "data": false,
             "type": 5
         },
         "volumeGrid": {

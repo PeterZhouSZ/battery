@@ -82,7 +82,7 @@ protected:
 
 
 	blib::DiffusionSolver<float> _diffSolver;
-	blib::MultigridSolver<float> _multiSolver;
+	blib::MultigridSolver<double> _multiSolver;
 
 
 	friend Ui;

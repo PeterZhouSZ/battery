@@ -513,7 +513,7 @@ void BatteryApp::reset()
 		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
 		assert(batteryID == CHANNEL_BATTERY);
 
-		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(128));
+		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(64));
 		_volume->binarize(CHANNEL_BATTERY, 1.0f);
 
 		//Add concetration channel
@@ -524,8 +524,7 @@ void BatteryApp::reset()
 		assert(concetrationID == CHANNEL_CONCETRATION);
 
 		_volume->getChannel(CHANNEL_CONCETRATION).clear();
-
-		
+				
 
 		auto dim = _volume->getChannel(CHANNEL_BATTERY).dim();
 		std::cout << "Resolution: " << dim.x << " x " << dim.y << " x " << dim.z <<
@@ -533,8 +532,10 @@ void BatteryApp::reset()
 
 	}
 	else {
-		int res = 256;
+		int res = 32;
 		ivec3 d = ivec3(res, res, res);
+		//ivec3 d = ivec3(16, 16, 15);
+		//ivec3 d = ivec3(179, 163, 157);
 		auto batteryID = _volume->addChannel(d, TYPE_UCHAR);
 
 		//Add concetration channel
@@ -581,9 +582,9 @@ void BatteryApp::reset()
 		auto & c = _volume->getChannel(CHANNEL_BATTERY);
 		uchar* data = (uchar*)c.getCurrentPtr().getCPU();
 		
-		auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
-		auto minDim = 4;
-		int levels = std::log2(maxDim) - std::log2(minDim) + 1;
+		auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
+		auto exactSolveDim = 4;
+		int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
 
 
 		std::cout << "Multigrid solver levels " << levels << std::endl;
@@ -597,7 +598,8 @@ void BatteryApp::reset()
 		std::chrono::duration<double> prepTime = t1 - t0;
 		std::cout << "Prep time: " << prepTime.count() << std::endl;
 
-		_multiSolver.solve(*_volume, 1e-6, 64);
+		_multiSolver.solve(*_volume, 1e-6, 512);
+
 
 				
 	//	_multiSolver.generateErrorVolume(*_volume);
