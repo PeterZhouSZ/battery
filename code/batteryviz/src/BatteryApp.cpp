@@ -572,7 +572,7 @@ void BatteryApp::reset()
 	_volume->getChannel(CHANNEL_BATTERY).setName("Battery");
 	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");
 
-	const bool multigridTest = true;
+	const bool multigridTest = false;
 	if(multigridTest){
 
 		
@@ -592,7 +592,7 @@ void BatteryApp::reset()
 		_multiSolver.setVerbose(false);
 
 		auto t0 = std::chrono::system_clock::now();
-		_multiSolver.prepare(*_volume, data, c.dim(), X_POS, 1.0f, 0.001f, levels);
+		_multiSolver.prepare(*_volume, data, c.dim(), X_POS, 1.0f, 0.00000001f, levels);
 		auto t1 = std::chrono::system_clock::now();
 
 		std::chrono::duration<double> prepTime = t1 - t0;
