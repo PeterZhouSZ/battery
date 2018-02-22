@@ -435,8 +435,8 @@ bool MultigridSolver<T>::prepare(
 
 		_dims[i] = dim;
 		Dlevels[i].resize(total);
-		conv3D(Dlevels[i - 1].data(), _dims[i - 1], Dlevels[i].data(), _dims[i], _restrictOp);
-		//restriction(Dlevels[i - 1].data(), _dims[i - 1], Dlevels[i].data(), _dims[i]);
+		//conv3D(Dlevels[i - 1].data(), _dims[i - 1], Dlevels[i].data(), _dims[i], _restrictOp);
+		restriction(Dlevels[i - 1].data(), _dims[i - 1], Dlevels[i].data(), _dims[i]);
 		
 		Dlevels_interp[i].resize(total, 0.0f);
 		
