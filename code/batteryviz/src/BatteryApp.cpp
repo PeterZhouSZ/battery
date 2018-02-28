@@ -31,6 +31,7 @@
 
 //#define DATA_FOLDER "../../data/graphite/SL43_C5_1c5bar_Data/"
 #define DATA_FOLDER "../../data/graphiteSections/SL43_C5_1c5bar_Data/SL43_C5_1c5bar_section001/"
+//#define DATA_FOLDER "../../data/graphiteSections/dataset0/SL44_C4_4bar_section003/"
 //#define DATA_FOLDER "C:/!/battery/battery/code/python/vol"
 //#define DATA_FOLDER "../../data/graphite/Cropped/"
 
@@ -513,7 +514,7 @@ void BatteryApp::reset()
 		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
 		assert(batteryID == CHANNEL_BATTERY);
 
-		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(64));
+		//_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(8));
 		_volume->binarize(CHANNEL_BATTERY, 1.0f);
 
 		//Add concetration channel
@@ -571,6 +572,8 @@ void BatteryApp::reset()
 
 	_volume->getChannel(CHANNEL_BATTERY).setName("Battery");
 	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");
+
+	
 
 	const bool multigridTest = false;
 	if(multigridTest){

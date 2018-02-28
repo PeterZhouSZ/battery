@@ -11,10 +11,20 @@
 #include <numeric>
 #include <filesystem>
 #include <fstream>
+
 namespace fs = std::experimental::filesystem;
 
 using namespace std;
 
+
+std::string tmpstamp(const std::string & format /*= "%Y_%m_%d_%H_%M_%S"*/)
+{
+	char buffer[256];
+	std::time_t now = std::time(NULL);
+	std::tm * ptm = std::localtime(&now);
+	std::strftime(buffer, 256, format.c_str(), ptm);
+	return std::string(buffer);
+}
 
 args::ArgumentParser parser("Battery tool", "Vojtech Krs (2018) vkrs@purdue.edu");
 args::HelpFlag help(parser, "help", "", { 'h', "help" });
@@ -150,7 +160,8 @@ bool tortuosity() {
 			c,
 			dir,
 			d0,
-			d1
+			d1,
+			true
 		);
 
 		T tol = T(pow(10.0, -argTol.Get()));
@@ -172,7 +183,9 @@ bool tortuosity() {
 
 		//Export calculated concetration volume
 		if (argVolumeExport) {
-			const std::string exportPath = (argInput.Get() + std::string("/conc_dir") + char(char(dir) + '0') + std::string(".vol"));
+			const std::string exportPath = (argInput.Get() + std::string("/conc_dir_") + char(char(dir) + '0')
+				+ std::string("_") + tmpstamp("%Y_%m_%d_%H_%M_%S") 
+				+ std::string(".vol"));			
 			solver.resultToVolume(volume.getChannel(concChannel));
 			bool res = blib::saveVolumeBinary(exportPath.c_str(), volume.getChannel(concChannel));
 			if (argVerbose) {

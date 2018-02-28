@@ -81,7 +81,7 @@ protected:
 	> _saEllipsoid;
 
 
-	blib::DiffusionSolver<float> _diffSolver;
+	blib::DiffusionSolver<double> _diffSolver;
 	blib::MultigridSolver<double> _multiSolver;
 
 

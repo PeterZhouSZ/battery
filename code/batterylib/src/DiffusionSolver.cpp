@@ -249,17 +249,14 @@ DiffusionSolver<T>::~DiffusionSolver()
 
 }
 
-
 template <typename T>
-bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1)
-{
+bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1, bool preserveAspectRatio) {
 
 	using vec3 = glm::tvec3<T, glm::highp>;
-	
+
 	auto dim = volChannel.dim();
 	assert(volChannel.type() == TYPE_UCHAR);
 	assert(dim.x > 0 && dim.y > 0 && dim.z > 0);
-	
 	uint dirPrimary = getDirIndex(dir);
 	uint dirSecondary[2] = { (dirPrimary + 1) % 3, (dirPrimary + 2) % 3 };
 	const T highConc = 1.0f;
@@ -268,16 +265,15 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1
 	const T concetrationEnd = (getDirSgn(dir) == 1) ? lowConc : highConc;
 
 	size_t N = dim.x * dim.y * dim.z;
-	size_t M = N; 
+	size_t M = N;
 
-	_rhs.resize(M);	
+	_rhs.resize(M);
 	_x.resize(N);
 
-	
-	
+
 	//D data
-	const uchar * D = (uchar *)volChannel.getCurrentPtr().getCPU();	
-	
+	const uchar * D = (uchar *)volChannel.getCurrentPtr().getCPU();
+
 	//D getter
 	const auto getD = [dim, D, d0, d1](ivec3 pos) {
 		return (D[linearIndex(dim, pos)] == 0) ? d0 : d1;
@@ -301,113 +297,143 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1
 
 
 	//Default spacing
-	const vec3 h_general = { 1.0f / (dim.x + 1), 1.0f / (dim.y + 1), 1.0f / (dim.z + 1) };
+
+	
+
+	vec3 cellDim = { T(1) / dim.x , T(1) / (dim.y),T(1) / (dim.z) };
+
+
+	if (preserveAspectRatio) {
+
+		T maxDim = std::max(dim[0], std::max(dim[1], dim[2]));		
+		cellDim = { T(1) / maxDim,T(1) / maxDim ,T(1) / maxDim };		
+	}
+	
+
+
+	vec3 faceArea = {
+		cellDim.y * cellDim.z,
+		cellDim.x * cellDim.z,
+		cellDim.x * cellDim.y,
+	};
+
+	
 
 	size_t d0Count = 0;
 	size_t d1Count = 0;
-		
+
 	_A.resize(M, N);
 	_A.reserve(Eigen::VectorXi::Constant(N, 7));
+	
+
+	struct Coeff {
+		Dir dir;
+		T val;
+		signed long col;		
+		bool useInMatrix;
+		bool operator < (const Coeff & b) const { return this->col < b.col; }
+	};
 
 
-	//Build matrix
+
+	ivec3 stride = { 1, dim.x, dim.x*dim.y };
+
 	for (auto z = 0; z < dim.z; z++) {
 		for (auto y = 0; y < dim.y; y++) {
 			for (auto x = 0; x < dim.x; x++) {
 
+
 				const ivec3 ipos = { x,y,z };
 				auto i = linearIndex(dim, ipos);
 
-				vec3 hneg = h_general;
-				vec3 hpos = h_general;
-
-				//Adjust spacing on boundary
-				for (auto k = 0; k < 3; k++) {
-					if (ipos[k] == 0)
-						hneg[k] *= 1.0 / sqrt(2);//0.5;					
-					else if (ipos[k] >= dim[k] - 1)
-						hpos[k] *= 1.0 / sqrt(2); //0.5;
-				}
-				const vec3 invHneg = vec3(1.0) / hneg;
-				vec3 invHneg2 = invHneg*invHneg;
-				const vec3 invHpos = vec3(1.0) / hpos;
-				vec3 invHpos2 = invHpos*invHpos;
-
-				T bval = 0.0f;
-				T vals[7] = { 0.0f,0.0f ,0.0f ,0.0f ,0.0f ,0.0f ,0.0f };
-				size_t colId[7];
-				colId[0] = i - dim.y*dim.x;
-				colId[1] = i - dim.x;
-				colId[2] = i - 1;
-				colId[3] = i;
-				colId[4] = i + 1;
-				colId[5] = i + dim.x;
-				colId[6] = i + dim.y*dim.x;
-							
 				T Di = getD(ipos);
 				if (Di == d0)
 					d0Count++;
 				else
 					d1Count++;
-				
 
-				auto Dvec = vec3(Di);						
+				auto Dvec = vec3(Di);
 
 				auto Dneg = (vec3(
 					sample(ipos, X_NEG),
 					sample(ipos, Y_NEG),
 					sample(ipos, Z_NEG)
-				) + vec3(Dvec)) * T(0.5) * invHneg2;
+				) + vec3(Dvec)) * T(0.5);
 
 				auto Dpos = (vec3(
 					sample(ipos, X_POS),
 					sample(ipos, Y_POS),
 					sample(ipos, Z_POS)
-				) + vec3(Dvec)) * T(0.5) * invHpos2;
+				) + vec3(Dvec)) * T(0.5);
+
+
+				std::array<Coeff, 7> coeffs;
+				T rhs = T(0);
+				for (auto k = 0; k <= DIR_NONE; k++) {
+					coeffs[k].dir = Dir(k);
+					coeffs[k].val = T(0);
+					coeffs[k].useInMatrix = true;					
+				}
+				coeffs[DIR_NONE].col = i;
+
 				
-				T diagVal = 0.0f;
-				
-				//(is first order accurate von neumann for secondary axes)
-				for (auto k = 0; k < 3; k++) {
-					if (ipos[k] > 0)
-						diagVal += -Dneg[k];
-					if (ipos[k] < dim[k] - 1)
-						diagVal += -Dpos[k];
+
+				//Calculate coeffs for all except diagonal
+				for (auto j = 0; j < DIR_NONE; j++) {					
+					auto & c = coeffs[j];
+					auto k = getDirIndex(c.dir);
+					auto sgn = getDirSgn(c.dir);
+					auto Dface = (sgn == -1) ? Dneg[k] : Dpos[k];
+					
+					/*
+						Boundary defaults
+						1. half size cell
+						2. von neumann zero grad
+					*/
+					auto cellDist = cellDim;
+					c.useInMatrix = true;
+					if (ipos[k] == 0 && sgn == -1) {
+						cellDist[k] = cellDim[k] * T(0.5);
+						c.useInMatrix = false;
+					}
+					if (ipos[k] == dim[k] - 1 && sgn == 1) {
+						cellDist[k] = cellDim[k] * T(0.5);
+						c.useInMatrix = false;						
+					}
+
+					c.val = (Dface * faceArea[k]) / cellDist[k];								
+					c.col = i + sgn * stride[k];
+
+					//Add to diagonal
+					if(c.useInMatrix || k == dirPrimary)
+						coeffs[DIR_NONE].val -= c.val;								
 				}
 
-				//Boundary conditions
-				if (ipos[dirPrimary] == 0) {					
-					bval = -Dneg[dirPrimary] * concetrationBegin;
-					diagVal -= Dneg[dirPrimary];
-
+				if (ipos[dirPrimary] == 0) {
+					Dir dir = getDir(dirPrimary, -1);
+					rhs -= coeffs[dir].val * concetrationBegin;
 				}
-				else if (ipos[dirPrimary] == dim[dirPrimary] - 1) {					
-					bval = - Dpos[dirPrimary] * concetrationEnd;					
-					diagVal -= Dpos[dirPrimary];
+				else if (ipos[dirPrimary] == dim[dirPrimary]-1) {
+					Dir dir = getDir(dirPrimary, 1);
+					rhs -= coeffs[dir].val * concetrationEnd;
 				}
 
+				//Matrix coefficients
+				std::sort(coeffs.begin(), coeffs.end());
+				for (auto & c : coeffs) {
+					if (c.useInMatrix) {
+						_A.insert(i, c.col) = c.val;
+					}
+				}
 
-				if (z > 0) vals[0] = Dneg.z;
-				if (y > 0) vals[1] = Dneg.y;
-				if (x > 0) vals[2] = Dneg.x;
-				vals[3] = diagVal;
-				if (x < dim.x - 1) vals[4] = Dpos.x;
-				if (y < dim.y - 1) vals[5] = Dpos.y;
-				if (z < dim.z - 1) vals[6] = Dpos.z;
-
-				_rhs[i] = bval;
+				//Right hand side
+				_rhs[i] = rhs;
 
 				//initial guess
 				if (getDirSgn(dir) == 1)
 					_x[i] = 1.0f - (ipos[dirPrimary] / T(dim[dirPrimary] + 1));
 				else
 					_x[i] = (ipos[dirPrimary] / T(dim[dirPrimary] + 1));
-
-				
-				for (auto k = 0; k < 7; k++) {
-					if (colId[k] < 0 || colId[k] >= N || vals[k] == 0.0f) continue;					
-					_A.insert(i, colId[k]) = vals[k];
-				}
 
 			}
 		}
@@ -416,12 +442,44 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1
 
 	_porosity = T(d0Count) / T(d0Count + d1Count);
 
+
+#ifdef DS_LINSYS_TO_FILE
+
+	{
+		std::ofstream f("A.dat");
+
+		for (auto i = 0; i < _A.rows(); i++) {
+			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A, i); it; ++it) {
+				auto  j = it.col();
+				f << i << " " << j << " " << it.value() << "\n";
+			}
+
+			if (i % (_A.rows() / 100))
+				f.flush();
+		}
+	}
+
+	{
+		std::ofstream f("B.txt");
+		for (auto i = 0; i < _rhs.size(); i++) {
+			f << _rhs[i] << "\n";
+			if (i % (_rhs.size() / 100))
+				f.flush();
+		}
+
+	}
+
+
+
+#endif
+
 	_A.makeCompressed();
 	_solver.compute(_A);
 
 	return true;
-
 }
+
+
 
 
 
@@ -710,6 +768,15 @@ BLIB_EXPORT T blib::DiffusionSolver<T>::tortuosity(const VolumeChannel & mask, D
 
 	const int primaryDim = getDirIndex(dir);
 	const int secondaryDims[2] = { (primaryDim + 1) % 3, (primaryDim + 2) % 3 };
+
+	vec3 cellDim = { T(1) / dim.x , T(1) / (dim.y),T(1) / (dim.z) };
+	
+	bool preserveAspectRatio = true;
+	if (preserveAspectRatio) {
+
+		T maxDim = std::max(dim[0], std::max(dim[1], dim[2]));
+		cellDim = { T(1) / maxDim,T(1) / maxDim ,T(1) / maxDim };
+	}
 	
 
 	int n = dim[secondaryDims[0]] * dim[secondaryDims[1]];
@@ -739,7 +806,7 @@ BLIB_EXPORT T blib::DiffusionSolver<T>::tortuosity(const VolumeChannel & mask, D
 	T sum = std::accumulate(isums.begin(),isums.end(),T(0));
 
 	double dc = sum / n;
-	double dx = 1.0f / (dim[primaryDim] + 1);
+	double dx = cellDim[primaryDim];
 	double tau = /*dx * */_porosity / (dc * /*dx **/ dim[primaryDim] * 2);
 
 	if (_verbose) {

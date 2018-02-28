@@ -28,8 +28,9 @@ namespace blib {
 			VolumeChannel & volChannel,
 			Dir dir,
 			T d0,
-			T d1
-		);
+			T d1,
+			bool preserveAspectRatio = true
+		);	
 
 		//Returns current error
 		BLIB_EXPORT T solve(
