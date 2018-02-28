@@ -57,12 +57,15 @@ if(args.input != None):
 	inputFile = open(args.input, 'rb')
 	intensity = cPickle.load(inputFile)
 	inputFile.close()
-	#intensity = 255 - intensity;
+	intensity = 255 - intensity;
 
 	#subvolume selection
 	o = 0 # origin
-	m = 128 # dim
-	intensity = intensity[o:o+m,o:o+m,o:o+m]
+	m = 8 # dim
+	mx = m +2
+	my = m + 2
+	mz = m 
+	intensity = intensity[o:o+mx,o:o+my,o:o+mz]
 else:	
 	##Small test case for lin.sys comparison
 
@@ -79,7 +82,7 @@ else:
 convertToTiff = True;
 if(convertToTiff):
 	outputFile = open('vol.vol', 'wb')
-	cPickle.dump(intensity,outputFile)	
+	cPickle.dump(255 - intensity,outputFile)	
 	outputFile.close()
 	os.system('python binToTif.py vol.vol')
 	
@@ -96,9 +99,9 @@ t2 = time.time()
 nx = intensity.shape[2]
 ny = intensity.shape[1]
 nz = intensity.shape[0]
-dx = 1.0/(nx+1)#0.37e-6
-dy = 1.0/(ny+1)#0.37e-6
-dz = 1.0/(nz+1)#0.37e-6
+dx = 1#0.37e-6
+dy = 1#0.37e-6
+dz = 1#0.37e-6
 
 newIntensity = np.zeros(nx*ny*nz)
 
