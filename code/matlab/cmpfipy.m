@@ -1,9 +1,28 @@
 
 
-A = load('C:\!\battery\battery\code\build\A.txt');
-B = load('C:\!\battery\battery\code\build\b.vec');
-load('C:\!\battery\battery\code\python\matrix.txt');
-rhs = load('C:\!\battery\battery\code\python\B.txt')';
+%A = load('C:\!\battery\battery\code\build\A.txt');
+%B = load('C:\!\battery\battery\code\build\b.vec');
+%load('C:\!\battery\battery\code\python\matrix.txt');
+%rhs = load('C:\!\battery\battery\code\python\B.txt')';
+
+A = load('../build/A.dat');
+A(:,1:2) = A(:,1:2) + ones(size(A(:,1:2)));
+A = spconvert(A);
+
+B = load('../build/B.txt');
+
+matrix = load('../python/A_fipy.dat');
+matrix(:,1:2) = matrix(:,1:2) + ones(size(matrix(:,1:2)));
+matrix = spconvert(matrix);
+
+rhs = load('../python/B_fipy.txt');
+
+if(size(A,1) < 1024)
+    A = full(A);
+    matrix = full(matrix);
+end
+
+%%
 
 mult = matrix(2,2)/ A(2,2);
 A = (A * mult);
@@ -21,17 +40,18 @@ for z=1:m(3)
     for y=1:m(2)
         for x=1:m(1) 
             i = linIndex(m,x,y,z);            
-            if(abs(r(i)) > 0.00000001)
+            if(abs(r(i)) > 0.0000000001)
             %if(abs(r(i)) < 0.39 && abs(r(i)) > 0.00001)
             %if(abs(r(i)) > 0.2)
-                fprintf('row %d (%d %d %d) diff: %f, idx: ',i,x-1,y-1,z-1,r(i));
+                
+                fprintf('row %d (%d %d %d) diff: %f, idx:',i,x-1,y-1,z-1,full(r(i)));
                 
                 
                 indices = (find(d(i,:)));
                 %fprintf('dist: %d ',indices(1) - indices(2)) ;
                 for k=1:size(indices,2)
                    j = indices(k);
-                   fprintf('%d (x %d), ',j , mod(j-1, 4));                    
+                   fprintf('%d (x %d), ',j , mod(j-1, m(1)));                    
                 end
                 
                 fprintf('\n');
