@@ -53,12 +53,16 @@ bool readTiff(const char * path, void * buffer)
 	return true;
 }
 
-size_t directoryFileCount(const char * path)
+size_t directoryFileCount(const std::string & path, const std::string & ext)
 {
 	return std::count_if(
 		fs::directory_iterator(path),
 		fs::directory_iterator(),
-		static_cast<bool(*)(const fs::path&)>(fs::is_regular_file));
+		[&ext](fs::path p) {
+		return fs::is_regular_file(p) && p.extension() == ext;
+	}
+	);
+		//static_cast<bool(*)(const fs::path&)>(fs::is_regular_file));
 }
 
 
@@ -73,13 +77,15 @@ VolumeChannel blib::loadTiffFolder(const char * folder, bool commitToGPU)
 		throw "Volume directory not found";
 
 
-	int numSlices = static_cast<int>(directoryFileCount(path.string().c_str()));
+	int numSlices = static_cast<int>(directoryFileCount(path.string(), ".tiff"))
+					+ static_cast<int>(directoryFileCount(path.string(), ".tif"));
 
 	int x, y, bytes;
 
 	//Find first tiff
 	for (auto & f : fs::directory_iterator(path)) {
 		if (fs::is_directory(f)) continue;		
+		if (f.path().extension() != ".tiff" && f.path().extension() != ".tif") continue;
 		
 
 		if (!tiffSize(f.path().string().c_str(), &x, &y, &bytes))
@@ -103,6 +109,7 @@ VolumeChannel blib::loadTiffFolder(const char * folder, bool commitToGPU)
 	uint sliceIndex = 0;
 	for (auto & f : fs::directory_iterator(path)) {
 		if (fs::is_directory(f)) continue;		
+		if (f.path().extension() != ".tiff" && f.path().extension() != ".tif") continue;
 		
 		readTiff(f.path().string().c_str(), ptr + (sliceIndex * x * y));
 
