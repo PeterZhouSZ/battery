@@ -28,7 +28,9 @@ namespace blib {
 			ivec3 dim, 
 			Dir dir, 
 			T d0, T d1, 
-			uint levels);
+			uint levels,
+			vec3 cellDim
+		);
 
 		BLIB_EXPORT T solve(
 			Volume &v,  //to remove, for debug only
@@ -60,11 +62,17 @@ namespace blib {
 			uint level
 		);
 
+		BLIB_EXPORT bool prepareAtLevelFVM(
+			const float * D, ivec3 dim, Dir dir,
+			uint level
+		);
+
 		std::vector<SparseMat> _A;		
 		std::vector<Vector> _f;
 		std::vector<Vector> _x;
 		std::vector<Vector> _tmpx;
 		std::vector<Vector> _r;
+		vec3 _cellDim;
 
 		bool _verbose;
 		uint _lv; //0 = fine level, _lv-1 = coarsest level

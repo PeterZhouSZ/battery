@@ -10,10 +10,16 @@ template class MultigridSolver<double>;
 #include <cassert>
 #include "../../batteryviz/src/utility/IOUtility.h"
 #include <numeric>
+#include <array>
 
 #include <Eigen/SparseLU>
 #include <Eigen/IterativeLinearSolvers>
 
+//#define MG_LINSYS_TO_FILE
+
+#ifdef MG_LINSYS_TO_FILE
+	#include <fstream>
+#endif
 
 template <typename T>
 void addDebugChannel(Volume & vol, const Eigen::Matrix<T, Eigen::Dynamic, 1> & v, ivec3 dim, const std::string & name, int levnum = -1, bool normalize = false) {
@@ -370,14 +376,68 @@ void interp3D(
 
 }
 
+
+template <typename T>
+void interpZeroOrder(
+	T * src, ivec3 srcDim,
+	T * dest, ivec3 destDim
+)
+{
+
+
+	for (auto z = 0; z < destDim.z; z++) {
+		for (auto y = 0; y < destDim.y; y++) {
+			for (auto x = 0; x < destDim.x; x++) {
+				auto destI = linearIndex(destDim, { x,y,z });
+
+				ivec3 srcStride = { 1, srcDim.x, srcDim.x * srcDim.y };
+				if (x == destDim.x - 1) srcStride[0] = 0;
+				if (y == destDim.y - 1) srcStride[1] = 0;
+				if (z == destDim.z - 1) srcStride[2] = 0;
+
+
+				vec3 sPos = vec3(x, y, z) * 0.5f;
+				ivec3 ipos = ivec3(sPos);
+				vec3 fract = glm::fract(sPos);
+
+				auto srcI = linearIndex(srcDim, ipos);
+
+				assert(srcI >= 0 && srcI < srcDim.x * srcDim.x * srcDim.y);
+
+				T vals[8] = {
+					src[srcI],														//0
+					src[srcI + srcStride[0]],										//1
+					src[srcI + srcStride[1]],						//2
+					src[srcI + srcStride[0] + srcStride[1]],						//3
+					src[srcI + srcStride[2]],	//4
+					src[srcI + srcStride[0] + srcStride[2]],	//5
+					src[srcI + srcStride[1] + srcStride[2]],	//6
+					src[srcI + srcStride[0] + srcStride[1] + srcStride[2]]		//7
+				};		
+				
+				T val = T(0);
+				for (auto k = 0; k < 8; k++) {
+					val += vals[k];
+				}
+				val /= 8;				
+
+				dest[destI] = val;
+
+			}
+		}
+	}
+}
+
+
 template <typename T>
 bool MultigridSolver<T>::prepare(
 	Volume & v, 
 	const uchar * D, ivec3 origDim, Dir dir, T d0, T d1,
-	uint levels
+	uint levels,
+	vec3 cellDim
 ){
 
-
+	_cellDim = cellDim;
 	_iterations = 0;
 
 	bool res = true;
@@ -414,7 +474,7 @@ bool MultigridSolver<T>::prepare(
 			Dlevels.front()[i] = (D[i] == 0) ? d0 : d1;
 		}
 
-		res &= prepareAtLevel(Dlevels[0].data(), _dims[0], dir, 0);
+		res &= prepareAtLevelFVM(Dlevels[0].data(), _dims[0], dir, 0);
 
 
 		Dlevels_interp[0].resize(origTotal, 0.0f);
@@ -441,7 +501,7 @@ bool MultigridSolver<T>::prepare(
 		Dlevels_interp[i].resize(total, 0.0f);
 		
 
-		res &= prepareAtLevel(Dlevels[i].data(), _dims[i], dir, i);
+		res &= prepareAtLevelFVM(Dlevels[i].data(), _dims[i], dir, i);
 	}
 
 
@@ -471,6 +531,219 @@ bool MultigridSolver<T>::prepare(
 	
 	return res;
 }
+
+
+/*
+template <typename T>
+void galerkin(MultigridSolver<T>::SparseMat & A) {
+
+
+
+}*/
+
+
+template <typename T>
+bool MultigridSolver<T>::prepareAtLevelFVM(
+	const float * D, ivec3 dim, Dir dir,
+	const uint level
+) {
+
+	using vec3 = glm::tvec3<T, glm::highp>;
+	assert(dim.x > 0 && dim.y > 0 && dim.z > 0);
+
+	uint dirPrimary = getDirIndex(dir);
+	uint dirSecondary[2] = { (dirPrimary + 1) % 3, (dirPrimary + 2) % 3 };
+	const T highConc = 1.0f;
+	const T lowConc = 0.0f;
+	const T concetrationBegin = (getDirSgn(dir) == 1) ? highConc : lowConc;
+	const T concetrationEnd = (getDirSgn(dir) == 1) ? lowConc : highConc;
+
+	size_t N = dim.x * dim.y * dim.z;
+	size_t M = N;
+
+	_f[level].resize(M);
+	_x[level].resize(N);
+	_A[level].resize(M, N);
+	_A[level].reserve(Eigen::VectorXi::Constant(N, 7));
+
+
+	
+	//D getter
+	const auto getD = [&dim, D](ivec3 pos) {
+		return D[linearIndex(dim, pos)];
+	};
+	const auto sample = [&getD, dim, D](ivec3 pos, Dir dir) {
+		const int k = getDirIndex(dir);
+		assert(pos.x >= 0 && pos.y >= 0 && pos.z >= 0);
+		assert(pos.x < dim.x && pos.y < dim.y && pos.z < dim.z);
+
+		ivec3 newPos = pos;
+		int sgn = getDirSgn(dir);
+		if (pos[k] + sgn < 0 || pos[k] + sgn >= dim[k]) {
+			//do nothing
+		}
+		else {
+			newPos[k] += getDirSgn(dir);
+		}
+		return getD(newPos);
+	};
+
+	const vec3 faceArea = {
+		_cellDim.y * _cellDim.z,
+		_cellDim.x * _cellDim.z,
+		_cellDim.x * _cellDim.y,
+	};
+
+
+	
+	struct Coeff {
+		Dir dir;
+		T val;
+		signed long col;
+		bool useInMatrix;
+		bool operator < (const Coeff & b) const { return this->col < b.col; }
+	};
+
+
+
+	ivec3 stride = { 1, dim.x, dim.x*dim.y };
+
+	for (auto z = 0; z < dim.z; z++) {
+		for (auto y = 0; y < dim.y; y++) {
+			for (auto x = 0; x < dim.x; x++) {
+
+
+				const ivec3 ipos = { x,y,z };
+				auto i = linearIndex(dim, ipos);
+
+				T Di = getD(ipos);
+				auto Dvec = vec3(Di);
+
+				auto Dneg = (vec3(
+					sample(ipos, X_NEG),
+					sample(ipos, Y_NEG),
+					sample(ipos, Z_NEG)
+				) + vec3(Dvec)) * T(0.5);
+
+				auto Dpos = (vec3(
+					sample(ipos, X_POS),
+					sample(ipos, Y_POS),
+					sample(ipos, Z_POS)
+				) + vec3(Dvec)) * T(0.5);
+
+
+				std::array<Coeff, 7> coeffs;
+				T rhs = T(0);
+				for (auto k = 0; k <= DIR_NONE; k++) {
+					coeffs[k].dir = Dir(k);
+					coeffs[k].val = T(0);
+					coeffs[k].useInMatrix = true;
+				}
+				coeffs[DIR_NONE].col = i;
+
+
+
+				//Calculate coeffs for all except diagonal
+				for (auto j = 0; j < DIR_NONE; j++) {
+					auto & c = coeffs[j];
+					auto k = getDirIndex(c.dir);
+					auto sgn = getDirSgn(c.dir);
+					auto Dface = (sgn == -1) ? Dneg[k] : Dpos[k];
+
+					/*
+					Boundary defaults
+					1. half size cell
+					2. von neumann zero grad
+					*/
+					auto cellDist = _cellDim;
+					c.useInMatrix = true;
+					if (ipos[k] == 0 && sgn == -1) {
+						cellDist[k] = _cellDim[k] * T(0.5);
+						c.useInMatrix = false;
+					}
+					if (ipos[k] == dim[k] - 1 && sgn == 1) {
+						cellDist[k] = _cellDim[k] * T(0.5);
+						c.useInMatrix = false;
+					}
+
+					c.val = (Dface * faceArea[k]) / cellDist[k];
+					c.col = i + sgn * stride[k];
+
+					//Add to diagonal
+					if (c.useInMatrix || k == dirPrimary)
+						coeffs[DIR_NONE].val -= c.val;
+				}
+
+				if (ipos[dirPrimary] == 0) {
+					Dir dir = getDir(dirPrimary, -1);
+					rhs -= coeffs[dir].val * concetrationBegin;
+				}
+				else if (ipos[dirPrimary] == dim[dirPrimary] - 1) {
+					Dir dir = getDir(dirPrimary, 1);
+					rhs -= coeffs[dir].val * concetrationEnd;
+				}
+
+				//Matrix coefficients
+				std::sort(coeffs.begin(), coeffs.end());
+				for (auto & c : coeffs) {
+					if (c.useInMatrix) {
+						_A[level].insert(i, c.col) = c.val;
+					}
+				}
+
+				//Right hand side
+				_f[level][i] = rhs;
+
+				//initial guess
+				if (getDirSgn(dir) == 1)
+					_x[level][i] = 1.0f - (ipos[dirPrimary] / T(dim[dirPrimary] + 1));
+				else
+					_x[level][i] = (ipos[dirPrimary] / T(dim[dirPrimary] + 1));
+
+			}
+		}
+	}
+	
+	_A[level].makeCompressed();	
+
+	
+#ifdef MG_LINSYS_TO_FILE
+
+
+	{
+		char buf[24]; itoa(level, buf, 10);
+		std::ofstream f("A_" + std::string(buf) + ".dat");
+
+		for (auto i = 0; i < _A[level].rows(); i++) {
+			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[level], i); it; ++it) {
+				auto  j = it.col();
+				f << i << " " << j << " " << it.value() << "\n";
+			}
+
+			if (_A[level].rows() < 100 || i % (_A[level].rows() / 100))
+				f.flush();
+		}
+	}
+
+	{
+		char buf[24]; itoa(level, buf, 10);
+		std::ofstream f("B_" + std::string(buf) + ".txt");
+		for (auto i = 0; i < _f[level].size(); i++) {
+			f << _f[level][i] << "\n";
+			if (_f[level].size() < 100 || i % (_f[level].size() / 100))
+				f.flush();
+		}
+
+	}
+
+
+
+#endif
+
+
+	return true;
+}
+
 
 template <typename T>
 bool MultigridSolver<T>::prepareAtLevel(
@@ -667,8 +940,8 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 	}
 
 
-	const int preN = 4;
-	const int postN = 4;
+	const int preN = 8;
+	const int postN = 8;
 	const int lastLevel = _lv - 1;
 
 	Eigen::SparseLU<SparseMat> exactSolver;
@@ -731,7 +1004,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 			//f[i + 1] *= 4.0;
 
-			restriction(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1]);
+			conv3D(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1], _restrictOp);
 
 			//std::cout << integral(r[i]) << " vs " << integral(f[i + 1]) << " >> " << (integral(r[i]) - integral(f[i+1])) << std::endl;
 
@@ -815,9 +1088,10 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 		T p = (err / lastError);
 		lastError = err;
 
-		std::cout << "k = " << k << " err: " << err << ", rate: " << p << std::endl;		
-
-
+		if (k % 10 == 0) {
+			std::cout << "k = " << k << " err: " << err << ", rate: " << p << std::endl;
+		}
+		
 
 
 		if (err < tolerance || isinf(err) || isnan(err))

@@ -514,7 +514,7 @@ void BatteryApp::reset()
 		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
 		assert(batteryID == CHANNEL_BATTERY);
 
-		//_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(8));
+		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), 2*ivec3(32,32,16));
 		_volume->binarize(CHANNEL_BATTERY, 1.0f);
 
 		//Add concetration channel
@@ -575,7 +575,7 @@ void BatteryApp::reset()
 
 	
 
-	const bool multigridTest = false;
+	const bool multigridTest = true;
 	if(multigridTest){
 
 		
@@ -585,29 +585,41 @@ void BatteryApp::reset()
 		auto & c = _volume->getChannel(CHANNEL_BATTERY);
 		uchar* data = (uchar*)c.getCurrentPtr().getCPU();
 		
+		auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
 		auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
 		auto exactSolveDim = 4;
 		int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
+		
 
+		Dir dir = Dir(_options["Diffusion"].get<int>("direction"));
 
 		std::cout << "Multigrid solver levels " << levels << std::endl;
 
 		_multiSolver.setVerbose(false);
 
 		auto t0 = std::chrono::system_clock::now();
-		_multiSolver.prepare(*_volume, data, c.dim(), X_POS, 1.0f, 0.00000001f, levels);
+		vec3 cellDim = vec3(1.0 / maxDim);
+		_multiSolver.prepare(*_volume,
+			data,
+			c.dim(),
+			dir, 
+			_options["Diffusion"].get<float>("D_zero"),
+			_options["Diffusion"].get<float>("D_one"),
+			levels, 
+			cellDim
+		);
 		auto t1 = std::chrono::system_clock::now();
 
 		std::chrono::duration<double> prepTime = t1 - t0;
 		std::cout << "Prep time: " << prepTime.count() << std::endl;
 
-		_multiSolver.solve(*_volume, 1e-6, 512);
+		_multiSolver.solve(*_volume, 1e-6, 1024);
 
 
 				
 	//	_multiSolver.generateErrorVolume(*_volume);
 		_multiSolver.setVerbose(true);
-		_multiSolver.tortuosity(_volume->getChannel(CHANNEL_BATTERY), X_POS);
+		_multiSolver.tortuosity(_volume->getChannel(CHANNEL_BATTERY), dir);
 		auto t2 = std::chrono::system_clock::now();
 
 		_multiSolver.resultToVolume(_volume->getChannel(CHANNEL_CONCETRATION));
@@ -620,6 +632,7 @@ void BatteryApp::reset()
 		
 		std::cout << "Solve time: " << solveTime.count() << std::endl;
 		std::cout << "Iterations: " << _multiSolver.iterations() << std::endl;
+		std::cout << "--------------" << std::endl;
 
 
 	}
