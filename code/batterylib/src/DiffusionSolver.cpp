@@ -454,7 +454,7 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1
 				f << i << " " << j << " " << it.value() << "\n";
 			}
 
-			if (i % (_A.rows() / 100))
+			if (_A.rows() < 100 || i % (_A.rows() / 100))
 				f.flush();
 		}
 	}
@@ -463,7 +463,7 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1
 		std::ofstream f("B.txt");
 		for (auto i = 0; i < _rhs.size(); i++) {
 			f << _rhs[i] << "\n";
-			if (i % (_rhs.size() / 100))
+			if (_rhs.size() < 100 || i % (_rhs.size() / 100))
 				f.flush();
 		}
 
