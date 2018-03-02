@@ -180,7 +180,10 @@ namespace blib {
 
 		for (auto i = 0; i < maxIter; ++i) {
 			//gaussSeidelStep(A, b, x);
-			gaussSeidelStepParallel(A, b, x, dim);
+			for (auto k = 0; k < 6; k+=2) {
+				gaussSeidelStepZebra(A, b, x, dim, Dir(k));
+			}
+			//gaussSeidelStepParallel(A, b, x, dim);
 
 			residual = b - A*x;
 
@@ -226,19 +229,83 @@ namespace blib {
 					continue;
 				}
 				sum += it.value() * x[j];
-			}
-
-			/*if (diag == 0.0f) {
-			char k;
-			k = 0;
-			}*/
-			assert(diag != T(0));
+			}			
 			x[i] = (b[i] - sum) / diag;
 		}
 
 
 	}
 
+
+	template <typename T>
+	void gaussSeidelStepZebra(
+		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
+		ivec3 dim,
+		Dir dir
+	) {
+
+		
+		ivec3 begin = { 0,0,0 };
+		ivec3 step = { 1,1,1 };
+		ivec3 end = dim;
+
+		int k = getDirIndex(dir);
+		int sgn = getDirSgn(dir);
+
+		step[k] = 2;
+		if (sgn == -1) {			
+			begin[k] = dim[k] - 1;
+			end[k] = 0;			
+			step[k] = -step[k];
+		}
+
+		
+		for (auto d = 0; d < 2; d++){
+
+			
+			begin[k] += sgn * d; 
+			//end[k] += sgn * d;
+
+			//#pragma omp parallel for
+
+			
+			
+			//for (auto zi = 0; zi < dim.z; zi += step.z) {
+				//z = begin.z + zi*sgn;
+			for (auto z = begin.z; z != end.z && z != end.z + step.z / 2; z += step.z) {
+				for (auto y = begin.y; y != end.y && y != end.y + step.y / 2; y += step.y) {
+					for (auto x = begin.x; x != end.x && x != end.x + step.x / 2; x += step.x) {
+
+						auto i = linearIndex(dim, { x,y,z });
+
+						T sum = T(0);
+						T diag = T(0);
+						for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
+							auto  j = it.col();
+							if (j == i) {
+								diag = it.value();
+								continue;
+							}
+							sum += it.value() * X[j];
+						}
+						X[i] = (b[i] - sum) / diag;
+					}
+				}
+			}
+
+
+
+
+
+
+		}
+
+
+		
+
+	}
 
 
 

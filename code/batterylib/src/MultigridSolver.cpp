@@ -14,6 +14,7 @@ template class MultigridSolver<double>;
 
 #include <Eigen/SparseLU>
 #include <Eigen/IterativeLinearSolvers>
+#include<Eigen/SparseCholesky>	
 
 //#define MG_LINSYS_TO_FILE
 
@@ -21,14 +22,27 @@ template class MultigridSolver<double>;
 	#include <fstream>
 #endif
 
-template <typename T>
-void addDebugChannel(Volume & vol, const Eigen::Matrix<T, Eigen::Dynamic, 1> & v, ivec3 dim, const std::string & name, int levnum = -1, bool normalize = false) {
+template <typename T = double>
+void addDebugChannel(Volume & vol,  const Eigen::Matrix<T, Eigen::Dynamic, 1> & v, ivec3 dim, const std::string & name, int levnum = -1, bool normalize = false) {
 		
 	auto & c = vol.getChannel(vol.addChannel(dim, TYPE_FLOAT));
 	
-	Eigen::Matrix<T, Eigen::Dynamic, 1> tmp = v;
+
+
+	Eigen::Matrix<float, Eigen::Dynamic, 1> tmp = v.template cast<float>();
+	
+
+	/*if (std::is_same<float, T>::value) {
+		tmp = v;
+	}
+	else {
+		tmp = ;
+	}
+	*/
+
+
 	if (normalize) {
-		tmp = v.cwiseAbs();
+		tmp = tmp.cwiseAbs();
 		auto maxc = tmp.maxCoeff();
 		auto minc = tmp.minCoeff();
 		tmp = (tmp.array() - minc) / (maxc - minc);
@@ -166,7 +180,7 @@ void restriction(
 	assert(srcDim.z == destDim.z * 2);*/
 	
 	
-	#pragma omp parallel for if(destDim.x > 4)
+	//#pragma omp parallel for if(destDim.x > 4)
 	for (auto z = 0; z < destDim.z; z++) {
 		for (auto y = 0; y < destDim.y; y++) {
 			for (auto x = 0; x < destDim.x; x++) {
@@ -195,7 +209,96 @@ void restriction(
 			}
 		}
 	}
+
+
+
 }
+
+
+template <typename T>
+void restrictionWeighted(
+	T * src, ivec3 srcDim,
+	T * dest, ivec3 destDim,
+	T * srcWeights
+) {
+#pragma omp parallel for if(destDim.x > 4)
+	for (auto z = 0; z < destDim.z; z++) {
+		for (auto y = 0; y < destDim.y; y++) {
+			for (auto x = 0; x < destDim.x; x++) {
+				ivec3 ipos = { x,y,z };
+				ivec3 iposSrc = ipos * 2;
+				auto srcI = linearIndex(srcDim, iposSrc);
+				auto destI = linearIndex(destDim, ipos);
+
+				ivec3 s = { 1, srcDim.x, srcDim.x * srcDim.y };
+				if (iposSrc.x == srcDim.x - 1 /*|| x == 0*/) s[0] = 0;
+				if (iposSrc.y == srcDim.y - 1 /*|| y == 0*/) s[1] = 0;
+				if (iposSrc.z == srcDim.z - 1 /*|| z == 0*/) s[2] = 0;
+
+				T val = src[srcI] * srcWeights[srcI] +
+					src[srcI + s[0]] * srcWeights[srcI + s[0]] +
+					src[srcI + s[1]] * srcWeights[srcI + s[1]] +
+					src[srcI + s[1] + s[0]] * srcWeights[srcI + s[0] + s[1]] +
+					src[srcI + s[2]] * srcWeights[srcI + s[2]] +
+					src[srcI + s[2] + s[0]] * srcWeights[srcI + s[2] + s[0]] +
+					src[srcI + s[2] + s[1]] * srcWeights[srcI + s[2] + s[1]] +
+					src[srcI + s[2] + s[1] + s[0]] * srcWeights[srcI + s[2] + s[1] + s[0]];
+
+				T W = srcWeights[srcI] + srcWeights[srcI + s[0]] + srcWeights[srcI + s[1]] + srcWeights[srcI + s[0] + s[1]] + srcWeights[srcI + s[2]] +
+					srcWeights[srcI + s[2] + s[0]] + srcWeights[srcI + s[2] + s[1]] + srcWeights[srcI + s[2] + s[1] + s[0]];
+
+
+				val /= W;
+				//val *= T(1.0 / 8.0);
+
+				dest[destI] = val;
+			}
+		}
+	}
+}
+/*
+
+template <typename T>
+void restrictionWeightedPlane(
+	T * src, ivec3 srcDim, int dir, int plane //dir .. which dimension, plane - which plane
+	T * dest, ivec3 destDim,
+	T * srcWeights
+) {
+#pragma omp parallel for if(destDim.x > 4)
+	for (auto z = 0; z < destDim.z; z++) {
+		for (auto y = 0; y < destDim.y; y++) {
+			for (auto x = 0; x < destDim.x; x++) {
+				ivec3 ipos = { x,y,z };
+				ivec3 iposSrc = ipos * 2;
+				auto srcI = linearIndex(srcDim, iposSrc);
+				auto destI = linearIndex(destDim, ipos);
+
+				ivec3 s = { 1, srcDim.x, srcDim.x * srcDim.y };
+				if (iposSrc.x == srcDim.x - 1 / *|| x == 0* /) s[0] = 0;
+				if (iposSrc.y == srcDim.y - 1 / *|| y == 0* /) s[1] = 0;
+				if (iposSrc.z == srcDim.z - 1 / *|| z == 0* /) s[2] = 0;
+
+				T val = src[srcI] * srcWeights[srcI] +
+					src[srcI + s[0]] * srcWeights[srcI + s[0]] +
+					src[srcI + s[1]] * srcWeights[srcI + s[1]] +
+					src[srcI + s[1] + s[0]] * srcWeights[srcI + s[0] + s[1]] +
+					src[srcI + s[2]] * srcWeights[srcI + s[2]] +
+					src[srcI + s[2] + s[0]] * srcWeights[srcI + s[2] + s[0]] +
+					src[srcI + s[2] + s[1]] * srcWeights[srcI + s[2] + s[1]] +
+					src[srcI + s[2] + s[1] + s[0]] * srcWeights[srcI + s[2] + s[1] + s[0]];
+
+				T W = srcWeights[srcI] + srcWeights[srcI + s[0]] + srcWeights[srcI + s[1]] + srcWeights[srcI + s[0] + s[1]] + srcWeights[srcI + s[2]] +
+					srcWeights[srcI + s[2] + s[0]] + srcWeights[srcI + s[2] + s[1]] + srcWeights[srcI + s[2] + s[1] + s[0]];
+
+
+				val /= W;
+				//val *= T(1.0 / 8.0);
+
+				dest[destI] = val;
+			}
+		}
+	}
+}*/
 
 template <typename T>
 void interpolation(
@@ -231,6 +334,117 @@ void interpolation(
 
 
 }
+
+template <typename T>
+void interpolationWeighted(
+	T * src, ivec3 srcDim,
+	T * dest, ivec3 destDim, //higher	
+	T * srcWeights
+) {
+
+#pragma omp parallel for if(destDim.x > 4)
+	for (auto z = 0; z < destDim.z; z++) {
+		for (auto y = 0; y < destDim.y; y++) {
+			for (auto x = 0; x < destDim.x; x++) {
+
+				ivec3 ipos = { x,y,z };
+				ivec3 iposSrc = ipos / 2;
+				//Direction
+				// -1 for even, 1 for odd 
+				ivec3 r = ivec3(ipos.x % 2, ipos.y % 2, ipos.z % 2) * 2 - 1; 
+				auto destI = linearIndex(destDim, ipos);
+				auto srcI = linearIndex(srcDim, iposSrc);
+
+				ivec3 srcStride = r * ivec3( 1, srcDim.x, srcDim.x * srcDim.y );
+				if (x == destDim.x - 1 || x == 0) srcStride[0] = 0;
+				if (y == destDim.y - 1 || y == 0) srcStride[1] = 0;
+				if (z == destDim.z - 1 || z == 0) srcStride[2] = 0;
+
+				T vals[8] = {
+					src[srcI],
+					src[srcI	+ srcStride[0]],
+					src[srcI					+ srcStride[1]],
+					src[srcI	+ srcStride[0]	+ srcStride[1]],
+					src[srcI									+ srcStride[2]],
+					src[srcI	+ srcStride[0]					+ srcStride[2]],
+					src[srcI					+ srcStride[1]	+ srcStride[2]],
+					src[srcI	+ srcStride[0]	+ srcStride[1]	+ srcStride[2]]
+				};
+
+				/*if (x == destDim.x - 1 || x == 0) srcStride[0] = 0;
+				if (y == destDim.y - 1 || y == 0) srcStride[1] = 0;
+				if (z == destDim.z - 1 || z == 0) srcStride[2] = 0;*/
+
+				T w[8] = {
+					srcWeights[srcI],
+					srcWeights[srcI + srcStride[0]],
+					srcWeights[srcI + srcStride[1]],
+					srcWeights[srcI + srcStride[0] + srcStride[1]],
+					srcWeights[srcI + srcStride[2]],
+					srcWeights[srcI + srcStride[0] + srcStride[2]],
+					srcWeights[srcI + srcStride[1] + srcStride[2]],
+					srcWeights[srcI + srcStride[0] + srcStride[1] + srcStride[2]]
+				};
+
+				
+
+
+				
+				const T a = T(1.0 / 4.0);
+				const T ainv = T(1.0) - a;
+				
+				
+				
+
+				
+
+				
+
+
+				T w_x0y0 = ainv * w[0] + a * w[4];
+				T w_x0y1 = ainv * w[2] + a * w[6];
+				T w_x0 = ainv * w_x0y0 + a * w_x0y1;
+
+				T w_x1y0 = ainv * w[1] + a * w[5];
+				T w_x1y1 = ainv * w[3] + a * w[7];
+				T w_x1 = ainv * w_x1y0 + a * w_x1y1;
+
+				T w_val = ainv * w_x0 + a * w_x1;
+
+
+				T x0y0 = ainv * vals[0] * w[0] + a * vals[4] * w[4];
+				T x0y1 = ainv * vals[2] * w[2] + a * vals[6] * w[6];
+				T x0 = ainv * x0y0 + a * x0y1;
+
+				T x1y0 = ainv * vals[1] * w[1] + a * vals[5] * w[5];
+				T x1y1 = ainv * vals[3] * w[3] + a * vals[7] * w[7];
+				T x1 = ainv * x1y0 + a * x1y1;
+
+				T val = ainv * x0 + a * x1;
+				val /= w_val;
+
+
+
+
+				T old  = T(3.0 / 4.0) * src[srcI] + T(1.0 / 12.0) * (
+					src[srcI + srcStride[0]] +
+					src[srcI + srcStride[1]] + 
+					src[srcI + srcStride[2]]
+					);
+
+
+				dest[destI] = val;
+
+				char b;
+				b = 0;
+
+			}
+		}
+	}
+
+
+}
+
 
 
 template <typename T>
@@ -432,7 +646,7 @@ void interpZeroOrder(
 template <typename T>
 bool MultigridSolver<T>::prepare(
 	Volume & v, 
-	const uchar * D, ivec3 origDim, Dir dir, T d0, T d1,
+	const uchar * Dmask, ivec3 origDim, Dir dir, T d0, T d1,
 	uint levels,
 	vec3 cellDim
 ){
@@ -453,31 +667,32 @@ bool MultigridSolver<T>::prepare(
 	_dims.resize(_lv);
 
 	//Generate D volume for smaller resolutions
-	std::vector<std::vector<float>> Dlevels(_lv);
-	std::vector<std::vector<float>> Dlevels_interp(_lv);
+	_D.resize(_lv);
+	//std::vector<std::vector<T>> Dlevels(_lv);
+	//std::vector<std::vector<float>> Dlevels_interp(_lv);
 	
 
 	const size_t origTotal = origDim.x * origDim.y * origDim.z;
 
 	size_t cntd0 = 0;
 	for (auto i = 0; i < origTotal; i++) {
-		if (D[i] == 0) cntd0++;
+		if (Dmask[i] == 0) cntd0++;
 	}
 	_porosity = cntd0 / T(origTotal);
 
 	//Generate first level of D
 	{
-		Dlevels.front().resize(origTotal);
+		_D.front().resize(origTotal);
 		_dims.front() = origDim;
 
 		for (auto i = 0; i < origTotal; i++) {
-			Dlevels.front()[i] = (D[i] == 0) ? d0 : d1;
+			_D.front()[i] = (Dmask[i] == 0) ? d0 : d1;
 		}
 
-		res &= prepareAtLevelFVM(Dlevels[0].data(), _dims[0], dir, 0);
+		res &= prepareAtLevelFVM(_D[0].data(), _dims[0], dir, 0);
 
 
-		Dlevels_interp[0].resize(origTotal, 0.0f);
+		//Dlevels_interp[0].resize(origTotal, 0.0f);
 	}
 
 	//Generate rest of levels, based on higher resolution
@@ -494,14 +709,18 @@ bool MultigridSolver<T>::prepare(
 		const size_t total = dim.x * dim.y * dim.z;
 
 		_dims[i] = dim;
-		Dlevels[i].resize(total);
+		_D[i].resize(total);
 		//conv3D(Dlevels[i - 1].data(), _dims[i - 1], Dlevels[i].data(), _dims[i], _restrictOp);
-		restriction(Dlevels[i - 1].data(), _dims[i - 1], Dlevels[i].data(), _dims[i]);
+		restriction(_D[i - 1].data(), _dims[i - 1], _D[i].data(), _dims[i]);		
+		for (auto & d : _D[i]) {
+			d *= T(0.5);
+		}
 		
-		Dlevels_interp[i].resize(total, 0.0f);
+		
+		//Dlevels_interp[i].resize(total, 0.0f);
 		
 
-		res &= prepareAtLevelFVM(Dlevels[i].data(), _dims[i], dir, i);
+		res &= prepareAtLevelFVM(_D[i].data(), _dims[i], dir, i);
 	}
 
 
@@ -544,7 +763,7 @@ void galerkin(MultigridSolver<T>::SparseMat & A) {
 
 template <typename T>
 bool MultigridSolver<T>::prepareAtLevelFVM(
-	const float * D, ivec3 dim, Dir dir,
+	const T * D, ivec3 dim, Dir dir,
 	const uint level
 ) {
 
@@ -747,7 +966,7 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 
 template <typename T>
 bool MultigridSolver<T>::prepareAtLevel(
-	const float * D, ivec3 dim, Dir dir,
+	const T * D, ivec3 dim, Dir dir,
 	uint level
 )
 {
@@ -940,15 +1159,17 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 	}
 
 
-	const int preN = 8;
-	const int postN = 8;
+	const int preN = 1;
+	const int postN = 1;
 	const int lastLevel = _lv - 1;
 
 	Eigen::SparseLU<SparseMat> exactSolver;
 	//Eigen::BiCGSTAB<SparseMat> exactSolver;
 	//exactSolver.setTolerance(tolerance / 2.0f);
 
-	exactSolver.compute(A[lastLevel]);
+	//exactSolver.compute(A[lastLevel]);
+	exactSolver.analyzePattern(A[lastLevel]);
+	exactSolver.factorize(A[lastLevel]);
 	
 		
 	auto tabs = [](int n){
@@ -956,20 +1177,137 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 	};
 
 
-	if (_verbose) {
-		//v[0].setZero();
-		addDebugChannel(vol, v[0], _dims[0], "initial guess ", 0, true);		
-	}
+	
 
 	const auto integral = [](Vector & v) {
 		return v.sum() / v.size();
 	};
 
+	//Zero out initial guess
+	{
 
-	T lastError = std::numeric_limits<T>::max();
+		//v[0] = Vector::Random(v[0].rows(), v[0].cols());
+		//v[0] = Vector::Constant(v[0].rows(), v[0].cols(),0.5);
+		
+	}
+
+	if (_verbose) {
+		addDebugChannel(vol, v[0], _dims[0], "initial guess ", 0, true);
+	}
+
+	Vector rInit = f[0] - A[0] * v[0];
+
+	T lastError = sqrt(rInit.squaredNorm() / f[0].squaredNorm());
+
+	enum CycleType {
+		V_CYCLE,
+		W_CYCLE
+	};
+
+	CycleType ctype = W_CYCLE;
+	std::vector<int> cycle; //+ down, -up
+
+	if (ctype == V_CYCLE) {
+		for (auto i = 0; i != _lv; i++) {
+			cycle.push_back(i);
+		}
+		for (auto i = _lv - 2; i != -1; i--) {
+			cycle.push_back(i);
+		}
+	}
+	else if (ctype == W_CYCLE) {
+		auto midLevel = (_lv-1) - 2;
+
+
+		for (auto i = 0; i != _lv; i++) {
+			cycle.push_back(i);
+		}
+
+		for (auto i = _lv - 2; i != (midLevel-1); i--) {
+			cycle.push_back(i);
+		}
+		for (auto i = midLevel + 1; i != _lv ; i++) {
+			cycle.push_back(i);
+		}
+
+		for (auto i = _lv - 2; i != -1; i--) {
+			cycle.push_back(i);
+		}
+
+	}
+
+
+	for (auto k = 0; k < maxIterations; k++) {
+
+		int prevI = -1;
+		for (auto i : cycle) {
+			//Last level
+			if (i == _lv - 1) {
+				//Direct solver
+				if (_verbose) {
+					std::cout << tabs(lastLevel) << "Exact solve at Level " << lastLevel << std::endl;
+				}				
+				v[lastLevel] = exactSolver.solve(f[lastLevel]);			
+			}
+			//Restrict
+			else if (i > prevI) {
+				//Initial guess is zero for all except first level
+				if (i > 0) v[i].setZero();
+
+				//Pre smoother
+				T err = solveGaussSeidel(A[i], f[i], v[i], r[i], _dims[i], tolerance, preN, false); // df = f  A*v
+
+				//addDebugChannel(vol, v[i], _dims[i], "v presmoothed", i, true);
+				//addDebugChannel(vol, r[i], _dims[i], "v presmoothed", i, true);
+
+				//Restriction
+				restrictionWeighted(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1], _D[i].data());
+			}
+			else {
+
+				//Interpolation
+				interpolationWeighted<T>(v[i + 1].data(), _dims[i + 1], tmpx[i].data(), _dims[i], _D[i + 1].data());
+
+				//addDebugChannel(vol, v[i], _dims[i], "v presmoothed", i, true);
+
+				//Correction
+				v[i] += tmpx[i];
+
+				//Post smoothing, v[i] is initial guess & result		
+				T err = solveGaussSeidel(A[i], f[i], v[i], r[i], _dims[i], tolerance, postN, false);
+
+				//addDebugChannel(vol, v[i], _dims[i], "v presmoothed", i, true);
+
+			}
+
+			prevI = i;
+		}
+
+		_iterations++;
+		T err = sqrt(r[0].squaredNorm() / f[0].squaredNorm());
+		lastError = err;
+
+		if (k % 10 == 0 && k > 0) {
+			T maxR10 = r[0].cwiseAbs().maxCoeff();
+			T maxR0 = rInit.cwiseAbs().maxCoeff();
+			T rho = pow(maxR10 / maxR0, 1.0 / 10.0);
+			rInit = r[0];
+			std::cout << "k = " << k << " err: " << err << ", rho: " << rho << std::endl;
+		}
+
+
+
+		if (err < tolerance || isinf(err) || isnan(err))
+			return err;
+
+
+	}
+	
+
+
 
 	//maxIterations V cycle
-	for (auto k = 0; k < maxIterations; k++) {
+	/*for (auto k = 0; k < maxIterations; k++) {
 		
 		
 		for (auto i = 0; i < lastLevel; i++) {
@@ -980,19 +1318,26 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 			if (_verbose) {
 				std::cout << tabs(i) << "Level: " << i << " dim: " << _dims[i].x << ", " << _dims[i].y << ", " << _dims[i].z << std::endl;
 				std::cout << tabs(i) << "Pre-smoothing: ";
+				addDebugChannel(vol, v[i], _dims[i], "v ", i, true);
 			}
 
 			//Pre smoothing, v[i] is initial guess & result
 			//Residual saved in r[i]
+			
+
 			T err = solveGaussSeidel(A[i], f[i], v[i], r[i], _dims[i], tolerance, preN, false); // df = f  A*v
-			if(preN == 0) r[i] = f[i] - A[i]*v[i];
+			//if(preN == 0) 
+				//r[i] = f[i] - A[i]*v[i];
+
+		
 
 		
 			
 			if (_verbose) {
+				addDebugChannel(vol, v[i], _dims[i], "v presmoothed", i, true);
 				std::cout << err << std::endl;				
-				/*addDebugChannel(vol, v[i], _dims[i], "pre v ", i, true);
-				addDebugChannel(vol, _r[i], _dims[i], "pre r ", i, true);				*/
+				/ *addDebugChannel(vol, v[i], _dims[i], "pre v ", i, true);* /
+				addDebugChannel(vol, _r[i], _dims[i], "pre r ", i, true);				
 			}
 
 			
@@ -1004,7 +1349,9 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 			//f[i + 1] *= 4.0;
 
-			conv3D(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1], _restrictOp);
+			//conv3D(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1], _restrictOp);
+			//restrictionWeighted(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1], _D[i].data());
+			restriction(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1]);
 
 			//std::cout << integral(r[i]) << " vs " << integral(f[i + 1]) << " >> " << (integral(r[i]) - integral(f[i+1])) << std::endl;
 
@@ -1012,8 +1359,9 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 			if (_verbose) {
 				addDebugChannel(vol, r[i], _dims[i], "r ", i, true);
-				addDebugChannel(vol, f[i+1], _dims[i+1], "rI = f ", i+1, true);
+				addDebugChannel(vol, f[i+1], _dims[i+1], "Rr = f ", i+1, true);
 			}
+
 
 						
 		}
@@ -1023,6 +1371,10 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 		}		
 		//Direct solver
 		v[lastLevel] = exactSolver.solve(f[lastLevel]);
+
+		//if (_verbose) {
+		//std::cout << "exact error norm: " << (A[lastLevel] * v[lastLevel] - f[lastLevel]).norm() << std::endl;
+		//}
 
 		//Iterative solver
 		//v[lastLevel].setZero();
@@ -1043,7 +1395,8 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				std::cout << tabs(i) << "Interpolation from v[" << (i+1) << "]" << " to " << "Iv[" << (i+1) << "]" << std::endl;
 			}
 			//Interpolate v[i+1] to temp[i]
-			interpolation<T>(v[i + 1].data(), _dims[i + 1], tmpx[i].data(), _dims[i]);
+			//interpolation<T>(v[i + 1].data(), _dims[i + 1], tmpx[i].data(), _dims[i]);
+			interpolationWeighted<T>(v[i + 1].data(), _dims[i + 1], tmpx[i].data(), _dims[i], _D[i+1].data());
 
 			if (_verbose) {
 				addDebugChannel(vol, v[i+1], _dims[i+1], "v ", i+1, true);
@@ -1063,6 +1416,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//addDebugChannel(vol, v[i], _dims[i], "AFTER addition ", i, true);
 				
 				std::cout << tabs(i) << "Post-smoothing: ";
+				addDebugChannel(vol, v[i], _dims[i], "v ", i, true);
 			}
 
 			//Post smoothing, v[i] is initial guess & result		
@@ -1070,6 +1424,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 			if (postN == 0) r[i] = f[i] - A[i]*v[i];
 
 			if (_verbose) {	
+				addDebugChannel(vol, v[i], _dims[i], "v postsmoothed ", i, true);
 				
 				std::cout << err << std::endl;
 				//addDebugChannel(vol, r[i], _dims[i], "Post ", i, true);
@@ -1082,14 +1437,23 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 		_iterations++;
 
-		T err = sqrt(r[0].squaredNorm() / f[0].squaredNorm());
+		
 
 		//T p = -log(err / lastError);
-		T p = (err / lastError);
+		
+		T err = sqrt(r[0].squaredNorm() / f[0].squaredNorm());
 		lastError = err;
 
-		if (k % 10 == 0) {
-			std::cout << "k = " << k << " err: " << err << ", rate: " << p << std::endl;
+		if (k % 10 == 0 && k > 0) {
+
+			
+			T maxR10 = r[0].cwiseAbs().maxCoeff();
+			T maxR0 = rInit.cwiseAbs().maxCoeff();
+			T rho = pow(maxR10 / maxR0, 1.0 / 10.0);
+			rInit = r[0];
+
+			
+			std::cout << "k = " << k << " err: " << err << ", rho: " << rho << std::endl;
 		}
 		
 
@@ -1100,6 +1464,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 		//std::cout << "k = " << k << ", res: " << << std::endl;
 	
 	}
+*/
 
 
 

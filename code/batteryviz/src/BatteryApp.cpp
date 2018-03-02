@@ -514,7 +514,7 @@ void BatteryApp::reset()
 		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
 		assert(batteryID == CHANNEL_BATTERY);
 
-		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), 2*ivec3(32,32,16));
+		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), 2*ivec3(32,32,16)  );
 		_volume->binarize(CHANNEL_BATTERY, 1.0f);
 
 		//Add concetration channel
@@ -580,7 +580,7 @@ void BatteryApp::reset()
 
 		
 
-	//	_volume->getChannel(CHANNEL_BATTERY).clear();
+//		_volume->getChannel(CHANNEL_BATTERY).clear();
 
 		auto & c = _volume->getChannel(CHANNEL_BATTERY);
 		uchar* data = (uchar*)c.getCurrentPtr().getCPU();
@@ -614,6 +614,7 @@ void BatteryApp::reset()
 		std::cout << "Prep time: " << prepTime.count() << std::endl;
 
 		_multiSolver.solve(*_volume, 1e-6, 1024);
+		//_multiSolver.solve(*_volume, 1e-6, 3);
 
 
 				

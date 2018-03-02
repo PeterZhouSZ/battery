@@ -58,12 +58,12 @@ namespace blib {
 	private:
 
 		BLIB_EXPORT bool prepareAtLevel(
-			const float * D, ivec3 dim, Dir dir, 
+			const T * D, ivec3 dim, Dir dir, 
 			uint level
 		);
 
 		BLIB_EXPORT bool prepareAtLevelFVM(
-			const float * D, ivec3 dim, Dir dir,
+			const T * D, ivec3 dim, Dir dir,
 			uint level
 		);
 
@@ -83,6 +83,8 @@ namespace blib {
 
 		T _porosity;
 		uint _iterations;
+
+		std::vector<std::vector<T>> _D;
 
 	};
 
