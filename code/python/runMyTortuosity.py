@@ -10,7 +10,8 @@ t0 = time.time()
 
 
 
-root = '../../data/graphiteSections/dataset2/'
+#root = '../../data/LCO/dataset/'
+root = 'D:/!battery/datasetNMC/'
 #f = open("output.csv",'w')
 
 print("Starting tau calculation for:")
@@ -24,7 +25,7 @@ for subdir, dirs, files in os.walk(root):
     if(subdir == root): continue
     ##print(subdir)
 
-    args = subdir + "/ -t -dneg --step 128 -v -o out.csv --volExport "# --sub 16 --volExport"
+    args = subdir + "/ -t -dneg --step 128 -v -o out_NMC.csv --volExport "# --sub 16 --volExport"
     print(args)
     sys.stdout.flush()
     subprocess.call(
