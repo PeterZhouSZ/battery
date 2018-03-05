@@ -16,6 +16,8 @@ filename = os.path.splitext(basename)[0]
 
 if args.output == None:
 	args.output = './' + filename + '/'
+else:
+	args.output = args.output + '/' + filename + '/'
 if args.output[-1] != '/' and args.output[-1] != '\\':
 	args.output += '/'
 
