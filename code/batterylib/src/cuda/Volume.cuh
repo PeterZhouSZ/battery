@@ -4,6 +4,19 @@
 #include "PrimitiveTypes.h"
 
 
+#define VOLUME_VOX					\
+uint3 vox = make_uint3(			\
+		blockIdx.x * blockDim.x,	\
+		blockIdx.y * blockDim.y,	\
+		blockIdx.z * blockDim.z		\
+	) + threadIdx;					\
+
+
+#define VOLUME_VOX_GUARD(res)					\
+	VOLUME_VOX									\
+	if (vox.x >= res.x || vox.y >= res.y || vox.z >= res.z)	\
+	return;		
+
 __host__ __device__ inline uint roundDiv(uint a, uint b) {
 	return (a + (b - 1)) / b;
 }
@@ -64,3 +77,4 @@ float launchReduceSumKernel(uint3 res, cudaSurfaceObject_t surf);
 
 
 float launchReduceSumSlice(uint3 res, cudaSurfaceObject_t surf, Dir dir, void * output);
+

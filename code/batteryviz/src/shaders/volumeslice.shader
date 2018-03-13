@@ -11,10 +11,12 @@
 
 in vec3 vposition;
 uniform sampler3D tex;
+uniform isampler3D texI;
 
 uniform float slice;
 //uniform mat3 R;
 uniform int axis;
+uniform bool isDouble = false;
 
 out vec4 fragColor;
 
@@ -37,8 +39,21 @@ void main(){
 
 	//vec3 coord3D = R * vec3(coord,slice);
 	
-	float r = texture(tex, coord3D).r;
 
-	fragColor.xyz = vec3(r);		
+
+	float volumeVal = 0;
+
+	if(isDouble){
+		ivec2 val = texture(texI,coord3D).rg;		
+		uvec2 valu = uvec2(val.x, val.y);
+		double dval = packDouble2x32(valu);		
+		volumeVal = float(dval);
+	}
+	else {
+		 volumeVal = texture(tex,coord3D).r;		
+	}
+
+
+	fragColor.xyz = vec3(volumeVal);		
 	fragColor.a = 1;
 }

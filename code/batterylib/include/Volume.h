@@ -19,6 +19,12 @@ namespace blib{
 			PrimitiveType type, 
 			bool doubleBuffered = true);
 		
+		BLIB_EXPORT VolumeChannel(
+			const Texture3DPtr & ptr,
+			ivec3 dim,
+			const std::string & name = "New channel"
+			);
+
 
 		BLIB_EXPORT Texture3DPtr & getCurrentPtr();
 		BLIB_EXPORT Texture3DPtr & getNextPtr();

@@ -20,6 +20,7 @@
 #include "Ui.h"
 
 #include <memory>
+#include "batterylib/include/MultigridGPU.h"
 
 
 struct Shader;
@@ -83,6 +84,7 @@ protected:
 
 	blib::DiffusionSolver<double> _diffSolver;
 	blib::MultigridSolver<double> _multiSolver;
+	blib::MultigridGPU<double> _multigridGPUSolver;
 
 
 	friend Ui;

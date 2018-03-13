@@ -14,24 +14,24 @@ namespace blib {
 		uint stride = 0; //byte stride between elements		
 		
 		uint num;
-		uint byteSize() const { return num*stride; }
+		BLIB_EXPORT uint byteSize() const { return num*stride; }
 
 		
 		//Commit to device (offset in bytes)
-		bool commit(uint offset, uint size);
+		BLIB_EXPORT bool commit(uint offset, uint size);
 		//Commits all
-		bool commit();		
+		BLIB_EXPORT bool commit();
 
 		//Retrieve from device (offset in bytes)
-		bool retrieve(uint offset, uint size);
+		BLIB_EXPORT bool retrieve(uint offset, uint size);
 		//Retrieves all
-		bool retrieve();
+		BLIB_EXPORT bool retrieve();
 
 		//Simple alloc
-		bool allocHost(uint num, uint stride);				
-		bool allocDevice(uint num, uint stride);
+		BLIB_EXPORT bool allocHost(uint num, uint stride);
+		BLIB_EXPORT bool allocDevice(uint num, uint stride);
 
-		~DataPtr();
+		BLIB_EXPORT ~DataPtr();
 
 	};
 
@@ -128,6 +128,8 @@ namespace blib {
 
 		//Fills volume with elem of type primitivetype
 		BLIB_EXPORT bool fillSlow(void * elem);
+
+		BLIB_EXPORT PrimitiveType type() const { return _type; }
 		
 	private:
 

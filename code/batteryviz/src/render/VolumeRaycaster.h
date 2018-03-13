@@ -63,6 +63,7 @@ private:
 
 	GLuint _volTexture;
 	ivec3 _volDim;
+	PrimitiveType _volType;
 	bool _enableFiltering;
 	
 

@@ -137,6 +137,8 @@ bool blib::Texture3DPtr::allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnC
 
 
 	_extent = make_cudaExtent(dim.x, dim.y, dim.z);
+	
+	//Set channel descriptor (elements, sizes)
 	setDesc(type);
 	
 	
@@ -148,8 +150,11 @@ bool blib::Texture3DPtr::allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnC
 		
 	GL(glGenTextures(1, (GLuint*)&_glID));
 	GL(glBindTexture(GL_TEXTURE_3D, _glID));
+	
 	GL(glPixelStorei(GL_PACK_ALIGNMENT, 4));
 	GL(glPixelStorei(GL_UNPACK_ALIGNMENT, 4));
+
+
 	const bool linear = true;
 	if (linear) {
 		GL(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
@@ -166,10 +171,14 @@ bool blib::Texture3DPtr::allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnC
 	switch (type) {
 		case TYPE_UCHAR:
 		case TYPE_CHAR:	
-			GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_R8, dim.x, dim.y, dim.z, 0, GL_RED, GL_UNSIGNED_BYTE, 0));	
+			GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_R8, dim.x, dim.y, dim.z, 0, GL_RED, GL_UNSIGNED_BYTE, NULL));	
 			break;	
 		case TYPE_FLOAT:	
-			GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, dim.x, dim.y, dim.z, 0, GL_RED, GL_FLOAT, 0));	
+			GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, dim.x, dim.y, dim.z, 0, GL_RED, GL_FLOAT, NULL));
+			break;
+		case TYPE_DOUBLE:
+			//Double ~ reinterpreted int2
+			GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_RG32I, dim.x, dim.y, dim.z, 0, GL_RG_INTEGER, GL_UNSIGNED_INT, NULL));
 			break;
 		default:
 			assert("Not implemented");
@@ -326,6 +335,13 @@ void blib::Texture3DPtr::setDesc(PrimitiveType type)
 		_desc.z = 0;
 		_desc.w = 0;
 		_desc.f = cudaChannelFormatKindFloat;
+		break;
+	case TYPE_DOUBLE:
+		_desc.x = sizeof(int2) / 2;
+		_desc.y = sizeof(int2) / 2;
+		_desc.z = 0;
+		_desc.w = 0;
+		_desc.f = cudaChannelFormatKindSigned;
 		break;
 	case TYPE_UCHAR:
 		//

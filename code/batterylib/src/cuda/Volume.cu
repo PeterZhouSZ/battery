@@ -2,18 +2,7 @@
 #include <stdio.h>
 
 
-#define VOLUME_VOX					\
-uint3 vox = make_uint3(			\
-		blockIdx.x * blockDim.x,	\
-		blockIdx.y * blockDim.y,	\
-		blockIdx.z * blockDim.z		\
-	) + threadIdx;					\
-
-
-#define VOLUME_VOX_GUARD(res)					\
-	VOLUME_VOX									\
-	if (vox.x >= res.x || vox.y >= res.y || vox.z >= res.z)	\
-	return;			
+	
 
 
 

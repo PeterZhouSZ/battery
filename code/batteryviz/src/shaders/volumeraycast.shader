@@ -14,6 +14,8 @@ out vec4 fragColor;
 
 uniform sampler1D transferFunc;
 uniform sampler3D volumeTexture;
+uniform isampler3D volumeTextureI;
+
 uniform sampler2D enterVolumeTex;
 uniform sampler2D exitVolumeTex;
 
@@ -34,6 +36,7 @@ const vec3 lightDir = vec3(1.0,0.0,1.0);
 uniform vec3 resolution;
 
 uniform bool showGradient = false;
+uniform bool isDouble = false;
 
 vec3 getGradient(vec3 pt){
 	vec3 res = resolution*5;
@@ -123,7 +126,18 @@ void main(){
 	
 	for(float i=0; i < N; i+=1.0){
 
-		float volumeVal = texture(volumeTexture,pos).r;		
+		float volumeVal;
+
+		if(isDouble){
+			ivec2 val = texture(volumeTextureI,pos).rg;		
+			uvec2 valu = uvec2(val.x, val.y);
+			double dval = packDouble2x32(valu);		
+			volumeVal = float(dval);
+		}
+		else {
+			 volumeVal = texture(volumeTexture,pos).r;		
+		}
+
 		pos += stepVec;
 
 		vec4 color = texture(transferFunc,volumeVal);

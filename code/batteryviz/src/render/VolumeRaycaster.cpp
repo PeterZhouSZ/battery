@@ -114,9 +114,10 @@ VolumeRaycaster::VolumeRaycaster(std::shared_ptr<Shader> shaderPosition,
 bool VolumeRaycaster::setVolume(const blib::Volume & volume, int channel)
 {
 
-	//New texture
-	_volTexture = volume.getChannel(channel).getCurrentPtr().getGlID();
-	_volDim = volume.getChannel(channel).dim();	
+	auto & c = volume.getChannel(channel);
+	_volTexture = c.getCurrentPtr().getGlID();
+	_volDim = c.dim();	
+	_volType = c.type();
 	enableFiltering(_enableFiltering);
 
 	return true;
@@ -191,8 +192,16 @@ void VolumeRaycaster::render(const Camera &camera, ivec4 viewport) {
 		GL(glBindTexture(GL_TEXTURE_3D, _volTexture));
 
 		
+		if (_volType == TYPE_DOUBLE) {
+			shader["isDouble"] = true;
+			shader["volumeTextureI"] = int(GL_TEXTURE1 - GL_TEXTURE0);
+		}
+		else {
+			shader["isDouble"] = false;
+			shader["volumeTexture"] = int(GL_TEXTURE1 - GL_TEXTURE0);		
+		}
 
-		shader["volumeTexture"] = int(GL_TEXTURE1 - GL_TEXTURE0);
+		
 		shader["resolution"] =
 			vec3(1.0f / _volDim.x, 1.0f / _volDim.y,
 				1.0f / _volDim.z);
@@ -205,6 +214,8 @@ void VolumeRaycaster::render(const Camera &camera, ivec4 viewport) {
     shader["transferOpacity"] = 0.5f;
     shader["blackOpacity"] = opacityBlack;
     shader["whiteOpacity"] = opacityWhite;
+
+	
 
     
     shader["showGradient"] = showGradient;
@@ -242,7 +253,15 @@ void VolumeRaycaster::renderSlice(int axis, ivec2 screenPos,
   {
 	  GL(glActiveTexture(GL_TEXTURE0));
 	  GL(glBindTexture(GL_TEXTURE_3D, _volTexture));
-	  shader["tex"] = 0;
+	  
+	  if (_volType == TYPE_DOUBLE) {
+		  shader["isDouble"] = true;
+		  shader["texI"] = 0;
+	  }
+	  else {		  
+		  shader["isDouble"] = false;
+		  shader["tex"] = 0;
+	  }
   }  
  
 

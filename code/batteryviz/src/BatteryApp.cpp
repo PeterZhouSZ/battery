@@ -101,7 +101,8 @@ BatteryApp::BatteryApp()
 	_currentRenderChannel(0),
 	_simulationTime(0.0f),
 	_diffSolver(true),
-	_multiSolver(true)
+	_multiSolver(true),
+	_multigridGPUSolver(true)
 {	
 
 
@@ -333,7 +334,8 @@ void BatteryApp::render(double dt)
 		
 		//update current channel to render
 		_currentRenderChannel = _options["Render"].get<int>("channel");
-
+		_currentRenderChannel = std::clamp(_currentRenderChannel, uint(0), _volume->numChannels()-1);
+		_options["Render"].set<int>("channel", _currentRenderChannel);
 		_volumeRaycaster->setVolume(*_volume, _currentRenderChannel);
 		
 
@@ -569,13 +571,59 @@ void BatteryApp::reset()
 		generateSpheresVolume(*_volume, 128, 0.15f);
 
 	}
+	/*{
+		int res = 128;
+		ivec3 d = ivec3(res, res, res);
+		auto newId = _volume->addChannel(d, TYPE_DOUBLE);
+		auto & c = _volume->getChannel(newId);
+		c.setName("testDoubleRender");
+		double * data = (double*)c.getCurrentPtr().getCPU();
+		for (auto i = 0; i < d[0] - 0; i++) {
+			for (auto j = 0; j < d[1] - 1; j++) {
+				for (auto k = 0; k < d[2] - 0; k++) {
+					data[i + j*c.dim().x + k*c.dim().y*c.dim().x] = (j+i+k) / double(3*res);
+				}
+			}
+		}
+		c.getCurrentPtr().commit();
+
+	}*/
 
 	_volume->getChannel(CHANNEL_BATTERY).setName("Battery");
 	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");
 
+	const bool multigridGPU = false;
+
+	if (multigridGPU){
+		auto & c = _volume->getChannel(CHANNEL_BATTERY);
+		auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
+		auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
+		auto exactSolveDim = 4;
+		int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
+
+		Dir dir = Dir(_options["Diffusion"].get<int>("direction"));
+
+		auto t0 = std::chrono::system_clock::now();
+		vec3 cellDim = vec3(1.0 / maxDim);
+		_multigridGPUSolver.prepare(
+			*_volume, //for debug
+			_volume->getChannel(CHANNEL_BATTERY),
+			_volume->getChannel(CHANNEL_CONCETRATION),			
+			dir,
+			_options["Diffusion"].get<float>("D_zero"),
+			_options["Diffusion"].get<float>("D_one"),
+			levels,
+			cellDim
+		);
+		auto t1 = std::chrono::system_clock::now();
+
+		std::chrono::duration<double> prepTime = t1 - t0;
+		std::cout << "GPU Prep time: " << prepTime.count() << std::endl;
+	
+	}
 	
 
-	const bool multigridTest = true;
+	const bool multigridTest = false;
 	if(multigridTest){
 
 		
