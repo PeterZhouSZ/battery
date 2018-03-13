@@ -95,42 +95,25 @@ __global__ void restrictionKernel(cudaSurfaceObject_t surfSrc,
 ) {
 	VOLUME_VOX_GUARD(resDest);
 
-	//ivec3 ipos = { x,y,z };
-	//ivec3 iposSrc = ipos * 2;
-	uint3 voxSrc = vox * 2;
-	//size_t srcI = linearIndex(resSrc, voxSrc);
-	//size_t destI = linearIndex(resDest, vox);
-
-	//uint3 s = { 1, resSrc.x, resSrc.x * resSrc.y };
-	uint3 s = { 1, 1, 1 };
-	if (voxSrc.x == resSrc.x - 1 /*|| x == 0*/) s.x = 0;
-	if (voxSrc.y == resSrc.y - 1 /*|| y == 0*/) s.y = 0;
-	if (voxSrc.z == resSrc.z - 1 /*|| z == 0*/) s.z = 0;
 	
-	T val = read<T>(surfSrc, voxSrc);/* +
+	const uint3 voxSrc = vox * 2;	
+	uint3 s = { 1, 1, 1 };
+	if (voxSrc.x == resSrc.x - 1) s.x = 0;
+	if (voxSrc.y == resSrc.y - 1) s.y = 0;
+	if (voxSrc.z == resSrc.z - 1) s.z = 0;
+	
+	T val = read<T>(surfSrc, voxSrc) +
 		read<T>(surfSrc, voxSrc + s * make_uint3(1, 0, 0)) +
 		read<T>(surfSrc, voxSrc + s * make_uint3(0, 1, 0)) +
 		read<T>(surfSrc, voxSrc + s * make_uint3(1, 1, 0)) +
 		read<T>(surfSrc, voxSrc + s * make_uint3(0, 0, 1)) +
 		read<T>(surfSrc, voxSrc + s * make_uint3(1, 0, 1)) +
 		read<T>(surfSrc, voxSrc + s * make_uint3(0, 1, 1)) +
-		read<T>(surfSrc, voxSrc + s * make_uint3(1, 1, 1));*/
+		read<T>(surfSrc, voxSrc + s * make_uint3(1, 1, 1));
 
-	/*T val = src[srcI] +
-		src[srcI + s[0]] +
-		src[srcI + s[1]] +
-		src[srcI + s[1] + s[0]] +
-		src[srcI + s[2]] +
-		src[srcI + s[2] + s[0]] +
-		src[srcI + s[2] + s[1]] +
-		src[srcI + s[2] + s[1] + s[0]];
-*/
-
-	//val *= T(1.0 / 8.0) * multiplier;
+	val *= T(1.0 / 8.0) * multiplier;
 
 	write<T>(surfDest, vox, val);
-	
-
 }
 
 void launchRestrictionKernel(
@@ -142,7 +125,7 @@ void launchRestrictionKernel(
 	double multiplier
 ) {
 
-	uint3 block = make_uint3(8, 8, 8);
+	uint3 block = make_uint3(2);
 	uint3 numBlocks = make_uint3(
 		(resDest.x / block.x) + 1,
 		(resDest.y / block.y) + 1,

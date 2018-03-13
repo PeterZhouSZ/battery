@@ -93,13 +93,14 @@ bool ::MultigridGPU<T>::prepare(
 			T(0.5)
 		);
 
-		cudaDeviceSynchronize();
+		
 		volume.emplaceChannel(
 			VolumeChannel(_D[i], _dims[i])
 		);
 
 
 	}
+	cudaDeviceSynchronize();
 
 	
 
