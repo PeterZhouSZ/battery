@@ -47,41 +47,60 @@ bool ::MultigridGPU<T>::prepare(
 	_r.resize(_lv);
 	_dims.resize(_lv);
 
-	//Generate D volume for smaller resolutions
+	
 	_D.resize(_lv);
 
+	//Calculate dimensions for all levels
+	_dims[0] = mask.dim();	
+	for (uint i = 1; i < _lv; i++) {
+		ivec3 dim = _dims[i - 1] / 2;
+		if (_dims[i - 1].x % 2 == 1) dim.x++;
+		if (_dims[i - 1].y % 2 == 1) dim.y++;
+		if (_dims[i - 1].z % 2 == 1) dim.z++;
+		_dims[i] = dim;
+	}	
 
-
-
-	auto origDim = mask.dim();
-	const size_t origTotal = origDim.x * origDim.y * origDim.z;
-
-	{
-
-		_dims.front() = origDim;
-		auto & firstLevel = _D.front();
-		firstLevel.allocOpenGL(_type, origDim, true);		
-
-
+	//Convert mask to float/double 
+	{		
+		auto & firstLevel = _D[0];
+		firstLevel.allocOpenGL(_type, _dims[0], false);
+		
 		launchConvertMaskKernel(
 			_type,
-			make_uint3(origDim.x,origDim.y,origDim.z),
+			make_uint3(_dims[0].x, _dims[0].y, _dims[0].z),
 			mask.getCurrentPtr().getSurface(), 
 			firstLevel.getSurface(),
 			d0, d1
-		);
-
-		//firstLevel.retrieve();
+		);					
 
 		cudaDeviceSynchronize();
-
 		volume.emplaceChannel(
-			VolumeChannel(firstLevel, origDim)
-		);
-		
-
-		//res &= prepareAtLevelFVM(_D[0].data(), _dims[0], dir, 0);		
+			VolumeChannel(firstLevel, _dims[0], "D in float/double")
+		);		
 	}
+
+	//Restrict diffusion coeffs for smaller grids
+	for (uint i = 1; i < _lv; i++) {
+				
+		_D[i].allocOpenGL(_type, _dims[i], false);
+				
+		launchRestrictionKernel(
+			_type,
+			_D[i - 1].getSurface(),
+			make_uint3(_dims[i - 1].x, _dims[i - 1].y, _dims[i - 1].z),
+			_D[i].getSurface(),
+			make_uint3(_dims[i].x, _dims[i].y, _dims[i].z),
+			T(0.5)
+		);
+
+		cudaDeviceSynchronize();
+		volume.emplaceChannel(
+			VolumeChannel(_D[i], _dims[i])
+		);
+
+
+	}
+
 	
 
 

@@ -11,3 +11,12 @@ void launchConvertMaskKernel(
 	double v0,
 	double v1
 );
+
+void launchRestrictionKernel(
+	PrimitiveType type,
+	cudaSurfaceObject_t surfSrc,
+	uint3 resSrc,
+	cudaSurfaceObject_t surfDest,
+	uint3 resDest,
+	double multiplier
+);
