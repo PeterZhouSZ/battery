@@ -71,8 +71,8 @@ void launchConvertMaskKernel(
 	);
 
 	if (type == TYPE_FLOAT) {
-		float vf0 = v0;
-		float vf1 = v1;
+		float vf0 = float(v0);
+		float vf1 = float(v1);
 		convertMaskKernel<float> <<< numBlocks, block >> > (res, surfIn, surfOut, vf0, vf1);
 	}
 	else if (type == TYPE_DOUBLE)
@@ -137,4 +137,117 @@ void launchRestrictionKernel(
 	else if (type == TYPE_DOUBLE)
 		restrictionKernel<double> << < numBlocks, block >> > (surfSrc, resSrc, surfDest, resDest, multiplier);
 
+}
+
+
+template <typename T>
+__global__ void weightedRestrictionKernel(
+	cudaSurfaceObject_t surfSrc,
+	cudaSurfaceObject_t surfWeight,
+	uint3 resSrc,
+	cudaSurfaceObject_t surfDest,
+	uint3 resDest
+) {
+	VOLUME_VOX_GUARD(resDest);
+
+
+	const uint3 voxSrc = vox * 2;
+	uint3 s = { 1, 1, 1 };
+	if (voxSrc.x == resSrc.x - 1) s.x = 0;
+	if (voxSrc.y == resSrc.y - 1) s.y = 0;
+	if (voxSrc.z == resSrc.z - 1) s.z = 0;
+
+	const uint3 voxSrcOff[8] = {
+		voxSrc + 0,
+		voxSrc + s * make_uint3(1, 0, 0),
+		voxSrc + s * make_uint3(0, 1, 0),
+		voxSrc + s * make_uint3(1, 1, 0),
+		voxSrc + s * make_uint3(0, 0, 1),
+		voxSrc + s * make_uint3(1, 0, 1),
+		voxSrc + s * make_uint3(0, 1, 1),
+		voxSrc + s * make_uint3(1, 1, 1)
+	};
+
+	const T weights[8] = {
+		read<T>(surfWeight, voxSrcOff[0]),
+		read<T>(surfWeight, voxSrcOff[1]),
+		read<T>(surfWeight, voxSrcOff[2]),
+		read<T>(surfWeight, voxSrcOff[3]),
+		read<T>(surfWeight, voxSrcOff[4]),
+		read<T>(surfWeight, voxSrcOff[5]),
+		read<T>(surfWeight, voxSrcOff[6]),
+		read<T>(surfWeight, voxSrcOff[7])
+	};
+	
+	const T W = weights[0] + weights[1] + weights[2] + weights[3] + weights[4] + weights[5] + weights[6] + weights[7];
+	
+	//todo weights -> constant memory? vs tex?
+	T val = read<T>(surfSrc, voxSrcOff[0]) * weights[0] +
+		read<T>(surfSrc, voxSrcOff[1]) *  weights[1] +
+		read<T>(surfSrc, voxSrcOff[2]) *  weights[2] +
+		read<T>(surfSrc, voxSrcOff[3]) *  weights[3] +
+		read<T>(surfSrc, voxSrcOff[4]) *  weights[4] +
+		read<T>(surfSrc, voxSrcOff[5]) *  weights[5] +
+		read<T>(surfSrc, voxSrcOff[6]) *  weights[6] +
+		read<T>(surfSrc, voxSrcOff[7]) *  weights[7];
+	
+	val /= W;
+
+	write<T>(surfDest, vox, val);
+}
+
+
+void launchWeightedRestrictionKernel(
+	PrimitiveType type,
+	cudaSurfaceObject_t surfSrc,
+	cudaSurfaceObject_t surfWeight,
+	uint3 resSrc,
+	cudaSurfaceObject_t surfDest,
+	uint3 resDest
+) {
+	uint3 block = make_uint3(2);
+	uint3 numBlocks = make_uint3(
+		(resDest.x / block.x) + 1,
+		(resDest.y / block.y) + 1,
+		(resDest.z / block.z) + 1
+	);
+
+	if (type == TYPE_FLOAT)
+		weightedRestrictionKernel<float> << < numBlocks, block >> > (surfSrc,surfWeight, resSrc, surfDest, resDest);
+	else if (type == TYPE_DOUBLE)
+		weightedRestrictionKernel<double> << < numBlocks, block >> > (surfSrc, surfWeight, resSrc, surfDest, resDest);
+}
+
+template <typename T>
+__global__ void weightedInterpolationKernel(
+	cudaSurfaceObject_t surfSrc,
+	cudaSurfaceObject_t surfWeight,
+	uint3 resSrc,
+	cudaSurfaceObject_t surfDest,
+	uint3 resDest
+) {
+	VOLUME_VOX_GUARD(resDest);
+	//TODO
+}
+
+void launchWeightedInterpolationKernel(
+	PrimitiveType type,
+	cudaSurfaceObject_t surfSrc,
+	cudaSurfaceObject_t surfWeight,
+	uint3 resSrc,
+	cudaSurfaceObject_t surfDest,
+	uint3 resDest
+) {
+
+	uint3 block = make_uint3(2);
+	uint3 numBlocks = make_uint3(
+		(resDest.x / block.x) + 1,
+		(resDest.y / block.y) + 1,
+		(resDest.z / block.z) + 1
+	);
+
+	if (type == TYPE_FLOAT)
+		weightedInterpolationKernel<float> << < numBlocks, block >> > (surfSrc, surfWeight, resSrc, surfDest, resDest);
+	else if (type == TYPE_DOUBLE)
+		weightedInterpolationKernel<double> << < numBlocks, block >> > (surfSrc, surfWeight, resSrc, surfDest, resDest);
 }

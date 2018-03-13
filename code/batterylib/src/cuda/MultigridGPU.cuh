@@ -20,3 +20,21 @@ void launchRestrictionKernel(
 	uint3 resDest,
 	double multiplier
 );
+
+void launchWeightedRestrictionKernel(
+	PrimitiveType type,
+	cudaSurfaceObject_t surfSrc,
+	cudaSurfaceObject_t surfWeight,
+	uint3 resSrc,
+	cudaSurfaceObject_t surfDest,
+	uint3 resDest
+);
+
+void launchWeightedInterpolationKernel(
+	PrimitiveType type,
+	cudaSurfaceObject_t surfSrc,
+	cudaSurfaceObject_t surfWeight,
+	uint3 resSrc,
+	cudaSurfaceObject_t surfDest,
+	uint3 resDest
+);
