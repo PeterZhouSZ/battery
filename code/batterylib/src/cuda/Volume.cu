@@ -772,17 +772,29 @@ __device__ void opMax(T & a, const T & b) {
 	if (b > a) a = b;
 }
 
-template <typename T>
-__device__ void opSquareSum(T & a, const T & b) {
-	a += b*b;
-}
+
 
 template <typename T>
 using ReduceOp = void(*)(
 	T & a, const T & b
 	);
 
-template <typename T, unsigned int blockSize, ReduceOp<T> _op>
+template <typename T>
+__device__ void opSquare(T & a) {
+	a *= a;
+}
+
+template <typename T>
+__device__ void opIdentity(T & a) {
+	//nothing
+}
+
+template <typename T>
+using PreReduceOp = void(*)(
+	T & a
+	);
+
+template <typename T, unsigned int blockSize, ReduceOp<T> _op, PreReduceOp<T> _preOp = opIdentity<T>>
 __global__ void reduce3DSurfaceToBuffer(uint3 res, cudaSurfaceObject_t surf, T * reducedData, size_t n)
 {
 	//extern __shared__ T sdata[];
@@ -802,8 +814,12 @@ __global__ void reduce3DSurfaceToBuffer(uint3 res, cudaSurfaceObject_t surf, T *
 		T vali = T(0);
 		T valip = T(0);		
 		vali = surf3Dread<T>(surf, int(voxi.x * sizeof(T)), int(voxi.y), int(voxi.z));
-		if (voxip.x < res.x && voxip.y < res.y && voxip.z < res.z)
+		_preOp(vali);
+
+		if (voxip.x < res.x && voxip.y < res.y && voxip.z < res.z) {
 			valip = surf3Dread<T>(surf, int(voxip.x * sizeof(T)), int(voxip.y), int(voxip.z));
+			_preOp(valip);
+		}		
 
 		_op(sdata[tid], vali);
 		_op(sdata[tid], valip);
@@ -902,7 +918,7 @@ void launchReduceSumKernel(
 
 		if (type == TYPE_FLOAT) {
 			if (opType == REDUCE_OP_SQUARESUM) {
-				reduce3DSurfaceToBuffer<float, blockSize, opSquareSum> << <numBlocks, block, blockSize * sizeof(float) >> > (
+				reduce3DSurfaceToBuffer<float, blockSize, opSum, opSquare> << <numBlocks, block, blockSize * sizeof(float) >> > (
 					res, surf, (float*)auxBuffer, n
 					);
 			}
