@@ -17,6 +17,12 @@ template class MultigridGPU<double>;
 #include <fstream>
 #endif
 
+
+uint3 make_uint3(ivec3 v) {
+	return make_uint3(v.x, v.y, v.z);
+}
+
+
 template <typename T>
 MultigridGPU<T>::MultigridGPU(bool verbose)
 	: _verbose(verbose),
@@ -90,12 +96,12 @@ bool ::MultigridGPU<T>::prepare(
 			d0, d1
 		);					
 
-		if (_debugVolume) {
+		/*if (_debugVolume) {
 			cudaDeviceSynchronize();
 			_debugVolume->emplaceChannel(
 				VolumeChannel(firstLevel, _dims[0], "D in float/double")
 			);
-		}
+		}*/
 	}
 
 	//Restrict diffusion coeffs for smaller grids
@@ -112,12 +118,12 @@ bool ::MultigridGPU<T>::prepare(
 			T(0.5)
 		);
 
-		if (_debugVolume) {
+		/*if (_debugVolume) {
 			cudaDeviceSynchronize();
 			_debugVolume->emplaceChannel(
 				VolumeChannel(_D[i], _dims[i])
 			);
-		}
+		}*/
 	}
 
 
@@ -129,6 +135,11 @@ bool ::MultigridGPU<T>::prepare(
 	cudaDeviceSynchronize();
 	
 
+	{
+		const size_t maxN = _dims[0].x * _dims[0].y * _dims[0].z;
+		const size_t reduceN = maxN / 512;
+		_auxReduceBuffer.allocHost(reduceN, primitiveSizeof(_type));
+	}
 	
 
 
@@ -289,6 +300,31 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 		return std::string(n, '\t');
 	};
 
+
+	//
+
+	residual(
+		_type,
+		make_uint3(_dims[0]),
+		_r[0].getSurface(),
+		_f[0].getSurface(),
+		_x[0].getSurface(),
+		_A[0].gpu
+	);
+
+
+
+
+	if (_debugVolume) {
+		cudaDeviceSynchronize();
+		auto i = 0;
+		_debugVolume->emplaceChannel(VolumeChannel(_r[i], _dims[i],"r"));
+		_debugVolume->emplaceChannel(VolumeChannel(_x[i], _dims[i], "x"));
+		_debugVolume->emplaceChannel(VolumeChannel(_f[i], _dims[i], "f"));
+	}
+
+
+
 	//need surface sub, add, setToZero
 	//matrixdata * surface multiply, residual r - A*x
 	//weighted interpolation
@@ -312,6 +348,8 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 			else if (i > prevI) {
 
 				if (i > 0) {
+					T zero = 0;
+					clearSurface(_type, _x[i].getSurface(), make_uint3(_dims[i]), &zero);
 				//	_x[i].clearGPU();					
 				}
 

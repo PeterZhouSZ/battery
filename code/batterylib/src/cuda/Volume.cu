@@ -488,6 +488,7 @@ __host__ __device__ uint3 ind2sub(uint3 res, uint i) {
 	);
 }
 
+
 template <typename T, unsigned int blockSize, bool toSurface>
 __global__ void reduce3D(uint3 res, cudaSurfaceObject_t data, T * finalData, unsigned int n, uint3 offset)
 {
@@ -744,3 +745,241 @@ float launchReduceSumSlice(uint3 res, cudaSurfaceObject_t surf, Dir dir, void * 
 	return 0;
 
 }
+
+
+
+
+
+
+
+
+/*
+	Surface & buffer reduction, templated	
+*/
+
+
+template <typename T>
+__device__ void opSum(T & a, const T & b) {
+	a += b;
+}
+
+template <typename T>
+__device__ void opMin(T & a, const T & b) {
+	if (b < a) a = b;
+}
+template <typename T>
+__device__ void opMax(T & a, const T & b) {
+	if (b > a) a = b;
+}
+
+template <typename T>
+__device__ void opSquareSum(T & a, const T & b) {
+	a += b*b;
+}
+
+template <typename T>
+using ReduceOp = void(*)(
+	T & a, const T & b
+	);
+
+template <typename T, unsigned int blockSize, ReduceOp<T> _op>
+__global__ void reduce3DSurfaceToBuffer(uint3 res, cudaSurfaceObject_t surf, T * reducedData, size_t n)
+{
+	//extern __shared__ T sdata[];
+
+	extern __shared__ __align__(sizeof(T)) unsigned char my_smem[];
+	T *sdata = reinterpret_cast<T *>(my_smem);
+
+	unsigned int tid = threadIdx.x;
+	unsigned int i = blockIdx.x*(blockSize * 2) + tid;
+	unsigned int gridSize = blockSize * 2 * gridDim.x;
+	sdata[tid] = 0;
+
+	while (i < n) {
+		const uint3 voxi = ind2sub(res, i);
+		const uint3 voxip = ind2sub(res, i + blockSize);
+
+		T vali = T(0);
+		T valip = T(0);		
+		vali = surf3Dread<T>(surf, int(voxi.x * sizeof(T)), int(voxi.y), int(voxi.z));
+		if (voxip.x < res.x && voxip.y < res.y && voxip.z < res.z)
+			valip = surf3Dread<T>(surf, int(voxip.x * sizeof(T)), int(voxip.y), int(voxip.z));
+
+		_op(sdata[tid], vali);
+		_op(sdata[tid], valip);
+
+		i += gridSize;
+	}
+	__syncthreads();
+
+	if (blockSize >= 512) { if (tid < 256) { _op(sdata[tid], sdata[tid + 256]); } __syncthreads(); }
+	if (blockSize >= 256) { if (tid < 128) { _op(sdata[tid], sdata[tid + 128]); } __syncthreads(); }
+	if (blockSize >= 128) { if (tid < 64) { _op(sdata[tid], sdata[tid + 64]); } __syncthreads(); }
+	if (tid < 32) {
+		if (blockSize >= 64) _op(sdata[tid], sdata[tid + 32]);
+		if (blockSize >= 32) _op(sdata[tid], sdata[tid + 16]);
+		if (blockSize >= 16) _op(sdata[tid], sdata[tid + 8]);
+		if (blockSize >= 8) _op(sdata[tid], sdata[tid + 4]);
+		if (blockSize >= 4) _op(sdata[tid], sdata[tid + 2]);
+		if (blockSize >= 2) _op(sdata[tid], sdata[tid + 1]);
+	}
+
+	if (tid == 0) {		
+		reducedData[blockIdx.x] = sdata[0];
+	}
+
+}
+
+
+template <typename T, unsigned int blockSize, ReduceOp<T> _op>
+__global__ void reduceBuffer(T * buffer, size_t n)
+{
+	extern __shared__ T sdata[];
+	unsigned int tid = threadIdx.x;
+	unsigned int i = blockIdx.x*(blockSize * 2) + tid;
+	unsigned int gridSize = blockSize * 2 * gridDim.x;
+	sdata[tid] = 0;
+
+	while (i < n) {
+		_op(sdata[tid], buffer[i]);
+		_op(sdata[tid], buffer[i + blockSize]);
+		i += gridSize;
+	}
+	__syncthreads();
+
+	if (blockSize >= 512) { if (tid < 256) { _op(sdata[tid], sdata[tid + 256]); } __syncthreads(); }
+	if (blockSize >= 256) { if (tid < 128) { _op(sdata[tid], sdata[tid + 128]); } __syncthreads(); }
+	if (blockSize >= 128) { if (tid < 64) { _op(sdata[tid], sdata[tid + 64]); } __syncthreads(); }
+	if (tid < 32) {
+		if (blockSize >= 64) _op(sdata[tid], sdata[tid + 32]);
+		if (blockSize >= 32) _op(sdata[tid], sdata[tid + 16]);
+		if (blockSize >= 16) _op(sdata[tid], sdata[tid + 8]);
+		if (blockSize >= 8) _op(sdata[tid], sdata[tid + 4]);
+		if (blockSize >= 4) _op(sdata[tid], sdata[tid + 2]);
+		if (blockSize >= 2) _op(sdata[tid], sdata[tid + 1]);
+	}
+
+	if (tid == 0) {
+		buffer[blockIdx.x] = sdata[0];
+	}
+
+}
+
+enum OpType {
+	REDUCE_OP_SUM,
+	REDUCE_OP_PROD,
+	REDUCE_OP_SQUARESUM,
+	REDUCE_OP_MIN,
+	REDUCE_OP_MAX
+};
+
+//AuxBuffer -> surf total n / 512
+void launchReduceSumKernel(	
+	PrimitiveType type, 
+	OpType opType,
+	uint3 res, 
+	cudaSurfaceObject_t surf, 
+	void * auxBuffer,
+	void * result
+) {
+
+
+	const uint finalSizeMax = 512;
+	const uint blockSize = 512;
+	const uint3 block = make_uint3(blockSize, 1, 1);	
+	size_t n = res.x * res.y * res.z;
+	const size_t initialN = n;
+
+
+	//Use smaller reduction
+	if (initialN <= finalSizeMax) {
+	
+	}
+	else {
+		uint3 numBlocks = make_uint3(
+			(n / block.x) / 2, 1, 1
+		);
+
+		if (type == TYPE_FLOAT) {
+			if (opType == REDUCE_OP_SQUARESUM) {
+				reduce3DSurfaceToBuffer<float, blockSize, opSquareSum> << <numBlocks, block, blockSize * sizeof(float) >> > (
+					res, surf, (float*)auxBuffer, n
+					);
+			}
+			else {
+				//Not implemented
+			}
+		}
+		else if (type == TYPE_DOUBLE) {
+			if (opType == REDUCE_OP_SQUARESUM) {
+				///
+
+
+				//TODO
+				// INT2
+
+				///
+
+
+				/*reduce3DSurfaceToBuffer<double, blockSize, opSquareSum> << <numBlocks, block, blockSize * sizeof(double) >> > (
+					res, surf, (double*)auxBuffer, n
+					);*/
+			}
+			else {
+				//Not implemented
+			}
+		}
+
+		n = numBlocks.x;
+	}
+
+	*((float*)result) = 0;
+
+
+	//float * deviceResult = nullptr;
+	//cudaMalloc(&deviceResult, finalSizeMax * sizeof(float));
+	//cudaMemset(deviceResult, 0, finalSizeMax * sizeof(float));
+
+
+	//while (n > finalSizeMax) {
+	//	uint3 numBlocks = make_uint3(
+	//		(n / block.x) / 2, 1, 1
+	//	);
+
+	//	//If not final stage of reduction -> reduce into  surface
+	//	if (numBlocks.x > finalSizeMax) {
+	//		reduce3D<float, blockSize, true>
+	//			<< <numBlocks, block, blockSize * sizeof(float) >> > (
+	//				res, surf, nullptr, n, make_uint3(0)
+	//				);
+	//	}
+	//	else {
+	//		reduce3D<float, blockSize, false>
+	//			<< <numBlocks, block, blockSize * sizeof(float) >> > (
+	//				res, surf, deviceResult, n, make_uint3(0)
+	//				);
+
+	//	}
+
+	//	//New N
+	//	n = numBlocks.x;
+	//}
+
+
+	//float * hostResult = new float[finalSizeMax];
+	//cudaMemcpy(hostResult, deviceResult, finalSizeMax * sizeof(float), cudaMemcpyDeviceToHost);
+
+
+	//float result = 0.0f;
+	//for (auto i = 0; i < finalSizeMax; i++) {
+	//	result += hostResult[i];
+	//}
+
+	//cudaFree(deviceResult);
+	//delete[] hostResult;
+
+
+	//return result;
+
+}
+

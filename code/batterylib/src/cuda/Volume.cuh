@@ -17,6 +17,14 @@ uint3 vox = make_uint3(			\
 	if (vox.x >= res.x || vox.y >= res.y || vox.z >= res.z)	\
 	return;		
 
+#define BLOCKS3D(perBlockDim, res)				\
+	uint3 block = make_uint3(perBlockDim);		\
+	uint3 numBlocks = make_uint3(				\
+		((res.x + (block.x-1)) / block.x),		\
+		((res.y + (block.y-1)) / block.y),		\
+		((res.z + (block.z-1)) / block.z)		\
+	);											\
+
 __host__ __device__ inline uint roundDiv(uint a, uint b) {
 	return (a + (b - 1)) / b;
 }

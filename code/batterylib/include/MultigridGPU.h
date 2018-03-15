@@ -56,6 +56,8 @@ namespace blib {
 		std::vector<Texture3DPtr> _tmpx;
 		std::vector<Texture3DPtr> _r;
 
+		DataPtr _auxReduceBuffer;
+
 		Volume * _debugVolume;
 		vec3 _cellDim;
 		bool _verbose;

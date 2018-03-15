@@ -124,12 +124,7 @@ void launchConvertMaskKernel(
 ) {
 
 
-	uint3 block = make_uint3(8, 8, 8);
-	uint3 numBlocks = make_uint3(
-		(res.x / block.x) + 1,
-		(res.y / block.y) + 1,
-		(res.z / block.z) + 1
-	);
+	BLOCKS3D(8, res);
 
 	if (type == TYPE_FLOAT) {
 		float vf0 = float(v0);
@@ -186,13 +181,7 @@ void launchRestrictionKernel(
 	double multiplier
 ) {
 
-	uint3 block = make_uint3(2);
-	uint3 numBlocks = make_uint3(
-		(resDest.x / block.x) + 1,
-		(resDest.y / block.y) + 1,
-		(resDest.z / block.z) + 1
-	);
-
+	BLOCKS3D(2, resDest);
 	if (type == TYPE_FLOAT)
 		restrictionKernel<float> << < numBlocks, block >> > (surfSrc,resSrc,surfDest,resDest, float(multiplier));
 	else if (type == TYPE_DOUBLE)
@@ -266,12 +255,7 @@ void launchWeightedRestrictionKernel(
 	cudaSurfaceObject_t surfDest,
 	uint3 resDest
 ) {
-	uint3 block = make_uint3(2);
-	uint3 numBlocks = make_uint3(
-		(resDest.x / block.x) + 1,
-		(resDest.y / block.y) + 1,
-		(resDest.z / block.z) + 1
-	);
+	BLOCKS3D(2, resDest);
 
 	if (type == TYPE_FLOAT)
 		weightedRestrictionKernel<float> << < numBlocks, block >> > (surfSrc,surfWeight, resSrc, surfDest, resDest);
@@ -300,12 +284,7 @@ void launchWeightedInterpolationKernel(
 	uint3 resDest
 ) {
 
-	uint3 block = make_uint3(2);
-	uint3 numBlocks = make_uint3(
-		(resDest.x / block.x) + 1,
-		(resDest.y / block.y) + 1,
-		(resDest.z / block.z) + 1
-	);
+	BLOCKS3D(2, resDest);
 
 	if (type == TYPE_FLOAT)
 		weightedInterpolationKernel<float> << < numBlocks, block >> > (surfSrc, surfWeight, resSrc, surfDest, resDest);
@@ -423,12 +402,7 @@ __global__ void prepareSystemKernel(LinSysParams params) {
 
 void launchPrepareSystemKernel(LinSysParams params)
 {
-	uint3 block = make_uint3(8);
-	uint3 numBlocks = make_uint3(
-		(params.res.x / block.x) + 1,
-		(params.res.y / block.y) + 1,
-		(params.res.z / block.z) + 1
-	);
+	BLOCKS3D(8, params.res);
 
 	if (params.type == TYPE_FLOAT){
 		prepareSystemKernel<float> << < numBlocks, block >> >(params);
@@ -436,4 +410,113 @@ void launchPrepareSystemKernel(LinSysParams params)
 	else if(params.type == TYPE_DOUBLE)
 		prepareSystemKernel<double> << < numBlocks, block >> >(params);
 
+}
+
+template <typename T>
+__global__ void clearSurfaceKernel(cudaSurfaceObject_t surf, uint3 res, T val) {
+	VOLUME_VOX_GUARD(res);
+	write<T>(surf, vox, val);
+}
+
+void clearSurface(PrimitiveType type, cudaSurfaceObject_t surf, uint3 res, void * val) {	
+	BLOCKS3D(8, res);	
+	if (type == TYPE_FLOAT) {
+		clearSurfaceKernel<float> << < numBlocks, block >> >(surf,res,*((float *)val));
+	}
+	else if (type == TYPE_DOUBLE)
+		clearSurfaceKernel<double> << < numBlocks, block >> >(surf,res, *((double *)val));
+}
+
+template <typename T>
+__global__ void surfaceAdditionKernel(cudaSurfaceObject_t A, cudaSurfaceObject_t B, uint3 res) {
+	VOLUME_VOX_GUARD(res);
+	T val = read<T>(A, vox) + read<T>(B, vox);
+	write<T>(A, vox, val);
+}
+
+
+
+
+void surfaceAddition(PrimitiveType type, cudaSurfaceObject_t A, cudaSurfaceObject_t B, uint3 res) {
+	BLOCKS3D(8, res);
+
+	if (type == TYPE_FLOAT) 
+		surfaceAdditionKernel<float> << < numBlocks, block >> >(A,B,res);
+	
+	else if (type == TYPE_DOUBLE)
+		surfaceAdditionKernel<double> << < numBlocks, block >> >(A, B, res);
+}
+
+template <typename T>
+__global__ void surfaceSubtractionKernel(cudaSurfaceObject_t A, cudaSurfaceObject_t B, uint3 res) {
+	VOLUME_VOX_GUARD(res);
+	T val = read<T>(A, vox) - read<T>(B, vox);
+	write<T>(A, vox, val);
+}
+
+void surfaceSubtraction(PrimitiveType type, cudaSurfaceObject_t A, cudaSurfaceObject_t B, uint3 res) {
+	BLOCKS3D(8, res);
+	if (type == TYPE_FLOAT) {
+		surfaceSubtractionKernel<float> << < numBlocks, block >> >(A, B, res);
+	}
+	else if (type == TYPE_DOUBLE)
+		surfaceSubtractionKernel<double> << < numBlocks, block >> >(A, B, res);
+}
+
+template <typename T>
+__global__ void residualKernel(uint3 res,
+	cudaSurfaceObject_t surfR,
+	cudaSurfaceObject_t surfF,
+	cudaSurfaceObject_t surfX,
+	T * matrixData) {
+	VOLUME_VOX_GUARD(res);
+
+	//r = f - A*x
+
+	const size_t i = linearIndex(res, vox);
+	const size_t rowI = i * 7;
+	const T * row = matrixData + rowI;
+
+	//const uint3 stride = { 1, res.x, res.x*res.y };
+	const uint3 voxCol[7] = {
+		vox - make_uint3(0,0,1),
+		vox - make_uint3(0,1,0),
+		vox - make_uint3(1,0,0),
+		vox,
+		vox + make_uint3(1,0,0),
+		vox + make_uint3(0,1,0),
+		vox + make_uint3(0,0,1)
+	};
+
+	//const uint3 vox
+	T sumProduct = T(0.0);	
+	for (auto k = 0; k < 7; k++) {
+		T coeff = row[k];		
+		if (coeff == T(0.0)) continue; //coeffs outside boundary are also 0
+
+		sumProduct += coeff * read<T>(surfX, voxCol[k]);
+	}
+
+	T fval = read<T>(surfF, vox);	
+	T residue = fval - sumProduct;	
+	//residue = abs(residue) * 10000;
+	//T residue = coeffSum;
+	write<T>(surfR, vox, residue);	
+}
+
+
+void residual(
+	PrimitiveType type,
+	uint3 res,
+	cudaSurfaceObject_t surfR,
+	cudaSurfaceObject_t surfF,
+	cudaSurfaceObject_t surfX,
+	void * matrixData
+) {	
+
+	BLOCKS3D(8, res);
+	if (type == TYPE_FLOAT)
+		residualKernel<float> << < numBlocks, block >> >(res,surfR,surfF,surfX, (float*)matrixData);	
+	else if (type == TYPE_DOUBLE)
+		residualKernel<double> << < numBlocks, block >> >(res, surfR, surfF, surfX, (double*)matrixData);
 }

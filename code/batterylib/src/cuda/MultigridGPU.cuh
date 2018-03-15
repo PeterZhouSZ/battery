@@ -51,10 +51,24 @@ struct LinSysParams {
 	cudaSurfaceObject_t surfX;
 	cudaSurfaceObject_t surfF;
 	cudaSurfaceObject_t surfD;
+	cudaSurfaceObject_t surfR;
 };
 
 void launchPrepareSystemKernel(LinSysParams params);
 
-void clearSurface(cudaSurfaceObject_t surf, uint3 res);
-void surfaceAddition(cudaSurfaceObject_t A, cudaSurfaceObject_t B, uint3 res);
-void surfaceSubtraction(cudaSurfaceObject_t A, cudaSurfaceObject_t B, uint3 res);
+void clearSurface(PrimitiveType type, cudaSurfaceObject_t surf, uint3 res, void * val);
+
+//A = A + B
+void surfaceAddition(PrimitiveType type, cudaSurfaceObject_t A, cudaSurfaceObject_t B, uint3 res);
+//A = A - B
+void surfaceSubtraction(PrimitiveType type, cudaSurfaceObject_t A, cudaSurfaceObject_t B, uint3 res);
+
+//r = f - A*x
+void residual(
+	PrimitiveType type,
+	uint3 res,
+	cudaSurfaceObject_t surfR,
+	cudaSurfaceObject_t surfF,
+	cudaSurfaceObject_t surfX,
+	void * matrixData
+);

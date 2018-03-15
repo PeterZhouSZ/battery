@@ -609,7 +609,7 @@ void BatteryApp::reset()
 		vec3 cellDim = vec3(1.0 / maxDim);
 
 
-		//_multigridGPUSolver.setDebugVolume(_volume.get());
+		_multigridGPUSolver.setDebugVolume(_volume.get());
 
 
 		_multigridGPUSolver.prepare(			
