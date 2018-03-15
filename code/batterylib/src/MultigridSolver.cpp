@@ -16,7 +16,7 @@ template class MultigridSolver<double>;
 #include <Eigen/IterativeLinearSolvers>
 #include<Eigen/SparseCholesky>	
 
-#define MG_LINSYS_TO_FILE
+//#define MG_LINSYS_TO_FILE
 
 #ifdef MG_LINSYS_TO_FILE
 	#include <fstream>

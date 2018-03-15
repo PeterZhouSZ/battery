@@ -423,7 +423,7 @@ __global__ void prepareSystemKernel(LinSysParams params) {
 
 void launchPrepareSystemKernel(LinSysParams params)
 {
-	uint3 block = make_uint3(2);
+	uint3 block = make_uint3(8);
 	uint3 numBlocks = make_uint3(
 		(params.res.x / block.x) + 1,
 		(params.res.y / block.y) + 1,
