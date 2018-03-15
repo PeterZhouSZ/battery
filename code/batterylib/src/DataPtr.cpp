@@ -6,7 +6,7 @@
 #include <assert.h>
 #include <cuda_gl_interop.h>
 
-bool blib::DataPtr::retrieve(uint offset, uint size)
+bool blib::DataPtr::retrieve(size_t offset, size_t size)
 {
 	assert(cpu != nullptr);
 	assert(gpu != nullptr);
@@ -23,9 +23,13 @@ bool blib::DataPtr::retrieve()
 	return retrieve(0, byteSize());
 }
 
-bool blib::DataPtr::allocHost(uint num, uint stride)
+bool blib::DataPtr::allocHost(size_t num, size_t stride)
 {
 	if (cpu) {
+
+		if (num == this->num && stride == this->stride)
+			return true;
+
 		delete[] cpu;
 		cpu = nullptr;
 	}
@@ -35,14 +39,17 @@ bool blib::DataPtr::allocHost(uint num, uint stride)
 
 }
 
-bool blib::DataPtr::allocDevice(uint num, uint stride)
+bool blib::DataPtr::allocDevice(size_t num, size_t stride)
 {	
 	if (gpu) {
+		if (num == this->num && stride == this->stride) 
+			return true;
+
 		_CUDA(cudaFree(gpu));
 		gpu = nullptr;
 	}
 
-	if (_CUDA(cudaMalloc(&gpu, num*stride))){
+	if (_CUDA(cudaMalloc(&gpu, num*stride)) && gpu != nullptr){
 		this->stride = stride;
 		this->num = num;
 		return true;
@@ -58,7 +65,7 @@ blib::DataPtr::~DataPtr()
 	if(gpu) _CUDA(cudaFree(gpu));	
 }
 
-bool blib::DataPtr::commit(uint offset, uint size) {
+bool blib::DataPtr::commit(size_t offset, size_t size) {
 
 	assert(cpu != nullptr);
 	assert(gpu != nullptr);
@@ -130,9 +137,17 @@ bool blib::Texture3DPtr::allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnC
 {
 	assert(dim.x > 0 && dim.y > 0 && dim.z > 0);
 	
+	
+
+	if (_gpu != nullptr && _type == type) {
+		auto newExtent = make_cudaExtent(dim.x, dim.y, dim.z);
+		if (_extent.depth == newExtent.depth && _extent.height == newExtent.height && _extent.width == newExtent.width)
+			return true;		
+	}
+
 	//
-	assert(_glID == 0); //no realloc yet
-	assert(_gpu == nullptr);
+	//assert(_glID == 0); //no realloc yet
+	//assert(_gpu == nullptr);
 	//
 
 

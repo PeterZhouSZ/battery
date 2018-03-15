@@ -16,7 +16,7 @@ template class MultigridSolver<double>;
 #include <Eigen/IterativeLinearSolvers>
 #include<Eigen/SparseCholesky>	
 
-//#define MG_LINSYS_TO_FILE
+#define MG_LINSYS_TO_FILE
 
 #ifdef MG_LINSYS_TO_FILE
 	#include <fstream>
@@ -950,6 +950,17 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 		for (auto i = 0; i < _f[level].size(); i++) {
 			f << _f[level][i] << "\n";
 			if (_f[level].size() < 100 || i % (_f[level].size() / 100))
+				f.flush();
+		}
+
+	}
+
+	{
+		char buf[24]; itoa(level, buf, 10);
+		std::ofstream f("D_" + std::string(buf) + ".txt");
+		for (auto i = 0; i < _D[level].size(); i++) {
+			f << _D[level][i] << "\n";
+			if (_D[level].size() < 100 || i % (_D[level].size() / 100))
 				f.flush();
 		}
 

@@ -2,6 +2,58 @@
 #include "Volume.cuh"
 
 
+
+__device__ uint _getDirIndex(Dir dir) {
+	switch (dir) {
+	case X_POS:
+	case X_NEG:
+		return 0;
+	case Y_POS:
+	case Y_NEG:
+		return 1;
+	case Z_POS:
+	case Z_NEG:
+		return 2;
+	}
+	return uint(-1);
+}
+
+
+__device__ int _getDirSgn(Dir dir) {
+	return -((dir % 2) * 2 - 1);
+}
+
+__device__ Dir _getDir(int index, int sgn) {
+	sgn = (sgn + 1) / 2; // 0 neg, 1 pos
+	sgn = 1 - sgn; // 1 neg, 0 pos
+	return Dir(index * 2 + sgn);
+}
+
+template <typename T, typename VecType>
+__device__ T & _at(VecType & vec, int index) {
+	return ((T*)&vec)[index];
+}
+template <typename T, typename VecType>
+__device__ const T & _at(const VecType & vec, int index){
+	return ((T*)&vec)[index];
+}
+
+
+__device__ uint3 clampedVox(const uint3 & res, uint3 vox, Dir dir) {
+	const int k = _getDirIndex(dir);
+	int sgn = _getDirSgn(dir); //todo better
+
+	const int newVox = _at<int>(vox, k) + sgn;
+	const int & resK = _at<int>(res, k);
+	if (newVox >= 0 && newVox < resK) {
+		_at<int>(vox, k) = uint(newVox);		
+	}
+	return vox;
+}
+
+/*
+	Templated surface write
+*/
 template <typename T>
 __device__ void write(cudaSurfaceObject_t surf, const uint3 & vox, const T & val);
 
@@ -17,6 +69,10 @@ __device__ void write(cudaSurfaceObject_t surf, const uint3 & vox, const double 
 	surf3Dwrite(*valInt, surf, vox.x * sizeof(int2), vox.y, vox.z);
 }
 
+
+/*
+	Templated surface read (direct)
+*/
 template <typename T>
 __device__ T read(cudaSurfaceObject_t surf, const uint3 & vox);
 
@@ -34,6 +90,11 @@ __device__ double read(cudaSurfaceObject_t surf, const uint3 & vox) {
 	return __hiloint2double(val.y, val.x);
 }
 
+
+
+
+
+
 template <typename T>
 __global__ void convertMaskKernel(
 	uint3 res,
@@ -48,7 +109,7 @@ __global__ void convertMaskKernel(
 	surf3Dread(&maskVal, surfIn, vox.x * sizeof(uchar), vox.y, vox.z);
 
 	uchar binVal = maskVal / 255;
-	T val = binVal * v0 + (1 - binVal) * v1;
+	T val = binVal * v1 + (1 - binVal) * v0;
 	write<T>(surfOut, vox, val);
 
 }
@@ -250,4 +311,129 @@ void launchWeightedInterpolationKernel(
 		weightedInterpolationKernel<float> << < numBlocks, block >> > (surfSrc, surfWeight, resSrc, surfDest, resDest);
 	else if (type == TYPE_DOUBLE)
 		weightedInterpolationKernel<double> << < numBlocks, block >> > (surfSrc, surfWeight, resSrc, surfDest, resDest);
+}
+
+
+
+
+
+template <typename T>
+__global__ void prepareSystemKernel(LinSysParams params) {
+	VOLUME_VOX_GUARD(params.res);
+		
+	const T highConc = T(1.0);
+	const T lowConc = T(0.0);
+	const T concetrationBegin = (_getDirSgn(params.dir) == 1) ? highConc : lowConc;
+	const T concetrationEnd = (_getDirSgn(params.dir) == 1) ? lowConc : highConc;
+
+	const T cellDim[3] = { params.cellDim.x,params.cellDim.y,params.cellDim.z };
+	const T faceArea[3] = { cellDim[1] * cellDim[2],cellDim[0] * cellDim[2],cellDim[0] * cellDim[1] };
+
+	const size_t i = linearIndex(params.res, vox);
+	const size_t rowI = i * 7;
+	T Di = read<T>(params.surfD, vox);
+		
+	T Dneg[3] = {
+		(read<T>(params.surfD, clampedVox(params.res, vox, X_NEG)) + Di) * T(0.5),
+		(read<T>(params.surfD, clampedVox(params.res, vox, Y_NEG)) + Di) * T(0.5),
+		(read<T>(params.surfD, clampedVox(params.res, vox, Z_NEG)) + Di) * T(0.5)
+	};
+
+	T Dpos[3] = {
+		(read<T>(params.surfD, clampedVox(params.res, vox, X_POS)) + Di) * T(0.5),
+		(read<T>(params.surfD, clampedVox(params.res, vox, Y_POS)) + Di) * T(0.5),
+		(read<T>(params.surfD, clampedVox(params.res, vox, Z_POS)) + Di) * T(0.5)
+	};
+
+	
+
+	T coeffs[7];
+	bool useInMatrix[7];
+
+	coeffs[DIR_NONE] = T(0);
+	useInMatrix[DIR_NONE] = true;
+
+	for (uint j = 0; j < DIR_NONE; j++) {
+		const uint k = _getDirIndex(Dir(j));
+		const int sgn = _getDirSgn(Dir(j));
+		const T Dface = (sgn == -1) ? Dneg[k] : Dpos[k];
+
+		T cellDist[3] = { cellDim[0],cellDim[1],cellDim[2] };
+		useInMatrix[j] = true;
+		
+		if ((_at<uint>(vox,k) == 0 && sgn == -1) || 
+			(_at<uint>(vox, k) == _at<uint>(params.res, k) - 1 && sgn == 1)
+			) {
+			cellDist[k] = cellDim[k] * T(0.5);
+			useInMatrix[j] = false;
+		}
+
+		coeffs[j] = (Dface * faceArea[k]) / cellDist[k];
+
+		//Subtract from diagonal
+		if (useInMatrix[j] || k == params.dirPrimary)
+			coeffs[DIR_NONE] -= coeffs[j]; 
+	}
+
+	/*
+		Right hand side
+	*/
+
+	const uint primaryRes = ((uint*)&params.res)[params.dirPrimary];
+	T rhs = T(0);
+	if (_at<uint>(vox, params.dirPrimary) == 0) {
+		Dir dir = _getDir(params.dirPrimary, -1);
+		rhs -= coeffs[dir] * concetrationBegin;
+	}
+	else if (_at<uint>(vox, params.dirPrimary) == primaryRes - 1) {
+		Dir dir = _getDir(params.dirPrimary, 1);
+		rhs -= coeffs[dir] * concetrationEnd;
+	}
+	//Write to F
+	write<T>(params.surfF, vox, rhs);
+
+
+	//X initial guess
+	T xGuess = T(0);	
+	if (_getDirSgn(params.dir) == 1)
+		xGuess = 1.0f - (_at<uint>(vox, params.dirPrimary) / T(primaryRes + 1));
+	else
+		xGuess = (_at<uint>(vox, params.dirPrimary) / T(primaryRes + 1));
+
+	//Write to X
+	write<T>(params.surfX, vox, xGuess);
+
+	for (uint j = 0; j < DIR_NONE; j++) {
+		if (!useInMatrix[j]) 
+			coeffs[j] = T(0);
+	}
+
+	T * matrixRow = ((T*)params.matrixData) + rowI;
+	matrixRow[0] = coeffs[Z_NEG];
+	matrixRow[1] = coeffs[Y_NEG];
+	matrixRow[2] = coeffs[X_NEG];
+	matrixRow[3] = coeffs[DIR_NONE];
+	matrixRow[4] = coeffs[X_POS];
+	matrixRow[5] = coeffs[Y_POS];
+	matrixRow[6] = coeffs[Z_POS];
+
+
+}
+
+
+void launchPrepareSystemKernel(LinSysParams params)
+{
+	uint3 block = make_uint3(2);
+	uint3 numBlocks = make_uint3(
+		(params.res.x / block.x) + 1,
+		(params.res.y / block.y) + 1,
+		(params.res.z / block.z) + 1
+	);
+
+	if (params.type == TYPE_FLOAT){
+		prepareSystemKernel<float> << < numBlocks, block >> >(params);
+	}
+	else if(params.type == TYPE_DOUBLE)
+		prepareSystemKernel<double> << < numBlocks, block >> >(params);
+
 }

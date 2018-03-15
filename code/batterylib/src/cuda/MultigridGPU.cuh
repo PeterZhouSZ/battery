@@ -38,3 +38,19 @@ void launchWeightedInterpolationKernel(
 	cudaSurfaceObject_t surfDest,
 	uint3 resDest
 );
+
+
+struct LinSysParams {
+	PrimitiveType type;
+	uint3 res;
+	float3 cellDim;
+	Dir dir;
+	uint dirPrimary;
+	uint2 dirSecondary;		
+	void * matrixData;
+	cudaSurfaceObject_t surfX;
+	cudaSurfaceObject_t surfF;
+	cudaSurfaceObject_t surfD;
+};
+
+void launchPrepareSystemKernel(LinSysParams params);

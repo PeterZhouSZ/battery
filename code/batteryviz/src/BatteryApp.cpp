@@ -516,7 +516,7 @@ void BatteryApp::reset()
 		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
 		assert(batteryID == CHANNEL_BATTERY);
 
-		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), 2*ivec3(32,32,16)  );
+		//_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), 2*ivec3(32,32,16)  );
 		_volume->binarize(CHANNEL_BATTERY, 1.0f);
 
 		//Add concetration channel
@@ -605,8 +605,12 @@ void BatteryApp::reset()
 
 		auto t0 = std::chrono::system_clock::now();
 		vec3 cellDim = vec3(1.0 / maxDim);
-		_multigridGPUSolver.prepare(
-			*_volume, //for debug
+
+
+		//_multigridGPUSolver.setDebugVolume(_volume.get());
+
+
+		_multigridGPUSolver.prepare(			
 			_volume->getChannel(CHANNEL_BATTERY),
 			_volume->getChannel(CHANNEL_CONCETRATION),			
 			dir,

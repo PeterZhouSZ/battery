@@ -14,8 +14,7 @@ namespace blib {
 	public:
 		BLIB_EXPORT MultigridGPU(bool verbose);
 
-		BLIB_EXPORT bool prepare(
-			Volume & volume,
+		BLIB_EXPORT bool prepare(			
 			const VolumeChannel & mask,
 			const VolumeChannel & concetration,
 			Dir dir,
@@ -29,7 +28,18 @@ namespace blib {
 			size_t maxIterations
 		);
 
+		BLIB_EXPORT void setDebugVolume(Volume * vol) {
+			_debugVolume = vol;
+		}
+
+		BLIB_EXPORT void setVerbose(bool val) {
+			_verbose = val;
+		}
+
 	private:
+
+		void prepareSystemAtLevel(uint level);
+
 		std::vector<DataPtr> _A;
 		std::vector<Texture3DPtr> _D;
 		std::vector<Texture3DPtr> _f;
@@ -37,13 +47,17 @@ namespace blib {
 		//std::vector<Texture3DPtr> _tmpx;
 		std::vector<Texture3DPtr> _r;
 
+		Volume * _debugVolume;
 		vec3 _cellDim;
 		bool _verbose;
 		uint _lv; //0 = fine level, _lv-1 = coarsest level
 		std::vector<ivec3> _dims;
 		uint _iterations;
+		Dir _dir;
 
 		const PrimitiveType _type;
+
+		std::vector<cudaStream_t> _streams;
 
 	};
 

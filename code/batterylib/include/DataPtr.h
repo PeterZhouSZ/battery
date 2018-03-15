@@ -11,25 +11,25 @@ namespace blib {
 	struct DataPtr {
 		void * cpu = nullptr;
 		void * gpu = nullptr;		
-		uint stride = 0; //byte stride between elements		
+		size_t stride = 0; //byte stride between elements		
 		
-		uint num;
-		BLIB_EXPORT uint byteSize() const { return num*stride; }
+		size_t num;
+		BLIB_EXPORT size_t byteSize() const { return num*stride; }
 
 		
 		//Commit to device (offset in bytes)
-		BLIB_EXPORT bool commit(uint offset, uint size);
+		BLIB_EXPORT bool commit(size_t offset, size_t size);
 		//Commits all
 		BLIB_EXPORT bool commit();
 
 		//Retrieve from device (offset in bytes)
-		BLIB_EXPORT bool retrieve(uint offset, uint size);
+		BLIB_EXPORT bool retrieve(size_t offset, size_t size);
 		//Retrieves all
 		BLIB_EXPORT bool retrieve();
 
 		//Simple alloc
-		BLIB_EXPORT bool allocHost(uint num, uint stride);
-		BLIB_EXPORT bool allocDevice(uint num, uint stride);
+		BLIB_EXPORT bool allocHost(size_t num, size_t stride);
+		BLIB_EXPORT bool allocDevice(size_t num, size_t stride);
 
 		BLIB_EXPORT ~DataPtr();
 
