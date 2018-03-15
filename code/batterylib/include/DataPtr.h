@@ -125,6 +125,7 @@ namespace blib {
 			TODO: memset on gpu instead of doing cpu->gpu copy (i.e. using kernel/memset3d)
 		*/
 		BLIB_EXPORT bool clear(uchar val = 0);
+		BLIB_EXPORT bool clearGPU(uchar val = 0);
 
 		//Fills volume with elem of type primitivetype
 		BLIB_EXPORT bool fillSlow(void * elem);

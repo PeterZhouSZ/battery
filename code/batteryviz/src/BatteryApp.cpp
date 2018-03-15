@@ -516,7 +516,7 @@ void BatteryApp::reset()
 		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
 		assert(batteryID == CHANNEL_BATTERY);
 
-		//_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), 2*ivec3(32,32,16)  );
+		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), 2*ivec3(32,32,16)  );
 		_volume->binarize(CHANNEL_BATTERY, 1.0f);
 
 		//Add concetration channel
@@ -593,6 +593,8 @@ void BatteryApp::reset()
 	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");
 
 	const bool multigridGPU = false;
+	const bool multigridTest = false;
+
 
 	if (multigridGPU){
 		auto & c = _volume->getChannel(CHANNEL_BATTERY);
@@ -621,13 +623,19 @@ void BatteryApp::reset()
 		);
 		auto t1 = std::chrono::system_clock::now();
 
+		_multigridGPUSolver.solve(
+			1e-6,
+			4,
+			MultigridGPU<double>::CycleType::W_CYCLE
+		);
+
 		std::chrono::duration<double> prepTime = t1 - t0;
 		std::cout << "GPU Prep time: " << prepTime.count() << std::endl;
 	
 	}
 	
 
-	const bool multigridTest = false;
+	
 	if(multigridTest){
 
 		

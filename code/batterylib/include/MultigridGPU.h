@@ -12,6 +12,12 @@ namespace blib {
 	class MultigridGPU {
 
 	public:
+
+		enum CycleType {
+			V_CYCLE,
+			W_CYCLE
+		};
+
 		BLIB_EXPORT MultigridGPU(bool verbose);
 
 		BLIB_EXPORT bool prepare(			
@@ -25,7 +31,8 @@ namespace blib {
 
 		BLIB_EXPORT T solve(			
 			T tolerance,
-			size_t maxIterations
+			size_t maxIterations,
+			CycleType cycleType = W_CYCLE
 		);
 
 		BLIB_EXPORT void setDebugVolume(Volume * vol) {
@@ -40,11 +47,13 @@ namespace blib {
 
 		void prepareSystemAtLevel(uint level);
 
+		static std::vector<int> genCycle(CycleType ctype, uint levels);
+
 		std::vector<DataPtr> _A;
 		std::vector<Texture3DPtr> _D;
 		std::vector<Texture3DPtr> _f;
 		std::vector<Texture3DPtr> _x;
-		//std::vector<Texture3DPtr> _tmpx;
+		std::vector<Texture3DPtr> _tmpx;
 		std::vector<Texture3DPtr> _r;
 
 		Volume * _debugVolume;

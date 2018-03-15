@@ -54,3 +54,7 @@ struct LinSysParams {
 };
 
 void launchPrepareSystemKernel(LinSysParams params);
+
+void clearSurface(cudaSurfaceObject_t surf, uint3 res);
+void surfaceAddition(cudaSurfaceObject_t A, cudaSurfaceObject_t B, uint3 res);
+void surfaceSubtraction(cudaSurfaceObject_t A, cudaSurfaceObject_t B, uint3 res);

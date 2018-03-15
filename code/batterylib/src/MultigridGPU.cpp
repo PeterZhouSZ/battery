@@ -11,6 +11,7 @@ template class MultigridGPU<double>;
 //#define MG_LINSYS_TO_FILE
 
 #include <iostream>
+#include <string>
 
 #ifdef MG_LINSYS_TO_FILE
 #include <fstream>
@@ -54,7 +55,7 @@ bool ::MultigridGPU<T>::prepare(
 	_A.resize(_lv);
 	_f.resize(_lv);
 	_x.resize(_lv);
-	//_tmpx.resize(_lv);
+	_tmpx.resize(_lv);
 	_r.resize(_lv);
 	_dims.resize(_lv);	
 	_D.resize(_lv);
@@ -166,6 +167,8 @@ void blib::MultigridGPU<T>::prepareSystemAtLevel(uint level)
 
 	_f[level].allocOpenGL(_type, dim, allocOnCPU);
 	_x[level].allocOpenGL(_type, dim, allocOnCPU);
+	_r[level].allocOpenGL(_type, dim, allocOnCPU);
+	_tmpx[level].allocOpenGL(_type, dim, allocOnCPU);
 
 	
 
@@ -271,7 +274,99 @@ void blib::MultigridGPU<T>::prepareSystemAtLevel(uint level)
 
 
 template <typename T>
-T MultigridGPU<T>::solve(T tolerance, size_t maxIterations)
+T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 {
+
+	
+
+	const int preN = 1;
+	const int postN = 1;
+	const int lastLevel = _lv - 1;
+
+	const std::vector<int> cycle = genCycle(cycleType, _lv);
+
+	const auto tabs = [](int n) {
+		return std::string(n, '\t');
+	};
+
+	//need surface sub, add, setToZero
+	//matrixdata * surface multiply, residual r - A*x
+	//weighted interpolation
+	//surface squared norm
+	//gauss seidel zebra pass - similar to A*x
+
+	for (auto k = 0; k < maxIterations; k++) {
+
+		int prevI = -1;
+		for (auto i : cycle) {
+
+			//Last level
+			if (i == _lv - 1) {
+				//Direct solver
+				if (_verbose) {
+					std::cout << tabs(i) << "Exact solve at Level " << lastLevel << std::endl;
+				}
+				//v[lastLevel] = exactSolver.solve(f[lastLevel]);
+			}
+			//Restrict
+			else if (i > prevI) {
+
+				if (i > 0) {
+				//	_x[i].clearGPU();					
+				}
+
+
+
+			}			
+			//Prolongate
+			else {
+
+
+			}
+
+
+		}
+
+
+
+	}
+
+
 	return 0;
+}
+
+
+template <typename T> 
+std::vector<int> blib::MultigridGPU<T>::genCycle(CycleType ctype, uint levels)
+{
+	std::vector<int> cycle;
+
+	if (ctype == V_CYCLE) {
+		for (auto i = 0; i != levels; i++) {
+			cycle.push_back(i);
+		}
+		for (auto i = levels - 2; i != -1; i--) {
+			cycle.push_back(i);
+		}
+	}
+	else if (ctype == W_CYCLE) {
+		auto midLevel = (levels - 1) - 2;
+		for (auto i = 0; i != levels; i++) {
+			cycle.push_back(i);
+		}
+
+		for (auto i = levels - 2; i != (midLevel - 1); i--) {
+			cycle.push_back(i);
+		}
+		for (auto i = midLevel + 1; i != levels; i++) {
+			cycle.push_back(i);
+		}
+
+		for (auto i = levels - 2; i != -1; i--) {
+			cycle.push_back(i);
+		}
+
+	}
+
+	return cycle;
 }

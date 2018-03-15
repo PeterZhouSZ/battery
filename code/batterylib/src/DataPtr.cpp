@@ -301,6 +301,20 @@ bool blib::Texture3DPtr::clear(uchar val /*= 0*/)
 
 }
 
+bool blib::Texture3DPtr::clearGPU(uchar val /*= 0*/)
+{
+	/*_CUDA(cudaGraphicsMapResources(1, &_gpuRes, 0));
+	cudaPitchedPtr ptr;
+	ptr.ptr = _gpu;
+	ptr.pitch = _extent.width * stride();
+	ptr.xsize = _extent.width * stride();
+	ptr.ysize = _extent.width * _extent.height * stride();
+	bool res = _CUDA(cudaMemset3D(ptr, val, _extent));
+	_CUDA(cudaGraphicsUnmapResources(1, &_gpuRes, 0));*/
+	return false;
+	//return res;
+}
+
 bool blib::Texture3DPtr::fillSlow(void * elem)
 {
 	auto * cpu = getCPU();
