@@ -1210,6 +1210,8 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 	T lastError = sqrt(rInit.squaredNorm() / f[0].squaredNorm());
 
+	std::cout << "inital error: " << lastError << std::endl;
+
 	enum CycleType {
 		V_CYCLE,
 		W_CYCLE

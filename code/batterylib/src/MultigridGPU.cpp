@@ -137,8 +137,9 @@ bool ::MultigridGPU<T>::prepare(
 
 	{
 		const size_t maxN = _dims[0].x * _dims[0].y * _dims[0].z;
-		const size_t reduceN = maxN / 512;
+		const size_t reduceN = maxN / VOLUME_REDUCTION_BLOCKSIZE;
 		_auxReduceBuffer.allocHost(reduceN, primitiveSizeof(_type));
+		_auxReduceBuffer.allocDevice(reduceN, primitiveSizeof(_type));
 	}
 	
 
@@ -302,7 +303,7 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 
 
 	//
-
+	//r = f - Ax
 	residual(
 		_type,
 		make_uint3(_dims[0]),
@@ -312,7 +313,19 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 		_A[0].gpu
 	);
 
+	T lastError;	
+	{
+		T rsq = T(0);
+		T fsq = T(0);
+		launchReduceKernel(_type, REDUCE_OP_SQUARESUM, make_uint3(_dims[0]), _r[0].getSurface(), _auxReduceBuffer.gpu, _auxReduceBuffer.cpu, &rsq);		
+		launchReduceKernel(_type, REDUCE_OP_SQUARESUM, make_uint3(_dims[0]), _f[0].getSurface(), _auxReduceBuffer.gpu, _auxReduceBuffer.cpu, &fsq);
 
+		lastError = sqrt(
+			rsq / fsq
+		);
+	}
+	std::cout << "inital error: " << lastError << std::endl;
+	
 
 
 	if (_debugVolume) {

@@ -86,3 +86,21 @@ float launchReduceSumKernel(uint3 res, cudaSurfaceObject_t surf);
 
 float launchReduceSumSlice(uint3 res, cudaSurfaceObject_t surf, Dir dir, void * output);
 
+enum ReduceOpType {
+	REDUCE_OP_SUM,
+	REDUCE_OP_PROD,
+	REDUCE_OP_SQUARESUM,
+	REDUCE_OP_MIN,
+	REDUCE_OP_MAX
+};
+
+#define VOLUME_REDUCTION_BLOCKSIZE 512
+void launchReduceKernel(
+	PrimitiveType type,
+	ReduceOpType opType,
+	uint3 res,
+	cudaSurfaceObject_t surf,
+	void * auxBufferGPU,
+	void * auxBufferCPU,
+	void * result
+);

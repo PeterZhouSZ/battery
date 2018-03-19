@@ -84,7 +84,7 @@ protected:
 
 	blib::DiffusionSolver<double> _diffSolver;
 	blib::MultigridSolver<double> _multiSolver;
-	blib::MultigridGPU<double> _multigridGPUSolver;
+	blib::MultigridGPU<float> _multigridGPUSolver;
 
 
 	friend Ui;
