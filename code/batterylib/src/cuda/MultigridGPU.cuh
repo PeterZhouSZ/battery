@@ -72,3 +72,23 @@ void residual(
 	cudaSurfaceObject_t surfX,
 	void * matrixData
 );
+
+
+struct GaussSeidelParams {
+	PrimitiveType type;
+	void * matrixData;
+	cudaSurfaceObject_t surfB;
+	cudaSurfaceObject_t surfX;
+	cudaSurfaceObject_t surfR;
+	uint3 res;
+	void * errorOut;
+	void * auxBufferGPU;
+	void * auxBufferCPU;
+	void * tolerance;
+	size_t maxIter;
+};
+
+
+void solveGaussSeidel(
+	const GaussSeidelParams & params
+);

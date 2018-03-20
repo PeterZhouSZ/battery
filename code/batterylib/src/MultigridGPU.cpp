@@ -284,6 +284,22 @@ void blib::MultigridGPU<T>::prepareSystemAtLevel(uint level)
 
 }
 
+template <typename T>
+T blib::MultigridGPU<T>::squareNorm(Texture3DPtr & surf, ivec3 dim)
+{
+	T res = T(0.0);
+	launchReduceKernel(
+		_type,
+		REDUCE_OP_SQUARESUM,
+		make_uint3(_dims[0]),
+		surf.getSurface(),
+		_auxReduceBuffer.gpu,
+		_auxReduceBuffer.cpu,
+		&res
+	);
+	return res;
+}
+
 
 template <typename T>
 T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
@@ -313,17 +329,11 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 		_A[0].gpu
 	);
 
-	T lastError;	
-	{
-		T rsq = T(0);
-		T fsq = T(0);
-		launchReduceKernel(_type, REDUCE_OP_SQUARESUM, make_uint3(_dims[0]), _r[0].getSurface(), _auxReduceBuffer.gpu, _auxReduceBuffer.cpu, &rsq);		
-		launchReduceKernel(_type, REDUCE_OP_SQUARESUM, make_uint3(_dims[0]), _f[0].getSurface(), _auxReduceBuffer.gpu, _auxReduceBuffer.cpu, &fsq);
+	
+	T lastError = sqrt(
+		squareNorm(_r[0], _dims[0]) / squareNorm(_f[0], _dims[0])
+	);
 
-		lastError = sqrt(
-			rsq / fsq
-		);
-	}
 	std::cout << "inital error: " << lastError << std::endl;
 	
 
@@ -363,14 +373,54 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 				if (i > 0) {
 					T zero = 0;
 					clearSurface(_type, _x[i].getSurface(), make_uint3(_dims[i]), &zero);
-				//	_x[i].clearGPU();					
 				}
 
+				T err = T(0);
+				GaussSeidelParams gsp;
+				gsp.type = _type;
+				gsp.matrixData = _A[i].gpu;
+				gsp.surfB = _f[i].getSurface();
+				gsp.surfX = _x[i].getSurface();
+				gsp.surfR = _r[i].getSurface();
+				gsp.res = make_uint3(_dims[i]);
+				gsp.errorOut = &err;
+				gsp.tolerance = &tolerance;
+				gsp.auxBufferCPU = _auxReduceBuffer.cpu;
+				gsp.auxBufferGPU = _auxReduceBuffer.gpu;
+				gsp.maxIter = preN;
 
+				solveGaussSeidel(gsp);
+
+				//std::cout << err << std::endl;
+
+				launchWeightedRestrictionKernel(
+					_type,
+					_r[i].getSurface(),
+					_D[i].getSurface(),
+					make_uint3(_dims[i]),
+					_f[i + 1].getSurface(),
+					make_uint3(_dims[i + 1])
+				);
 
 			}			
 			//Prolongate
 			else {
+
+				launchWeightedInterpolationKernel(
+					_type,
+					_x[i+1].getSurface(),
+					_D[i+1].getSurface(),
+					make_uint3(_dims[i]),
+					_tmpx[i].getSurface(),
+					make_uint3(_dims[i])
+				);
+
+				surfaceAddition(
+					_type,
+					_x[i].getSurface(),
+					_tmpx[i].getSurface(),
+					make_uint3(_dims[i])
+					);
 
 
 			}

@@ -49,6 +49,8 @@ namespace blib {
 
 		static std::vector<int> genCycle(CycleType ctype, uint levels);
 
+		T squareNorm(Texture3DPtr & surf, ivec3 dim);
+
 		std::vector<DataPtr> _A;
 		std::vector<Texture3DPtr> _D;
 		std::vector<Texture3DPtr> _f;
@@ -72,6 +74,7 @@ namespace blib {
 
 	};
 
+	
 
 	
 

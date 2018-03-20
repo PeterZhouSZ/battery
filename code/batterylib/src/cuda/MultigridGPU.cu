@@ -2,7 +2,7 @@
 #include "Volume.cuh"
 
 
-
+#include <stdio.h>
 
 
 
@@ -184,7 +184,78 @@ __global__ void weightedInterpolationKernel(
 	uint3 resDest
 ) {
 	VOLUME_VOX_GUARD(resDest);
-	//TODO
+	
+	const int3 voxSrc = { int(vox.x) / 2, int(vox.y) / 2, int(vox.z) / 2 };
+	
+	//Direction
+	// -1 for even, 1 for odd 
+	int3 s = make_int3(vox.x % 2, vox.y % 2, vox.z % 2) * 2 - 1;
+	if (vox.x == resDest.x - 1 || vox.x == 0) s.x = 0;
+	if (vox.y == resDest.y - 1 || vox.y == 0) s.y = 0;
+	if (vox.z == resDest.z - 1 || vox.z == 0) s.z = 0;
+
+	const uint3 voxSrcOff[8] = {
+		make_uint3(voxSrc + 0),
+		make_uint3(voxSrc + s * make_int3(1, 0, 0)),
+		make_uint3(voxSrc + s * make_int3(0, 1, 0)),
+		make_uint3(voxSrc + s * make_int3(1, 1, 0)),
+		make_uint3(voxSrc + s * make_int3(0, 0, 1)),
+		make_uint3(voxSrc + s * make_int3(1, 0, 1)),
+		make_uint3(voxSrc + s * make_int3(0, 1, 1)),
+		make_uint3(voxSrc + s * make_int3(1, 1, 1))
+	};
+
+
+	const T w[8] = {
+		read<T>(surfWeight, voxSrcOff[0]),
+		read<T>(surfWeight, voxSrcOff[1]),
+		read<T>(surfWeight, voxSrcOff[2]),
+		read<T>(surfWeight, voxSrcOff[3]),
+		read<T>(surfWeight, voxSrcOff[4]),
+		read<T>(surfWeight, voxSrcOff[5]),
+		read<T>(surfWeight, voxSrcOff[6]),
+		read<T>(surfWeight, voxSrcOff[7])
+	};
+
+	const T vals[8] = {
+		read<T>(surfSrc, voxSrcOff[0]),
+		read<T>(surfSrc, voxSrcOff[1]),
+		read<T>(surfSrc, voxSrcOff[2]),
+		read<T>(surfSrc, voxSrcOff[3]),
+		read<T>(surfSrc, voxSrcOff[4]),
+		read<T>(surfSrc, voxSrcOff[5]),
+		read<T>(surfSrc, voxSrcOff[6]),
+		read<T>(surfSrc, voxSrcOff[7])
+	};
+
+
+	const T a = T(1.0 / 4.0);
+	const T ainv = T(1.0) - a;
+
+	T w_x0y0 = ainv * w[0] + a * w[4];
+	T w_x0y1 = ainv * w[2] + a * w[6];
+	T w_x0 = ainv * w_x0y0 + a * w_x0y1;
+
+	T w_x1y0 = ainv * w[1] + a * w[5];
+	T w_x1y1 = ainv * w[3] + a * w[7];
+	T w_x1 = ainv * w_x1y0 + a * w_x1y1;
+
+	T w_val = ainv * w_x0 + a * w_x1;
+
+
+	T x0y0 = ainv * vals[0] * w[0] + a * vals[4] * w[4];
+	T x0y1 = ainv * vals[2] * w[2] + a * vals[6] * w[6];
+	T x0 = ainv * x0y0 + a * x0y1;
+
+	T x1y0 = ainv * vals[1] * w[1] + a * vals[5] * w[5];
+	T x1y1 = ainv * vals[3] * w[3] + a * vals[7] * w[7];
+	T x1 = ainv * x1y0 + a * x1y1;
+
+	T val = ainv * x0 + a * x1;
+	val /= w_val;
+	
+	write<T>(surfDest, vox, val);
+
 }
 
 void launchWeightedInterpolationKernel(
@@ -416,7 +487,7 @@ __global__ void residualKernel(uint3 res,
 	write<T>(surfR, vox, residue);	
 }
 
-
+//r = f - A*x
 void residual(
 	PrimitiveType type,
 	uint3 res,
@@ -431,4 +502,184 @@ void residual(
 		residualKernel<float> << < numBlocks, block >> >(res,surfR,surfF,surfX, (float*)matrixData);	
 	else if (type == TYPE_DOUBLE)
 		residualKernel<double> << < numBlocks, block >> >(res, surfR, surfF, surfX, (double*)matrixData);
+}
+
+
+
+///////////////////////////////////////////////////
+
+template <typename T, int dir, int sgn, bool alternate>  
+__global__ void gaussSeidelLineKernel(
+	uint3 res,
+	cudaSurfaceObject_t surfB,
+	cudaSurfaceObject_t surfX,
+	const T * matrixData
+) {
+
+	VOLUME_VOX;
+	
+	uint primDim = _at<uint>(res, dir);
+	const int secDirs[2] = {
+		(dir + 1) % 3,
+		(dir + 2) % 3
+	};
+
+	_at<uint>(vox, secDirs[0]) *= 2;
+	if (!alternate)
+		_at<uint>(vox, secDirs[0]) += _at<uint>(vox, secDirs[1]) % 2;
+	else
+		_at<uint>(vox, secDirs[0]) += 1 - _at<uint>(vox, secDirs[1]) % 2;
+	
+
+	if (_at<uint>(vox, secDirs[0]) >= _at<uint>(res, secDirs[0]) ||
+		_at<uint>(vox, secDirs[1]) >= _at<uint>(res, secDirs[1]))
+		return;
+	
+	const int begin = (sgn == -1) ? int(primDim) - 1 : 0;
+	const int end = (sgn == -1) ? -1 : int(primDim);
+
+	
+
+	for (int i = begin; i != end; i+=sgn) {
+		uint3 voxi = {vox.x, vox.y, vox.z};
+		_at<uint>(voxi, dir) = i;
+		const size_t rowI = linearIndex(res, voxi) * 7;
+
+		if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
+			if (blockIdx.x == 0 && blockIdx.y == 2 && blockIdx.z == 0) {
+				//printf("%d + %d ... %d %d %d\n",i, sgn, voxi.x, voxi.y, vox.z);
+			}
+
+		}
+
+		
+
+		const T * row = matrixData + rowI;
+		const T rowVals[7] = {
+			row[0],row[1],row[2],row[3],row[4],row[5],row[6]
+		};
+
+		
+
+		T sum = T(0);	
+		
+		sum += (rowVals[0] == T(0)) ? T(0) : rowVals[0] * read<T>(surfX, voxi - make_uint3(0, 0, 1));
+		sum += (rowVals[1] == T(0)) ? T(0) : rowVals[1] * read<T>(surfX, voxi - make_uint3(0, 1, 0));
+		sum += (rowVals[2] == T(0)) ? T(0) : rowVals[2] * read<T>(surfX, voxi - make_uint3(1, 0, 0));
+		T diag = rowVals[3];
+		sum += (rowVals[4] == T(0)) ? T(0) : rowVals[4] * read<T>(surfX, voxi + make_uint3(1, 0, 0));
+		sum += (rowVals[5] == T(0)) ? T(0) : rowVals[5] * read<T>(surfX, voxi + make_uint3(0, 1, 0));
+		sum += (rowVals[6] == T(0)) ? T(0) : rowVals[6] * read<T>(surfX, voxi + make_uint3(0, 0, 1));
+
+		
+
+		T bval = read<T>(surfB, voxi);
+		T newVal = (bval - sum) / diag;
+
+		write<T>(surfX, voxi, newVal);	
+		//write<T>(surfX, voxi, diag);
+	}
+
+
+}
+
+template <typename T>
+void solveGaussSeidelForType(const GaussSeidelParams & params) {
+
+	T bsq = T(0.0);
+	launchReduceKernel(
+		params.type,
+		REDUCE_OP_SQUARESUM,
+		params.res,
+		params.surfB,
+		params.auxBufferGPU,
+		params.auxBufferCPU,
+		&bsq
+	);
+
+	T tol_error = T(1);
+
+	for (auto i = 0; i < params.maxIter; ++i) {
+
+
+		
+
+		//k 0,2,5 dirs
+		//gaussSeidelStepZebra<k>(A, b, x, dim, Dir(k));
+		
+		uint3 block = make_uint3(8,8,1);
+		uint3 numBlocks = make_uint3(
+			((params.res.x/2 + (block.x - 1)) / block.x), 
+			((params.res.y + (block.y - 1)) / block.y), 
+			1
+		);
+
+		//X
+		gaussSeidelLineKernel<T, 0, 1, false> << <numBlocks, block >> > (
+			params.res, params.surfB, params.surfX, ((T*)params.matrixData)
+		);
+		gaussSeidelLineKernel<T, 0, 1, true> << <numBlocks, block >> > (
+			params.res, params.surfB, params.surfX, ((T*)params.matrixData)
+			);
+		//Y
+		gaussSeidelLineKernel<T, 1, 1, false> << <numBlocks, block >> > (
+			params.res, params.surfB, params.surfX, ((T*)params.matrixData)
+			);
+		gaussSeidelLineKernel<T, 1, 1, true> << <numBlocks, block >> > (
+			params.res, params.surfB, params.surfX, ((T*)params.matrixData)
+			);
+		//Z
+		gaussSeidelLineKernel<T, 2, 1, false> << <numBlocks, block >> > (
+			params.res, params.surfB, params.surfX, ((T*)params.matrixData)
+			);
+		gaussSeidelLineKernel<T, 2, 1, true> << <numBlocks, block >> > (
+			params.res, params.surfB, params.surfX, ((T*)params.matrixData)
+			);
+
+		//r = b - A*x
+		residual(
+			params.type,
+			params.res,
+			params.surfR,
+			params.surfB,
+			params.surfX,
+			params.matrixData
+		);
+
+		T rsq = T(0.0);
+		launchReduceKernel(
+			params.type,
+			REDUCE_OP_SQUARESUM,
+			params.res,
+			params.surfR,
+			params.auxBufferGPU,
+			params.auxBufferCPU,
+			&rsq
+		);
+
+		tol_error = sqrt(rsq / bsq);
+	
+
+		printf("tol error, i %d: %f\n", i, tol_error);
+		if (tol_error <= *((T*)params.tolerance))
+			break;
+	
+	}
+
+	*((T*)params.errorOut) = tol_error;
+	
+}
+
+void solveGaussSeidel(
+	const GaussSeidelParams & params
+) {
+	if (params.type == TYPE_FLOAT)
+		solveGaussSeidelForType<float>(
+			params
+		);
+	else if(params.type == TYPE_DOUBLE)
+		solveGaussSeidelForType<double>(
+			params
+			);
+
 }

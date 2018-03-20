@@ -116,8 +116,9 @@ inline __device__ void write(cudaSurfaceObject_t surf, const uint3 & vox, const 
 
 template<>
 inline __device__ void write(cudaSurfaceObject_t surf, const uint3 & vox, const double & val) {
-	const int2 * valInt = (int2*)&val;
+	
 #ifdef __CUDA_ARCH__
+	const int2 * valInt = (int2*)&val;
 	surf3Dwrite(*valInt, surf, vox.x * sizeof(int2), vox.y, vox.z);
 #endif
 }
@@ -131,7 +132,7 @@ inline __device__ T read(cudaSurfaceObject_t surf, const uint3 & vox);
 
 template<>
 inline __device__ float read(cudaSurfaceObject_t surf, const uint3 & vox) {
-	float val;
+	float val = 0.0f;
 #ifdef __CUDA_ARCH__
 	surf3Dread(&val, surf, vox.x * sizeof(float), vox.y, vox.z);
 #endif
@@ -140,12 +141,14 @@ inline __device__ float read(cudaSurfaceObject_t surf, const uint3 & vox) {
 
 template<>
 inline __device__ double read(cudaSurfaceObject_t surf, const uint3 & vox) {
-	int2 val;
+	
 #ifdef __CUDA_ARCH__
+	int2 val;
 	surf3Dread(&val, surf, vox.x * sizeof(int2), vox.y, vox.z);
 	return __hiloint2double(val.y, val.x);
+#else
+	return 0.0;
 #endif
-	return 1.0;
 }
 
 
