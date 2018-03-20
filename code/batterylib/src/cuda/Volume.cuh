@@ -1,4 +1,6 @@
 #include <cuda_runtime.h>
+#include <surface_functions.h>
+#include <surface_indirect_functions.h>
 
 #include "CudaMath.h"
 #include "PrimitiveTypes.h"
@@ -48,6 +50,105 @@ __host__ __device__ inline int3 dirVec(Dir d) {
 	};
 	return make_int3(0, 0, 0);
 }
+
+
+inline __device__ uint _getDirIndex(Dir dir) {
+	switch (dir) {
+	case X_POS:
+	case X_NEG:
+		return 0;
+	case Y_POS:
+	case Y_NEG:
+		return 1;
+	case Z_POS:
+	case Z_NEG:
+		return 2;
+	}
+	return uint(-1);
+}
+
+
+inline __device__ int _getDirSgn(Dir dir) {
+	return -((dir % 2) * 2 - 1);
+}
+
+inline __device__ Dir _getDir(int index, int sgn) {
+	sgn = (sgn + 1) / 2; // 0 neg, 1 pos
+	sgn = 1 - sgn; // 1 neg, 0 pos
+	return Dir(index * 2 + sgn);
+}
+
+template <typename T, typename VecType>
+inline __device__ T & _at(VecType & vec, int index) {
+	return ((T*)&vec)[index];
+}
+template <typename T, typename VecType>
+inline __device__ const T & _at(const VecType & vec, int index) {
+	return ((T*)&vec)[index];
+}
+
+
+inline __device__ uint3 clampedVox(const uint3 & res, uint3 vox, Dir dir) {
+	const int k = _getDirIndex(dir);
+	int sgn = _getDirSgn(dir); //todo better
+
+	const int newVox = _at<int>(vox, k) + sgn;
+	const int & resK = _at<int>(res, k);
+	if (newVox >= 0 && newVox < resK) {
+		_at<int>(vox, k) = uint(newVox);
+	}
+	return vox;
+}
+
+/*
+Templated surface write
+*/
+template <typename T>
+inline __device__ void write(cudaSurfaceObject_t surf, const uint3 & vox, const T & val);
+
+
+template<>
+inline __device__ void write(cudaSurfaceObject_t surf, const uint3 & vox, const float & val) {
+#ifdef __CUDA_ARCH__
+	surf3Dwrite(val, surf, vox.x * sizeof(float), vox.y, vox.z);
+#endif
+}
+
+template<>
+inline __device__ void write(cudaSurfaceObject_t surf, const uint3 & vox, const double & val) {
+	const int2 * valInt = (int2*)&val;
+#ifdef __CUDA_ARCH__
+	surf3Dwrite(*valInt, surf, vox.x * sizeof(int2), vox.y, vox.z);
+#endif
+}
+
+
+/*
+Templated surface read (direct)
+*/
+template <typename T>
+inline __device__ T read(cudaSurfaceObject_t surf, const uint3 & vox);
+
+template<>
+inline __device__ float read(cudaSurfaceObject_t surf, const uint3 & vox) {
+	float val;
+#ifdef __CUDA_ARCH__
+	surf3Dread(&val, surf, vox.x * sizeof(float), vox.y, vox.z);
+#endif
+	return val;
+}
+
+template<>
+inline __device__ double read(cudaSurfaceObject_t surf, const uint3 & vox) {
+	int2 val;
+#ifdef __CUDA_ARCH__
+	surf3Dread(&val, surf, vox.x * sizeof(int2), vox.y, vox.z);
+	return __hiloint2double(val.y, val.x);
+#endif
+	return 1.0;
+}
+
+
 
 
 void launchErodeKernel(uint3 res, cudaSurfaceObject_t surfIn, cudaSurfaceObject_t surfOut);

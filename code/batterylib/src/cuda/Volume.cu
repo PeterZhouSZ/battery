@@ -810,13 +810,13 @@ __global__ void reduce3DSurfaceToBuffer(uint3 res, cudaSurfaceObject_t surf, T *
 		const uint3 voxip = ind2sub(res, i + blockSize);
 
 		T vali = T(0);		
-		vali = surf3Dread<T>(surf, int(voxi.x * sizeof(T)), int(voxi.y), int(voxi.z));
+		vali = read<T>(surf, voxi);
 		_preOp(vali);
 		_op(sdata[tid], vali);
 
 		if (i + blockSize < n && voxip.x < res.x && voxip.y < res.y && voxip.z < res.z) {
 			T valip = T(0);
-			valip = surf3Dread<T>(surf, int(voxip.x * sizeof(T)), int(voxip.y), int(voxip.z));
+			valip = read<T>(surf, voxip);
 			_preOp(valip);
 			_op(sdata[tid], valip);
 		}		
@@ -923,17 +923,11 @@ void launchReduceKernel(
 		}
 		else if (type == TYPE_DOUBLE) {
 			if (opType == REDUCE_OP_SQUARESUM) {
-				///
-				//TODO
-				// INT2
-				///
-				/*reduce3DSurfaceToBuffer<double, blockSize, opSquareSum> << <numBlocks, block, blockSize * sizeof(double) >> > (
-					res, surf, (double*)auxBuffer, n
-					);*/
-			}
-			else {
-				//Not implemented
-			}
+				reduce3DSurfaceToBuffer<double, blockSize, opSum, opSquare> << <numBlocks, block, sharedSize >> > (
+					res, surf, (double*)auxBufferGPU, n
+					);
+			}			
+
 		}
 
 		n = numBlocks.x;
@@ -954,6 +948,11 @@ void launchReduceKernel(
 			if (opType == REDUCE_OP_SQUARESUM)
 				reduceBuffer<float, blockSize, opSum><<<numBlocks,block, sharedSize>>>((float*)auxBufferGPU, n);				
 		}
+		if (type == TYPE_DOUBLE) {
+			if (opType == REDUCE_OP_SQUARESUM)
+				reduceBuffer<double, blockSize, opSum> << <numBlocks, block, sharedSize >> >((double*)auxBufferGPU, n);
+		}
+
 
 		n = numBlocks.x;
 	}
