@@ -180,9 +180,17 @@ namespace blib {
 
 		for (auto i = 0; i < maxIter; ++i) {
 			//gaussSeidelStep(A, b, x);
-			for (auto k = 0; k < 6; k+=2) {
+			/*for (auto k = 0; k < 6; k+=2) {
 				gaussSeidelStepZebra(A, b, x, dim, Dir(k));
-			}
+			}*/
+
+			gaussSeidelStepLineZebra<T, 0, 1, false>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 0, 1, true>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 1, 1, false>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 1, 1, true>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 2, 1, false>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 2, 1, true>(A, b, x, dim);
+
 			//gaussSeidelStepParallel(A, b, x, dim);
 
 			residual = b - A*x;
@@ -235,6 +243,76 @@ namespace blib {
 
 
 	}
+
+
+	template <typename T, int dir, int sgn, bool alternate>
+	void gaussSeidelStepLineZebra(
+		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
+		ivec3 dim
+	) {
+
+
+		int primDim = dim[dir];
+		const int secDirs[2] = {
+			(dir + 1) % 3,
+			(dir + 2) % 3
+		};
+
+		
+		for (auto i = 0; i < dim[secDirs[0]] / 2; i++) {
+			for (auto j = 0; j < dim[secDirs[1]]; j++) {
+
+				ivec3 vox;
+				vox[secDirs[0]] = i * 2;
+				vox[secDirs[1]] = j;
+
+				if (!alternate)
+					vox[secDirs[0]] += j % 2;
+				else 
+					vox[secDirs[0]] += 1 - j % 2;
+
+				const int begin = (sgn == -1) ? int(primDim) - 1 : 0;
+				const int end = (sgn == -1) ? -1 : int(primDim);
+
+				for (auto k = begin; k != end; k+=sgn) {
+
+					ivec3 voxi = { vox.x, vox.y, vox.z };
+					voxi[dir] = k;
+
+
+					auto row = linearIndex(dim, voxi);
+
+					
+
+					T sum = T(0);
+					T diag = T(0);
+					for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
+						auto  col = it.col();
+						if (col == row) {
+							diag = it.value();
+							continue;
+						}
+						sum += it.value() * X[col];
+					}
+
+					X[row] = (b[row] - sum) / diag;
+
+					/*if (row == 0) {
+						printf("i0 ... %f, %f\n", sum, X[row]);
+					}*/
+
+				}
+
+			}		
+		}
+
+
+
+	}
+
+
 
 
 	template <typename T>
@@ -305,7 +383,7 @@ namespace blib {
 
 		
 
-	}
+}
 
 
 

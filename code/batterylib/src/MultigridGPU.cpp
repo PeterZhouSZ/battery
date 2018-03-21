@@ -381,7 +381,7 @@ T blib::MultigridGPU<T>::squareNorm(Texture3DPtr & surf, ivec3 dim)
 	launchReduceKernel(
 		_type,
 		REDUCE_OP_SQUARESUM,
-		make_uint3(_dims[0]),
+		make_uint3(dim),
 		surf.getSurface(),
 		_auxReduceBuffer.gpu,
 		_auxReduceBuffer.cpu,
@@ -524,9 +524,14 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 				gsp.auxBufferGPU = _auxReduceBuffer.gpu;
 				gsp.maxIter = preN;
 
+			//	std::cout << "x pre gs restr " << i << ": " << squareNorm(_x[i], _dims[i]) << std::endl;
+
 				solveGaussSeidel(gsp);
 
+				
+				//return 0;
 				//std::cout << err << std::endl;
+				std::cout << "f pre restr " << i + 1 << ": " << squareNorm(_f[i+1], _dims[i+1]) << std::endl;
 
 				launchWeightedRestrictionKernel(
 					_type,
@@ -536,6 +541,8 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 					_f[i + 1].getSurface(),
 					make_uint3(_dims[i + 1])
 				);
+
+				std::cout << "f post restr " << i + 1 << ": " << squareNorm(_f[i+1], _dims[i+1]) << std::endl;
 
 			}			
 			//Prolongate
@@ -557,9 +564,26 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 					make_uint3(_dims[i])
 					);
 
+				T err = T(0);
+				GaussSeidelParams gsp;
+				gsp.type = _type;
+				gsp.matrixData = _A[i].gpu;
+				gsp.surfB = _f[i].getSurface();
+				gsp.surfX = _x[i].getSurface();
+				gsp.surfR = _r[i].getSurface();
+				gsp.res = make_uint3(_dims[i]);
+				gsp.errorOut = &err;
+				gsp.tolerance = &tolerance;
+				gsp.auxBufferCPU = _auxReduceBuffer.cpu;
+				gsp.auxBufferGPU = _auxReduceBuffer.gpu;
+				gsp.maxIter = postN;
+
+				solveGaussSeidel(gsp);
+
 
 			}
 
+			prevI = i;
 
 		}
 
@@ -567,11 +591,12 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 		_iterations++;
 
 		T err = sqrt(
-			squareNorm(_r[0], _dims[0]) / f0SqNorm
+			squareNorm(_r[0], _dims[0]) / f0SqNorm //already calculated in last gauss seidel?
 		);
 		
-		
-		std::cout << "k = " << k << " err: " << err << "ratio:" << err / lastError << std::endl;
+		if (k % 10 == 0 && k > 0) {
+			std::cout << "k = " << k << " err: " << err << ", ratio: " << err / lastError << std::endl;
+		}
 
 		lastError = err;
 

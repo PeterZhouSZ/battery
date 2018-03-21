@@ -809,10 +809,19 @@ __global__ void reduce3DSurfaceToBuffer(uint3 res, cudaSurfaceObject_t surf, T *
 		const uint3 voxi = ind2sub(res, i);
 		const uint3 voxip = ind2sub(res, i + blockSize);
 
-		T vali = T(0);		
-		vali = read<T>(surf, voxi);
-		_preOp(vali);
-		_op(sdata[tid], vali);
+		if (voxi.x < res.x && voxi.y < res.y && voxi.z < res.z) {
+			
+			/*if (threadIdx.x == 32 && threadIdx.y == 0 && threadIdx.z == 0) {
+				if (blockIdx.x == 16 && blockIdx.y == 0 && blockIdx.z == 0) {
+					printf("%d: %d %d %d ... %d %d %d\n",i, res.x, res.y, res.z , voxi.x, voxi.y, voxi.z);
+				}
+			}*/
+
+			T vali = T(0);
+			vali = read<T>(surf, voxi);
+			_preOp(vali);
+			_op(sdata[tid], vali);
+		}
 
 		if (i + blockSize < n && voxip.x < res.x && voxip.y < res.y && voxip.z < res.z) {
 			T valip = T(0);

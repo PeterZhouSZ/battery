@@ -576,6 +576,9 @@ __global__ void gaussSeidelLineKernel(
 		T bval = read<T>(surfB, voxi);
 		T newVal = (bval - sum) / diag;
 
+		//if (rowI == 0)
+			//printf("i0 ( %d %d %d) ... %d %d %d ... %f, %f\n",dir,sgn,alternate, threadIdx.x, threadIdx.y, threadIdx.z, sum, newVal);
+
 		write<T>(surfX, voxi, newVal);	
 		//write<T>(surfX, voxi, diag);
 	}
@@ -607,34 +610,59 @@ void solveGaussSeidelForType(const GaussSeidelParams & params) {
 		//k 0,2,5 dirs
 		//gaussSeidelStepZebra<k>(A, b, x, dim, Dir(k));
 		
-		uint3 block = make_uint3(8,8,1);
-		uint3 numBlocks = make_uint3(
-			((params.res.x/2 + (block.x - 1)) / block.x), 
-			((params.res.y + (block.y - 1)) / block.y), 
-			1
-		);
+		uint3 block;
+		uint3 numBlocks;
+		
+		
 
+		
 		//X
+		block = make_uint3(1, 8, 8);
+		numBlocks = make_uint3(
+			1,
+			((params.res.y / 2 + (block.y - 1)) / block.y),
+			((params.res.z + (block.z - 1)) / block.z)
+		);
 		gaussSeidelLineKernel<T, 0, 1, false> << <numBlocks, block >> > (
 			params.res, params.surfB, params.surfX, ((T*)params.matrixData)
 		);
+		
 		gaussSeidelLineKernel<T, 0, 1, true> << <numBlocks, block >> > (
 			params.res, params.surfB, params.surfX, ((T*)params.matrixData)
 			);
+		
 		//Y
+		block = make_uint3(8, 1, 8);
+		numBlocks = make_uint3(			
+			((params.res.x + (block.x - 1)) / block.x),
+			1,
+			((params.res.z / 2 + (block.z - 1)) / block.z)
+		);
 		gaussSeidelLineKernel<T, 1, 1, false> << <numBlocks, block >> > (
 			params.res, params.surfB, params.surfX, ((T*)params.matrixData)
 			);
+		
 		gaussSeidelLineKernel<T, 1, 1, true> << <numBlocks, block >> > (
 			params.res, params.surfB, params.surfX, ((T*)params.matrixData)
 			);
+		
 		//Z
+		block = make_uint3(8, 8, 1);
+		numBlocks = make_uint3(			
+			((params.res.x / 2 + (block.x - 1)) / block.y),
+			((params.res.y + (block.y - 1)) / block.y),
+			1
+		);
 		gaussSeidelLineKernel<T, 2, 1, false> << <numBlocks, block >> > (
 			params.res, params.surfB, params.surfX, ((T*)params.matrixData)
 			);
+		
 		gaussSeidelLineKernel<T, 2, 1, true> << <numBlocks, block >> > (
 			params.res, params.surfB, params.surfX, ((T*)params.matrixData)
 			);
+		
+
+		//printf("----------\n");
 
 		//r = b - A*x
 		residual(

@@ -1267,14 +1267,27 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//Initial guess is zero for all except first level
 				if (i > 0) v[i].setZero();
 
+				
+				//std::cout << "x pre gs restr " << i << ": " << v[i].squaredNorm() << std::endl;
+
 				//Pre smoother
 				T err = solveGaussSeidel(A[i], f[i], v[i], r[i], _dims[i], tolerance, preN, false); // df = f  A*v
+				
+				
 
+				//std::cout << "x post gs restr " << i << ": " << v[i].squaredNorm() << std::endl;
+				
+				//return 0;
 				//addDebugChannel(vol, v[i], _dims[i], "v presmoothed", i, true);
 				//addDebugChannel(vol, r[i], _dims[i], "v presmoothed", i, true);
 
 				//Restriction
+
+				std::cout << "x pre gs restr " << i + 1 << ": " << f[i + 1].squaredNorm() << std::endl;
 				restrictionWeighted(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1], _D[i].data());
+				
+				std::cout << "x post gs restr " << i+1 << ": " << f[i+1].squaredNorm() << std::endl;
+			
 			}
 			else {
 
