@@ -119,6 +119,12 @@ namespace blib {
 		*/
 		BLIB_EXPORT bool copySurfaceTo(void * gpuSurfacePtr) const;
 
+		/*
+			Copies data to linear global memory on device
+		*/
+		BLIB_EXPORT bool copyTo(DataPtr & ptr);
+
+		BLIB_EXPORT bool copyFrom(DataPtr & ptr);
 
 		/*
 			Clears both cpu & gpu with val

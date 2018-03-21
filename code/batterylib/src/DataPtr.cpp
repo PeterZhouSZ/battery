@@ -294,6 +294,60 @@ bool blib::Texture3DPtr::copySurfaceTo(void * gpuSurfacePtr) const
 	);
 }
 
+bool blib::Texture3DPtr::copyTo(DataPtr & ptr)
+{
+	assert(ptr.byteSize() == byteSize());
+	assert(ptr.stride == stride());
+	bool res = true;
+	res &= mapGPUArray();
+
+	cudaMemcpy3DParms p;
+	memset(&p, 0, sizeof(cudaMemcpy3DParms));
+
+	p.extent = _extent;
+	p.kind = cudaMemcpyDeviceToDevice;
+
+	p.srcArray = _gpu;
+
+	auto gpuPitched = make_cudaPitchedPtr(
+		ptr.gpu, stride() * _extent.width, _extent.width, _extent.height
+	);
+
+	p.dstPtr = gpuPitched;
+
+	res &= _CUDA(cudaMemcpy3D(&p));
+
+	res &= unmapGPUArray();
+	return res;
+}
+
+bool blib::Texture3DPtr::copyFrom(DataPtr & ptr)
+{
+	assert(ptr.byteSize() == byteSize());
+	assert(ptr.stride == stride());
+	bool res = true;
+	res &= mapGPUArray();
+
+	cudaMemcpy3DParms p;
+	memset(&p, 0, sizeof(cudaMemcpy3DParms));
+
+	p.extent = _extent;
+	p.kind = cudaMemcpyDeviceToDevice;
+
+	auto gpuPitched = make_cudaPitchedPtr(
+		ptr.gpu, stride() * _extent.width, _extent.width, _extent.height
+	);
+
+	p.srcPtr = gpuPitched;
+
+	p.dstArray = _gpu;
+
+	res &= _CUDA(cudaMemcpy3D(&p));
+
+	res &= unmapGPUArray();
+	return res;
+}
+
 bool blib::Texture3DPtr::clear(uchar val /*= 0*/)
 {
 	memset(getCPU(), val, this->byteSize());	

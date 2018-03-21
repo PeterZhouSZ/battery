@@ -6,6 +6,9 @@
 #include "Volume.h"
 #include <vector>
 
+#include <cusparse.h>
+#include <cusolverSp.h>
+
 namespace blib {
 
 	template <typename T>
@@ -57,6 +60,22 @@ namespace blib {
 		std::vector<Texture3DPtr> _x;
 		std::vector<Texture3DPtr> _tmpx;
 		std::vector<Texture3DPtr> _r;
+
+
+		//Last level direct solve
+		DataPtr _xLast;
+		DataPtr _fLast;
+		DataPtr _ALast;
+		DataPtr _ALastRowPtr;
+		DataPtr _ALastColInd;
+		size_t _LastNNZ;
+
+		cusolverSpHandle_t _cusolverHandle = nullptr;
+		cusparseHandle_t _cusparseHandle = nullptr;
+		cudaStream_t _stream = nullptr;
+		cusparseMatDescr_t _descrA = nullptr;
+
+
 
 		DataPtr _auxReduceBuffer;
 

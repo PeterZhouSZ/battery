@@ -18,6 +18,13 @@ template class MultigridGPU<double>;
 #endif
 
 
+#include <Eigen/IterativeLinearSolvers>
+#include <Eigen/SparseLU>
+
+#include "CudaUtility.h"
+
+
+
 uint3 make_uint3(ivec3 v) {
 	return make_uint3(v.x, v.y, v.z);
 }
@@ -51,7 +58,7 @@ bool ::MultigridGPU<T>::prepare(
 	_dir = dir;
 
 	
-	bool allocOnCPU = false;
+	bool allocOnCPU = true;
 #ifdef MG_LINSYS_TO_FILE
 	allocOnCPU = true;
 #endif
@@ -134,12 +141,94 @@ bool ::MultigridGPU<T>::prepare(
 	}
 	cudaDeviceSynchronize();
 	
-
+	//Auxiliary buffer for reduction
 	{
 		const size_t maxN = _dims[0].x * _dims[0].y * _dims[0].z;
 		const size_t reduceN = maxN / VOLUME_REDUCTION_BLOCKSIZE;
 		_auxReduceBuffer.allocHost(reduceN, primitiveSizeof(_type));
 		_auxReduceBuffer.allocDevice(reduceN, primitiveSizeof(_type));
+	}
+
+
+	//Prepare cusolver to directly solve last level 
+	{
+
+		//Handle to cusolver lib
+		_CUSOLVER(cusolverSpCreate(&_cusolverHandle));
+
+		//Handle to cusparse
+		_CUSPARSE(cusparseCreate(&_cusparseHandle));
+
+		//Create new stream
+		_CUDA(cudaStreamCreate(&_stream));
+		_CUSPARSE(cusparseSetStream(_cusparseHandle, _stream));
+
+		//Matrix description
+		_CUSPARSE(cusparseCreateMatDescr(&_descrA));
+		_CUSPARSE(cusparseSetMatType(_descrA, CUSPARSE_MATRIX_TYPE_GENERAL));
+		//todo matrix type - perhaps symmetrical?
+
+		_CUSPARSE(cusparseSetMatIndexBase(_descrA, CUSPARSE_INDEX_BASE_ZERO));
+
+	
+		auto dim = _dims.back();
+		size_t N = dim.x * dim.y * dim.z;
+		size_t M = N;
+		
+
+		//Last levevel, alloc linear memory
+		_xLast.allocDevice(N, primitiveSizeof(_type));
+		_fLast.allocDevice(N, primitiveSizeof(_type));
+
+		_ALastRowPtr.allocDevice((M + 1), sizeof(int));
+		_ALastRowPtr.allocHost((M + 1), sizeof(int));
+
+		_A.back().allocHost(_A.back().num, _A.back().stride);
+		_A.back().retrieve();
+
+
+		T * Adata = (T*)_A.back().cpu;
+		std::vector<T> Acpu;
+		std::vector<int> AColcpu;
+
+		ivec3 s = { 1, dim.x, dim.x* dim.y };
+		int offsets[7] = { -s.z, -s.y, -s.x, 0, s.x, s.y, s.z };
+
+		int nnz = 0;
+		for (auto i = 0; i < M; i++) {
+			//Row pointer
+			((int*)_ALastRowPtr.cpu)[i] = nnz;
+
+			//Columns
+			for (auto j = 0; j < 7; j++) {
+				auto & val = Adata[i * 7 + j];
+				if (val != 0.0) {
+					AColcpu.push_back(i + offsets[j]);
+					Acpu.push_back(val);
+					nnz++;
+				}				
+			}
+		}
+		((int*)_ALastRowPtr.cpu)[M] = nnz;
+		_LastNNZ = nnz;
+		
+		
+		_ALastColInd.allocDevice(nnz, sizeof(int));
+		_ALastColInd.allocHost(nnz, sizeof(int));
+		_ALast.allocDevice(nnz, sizeof(int));
+		_ALast.allocHost(nnz, sizeof(int));
+		
+		memcpy(_ALast.cpu, Acpu.data(), nnz * sizeof(int));
+		memcpy(_ALastColInd.cpu, AColcpu.data(), nnz * sizeof(int));
+		_ALast.commit();
+		_ALastRowPtr.commit();
+		_ALastColInd.commit();
+		
+		
+
+		
+
+		
 	}
 	
 
@@ -182,6 +271,7 @@ void blib::MultigridGPU<T>::prepareSystemAtLevel(uint level)
 	_r[level].allocOpenGL(_type, dim, allocOnCPU);
 	_tmpx[level].allocOpenGL(_type, dim, allocOnCPU);
 
+	
 	
 
 
@@ -305,7 +395,6 @@ template <typename T>
 T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 {
 
-	
 
 	const int preN = 1;
 	const int postN = 1;
@@ -327,11 +416,11 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 		_f[0].getSurface(),
 		_x[0].getSurface(),
 		_A[0].gpu
-	);
+	);	
+	T f0SqNorm = squareNorm(_f[0], _dims[0]);
 
-	
 	T lastError = sqrt(
-		squareNorm(_r[0], _dims[0]) / squareNorm(_f[0], _dims[0])
+		squareNorm(_r[0], _dims[0]) / f0SqNorm
 	);
 
 	std::cout << "inital error: " << lastError << std::endl;
@@ -346,6 +435,8 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 		_debugVolume->emplaceChannel(VolumeChannel(_f[i], _dims[i], "f"));
 	}
 
+
+	
 
 
 	//need surface sub, add, setToZero
@@ -363,8 +454,52 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 			if (i == _lv - 1) {
 				//Direct solver
 				if (_verbose) {
-					std::cout << tabs(i) << "Exact solve at Level " << lastLevel << std::endl;
+				//	std::cout << tabs(i) << "Exact solve at Level " << lastLevel << std::endl;
 				}
+
+
+				_f[i].copyTo(_fLast);
+
+				size_t N = _dims[i].x * _dims[i].y * _dims[i].z;
+
+				int singularity = 0;
+				if (_type == TYPE_FLOAT) {
+					_CUSOLVER(cusolverSpScsrlsvqr(
+						_cusolverHandle,
+						N,
+						_LastNNZ,
+						_descrA,
+						(const float *)_ALast.gpu,
+						(const int *)_ALastRowPtr.gpu,
+						(const int *)_ALastColInd.gpu,
+						(const float *)_fLast.gpu,
+						tolerance,
+						0,
+						(float *)_xLast.gpu,
+						&singularity
+					));
+				}
+				else {
+					if (_type == TYPE_FLOAT) {
+						_CUSOLVER(cusolverSpDcsrlsvqr(
+							_cusolverHandle,
+							N,
+							_LastNNZ,
+							_descrA,
+							(const double *)_ALast.gpu,
+							(const int *)_ALastRowPtr.gpu,
+							(const int *)_ALastColInd.gpu,
+							(const double *)_fLast.gpu,
+							tolerance,
+							0,
+							(double *)_xLast.gpu,
+							&singularity
+						));
+					}
+				}
+
+				_x[i].copyFrom(_xLast);
+
 				//v[lastLevel] = exactSolver.solve(f[lastLevel]);
 			}
 			//Restrict
@@ -427,6 +562,21 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 
 
 		}
+
+
+		_iterations++;
+
+		T err = sqrt(
+			squareNorm(_r[0], _dims[0]) / f0SqNorm
+		);
+		
+		
+		std::cout << "k = " << k << " err: " << err << "ratio:" << err / lastError << std::endl;
+
+		lastError = err;
+
+		if (err < tolerance || isinf(err) || isnan(err))
+			return err;
 
 
 

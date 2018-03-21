@@ -660,7 +660,7 @@ void solveGaussSeidelForType(const GaussSeidelParams & params) {
 		tol_error = sqrt(rsq / bsq);
 	
 
-		printf("tol error, i %d: %f\n", i, tol_error);
+	//	printf("tol error, i %d: %f\n", i, tol_error);
 		if (tol_error <= *((T*)params.tolerance))
 			break;
 	
