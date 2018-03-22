@@ -31,6 +31,9 @@ namespace blib {
 		BLIB_EXPORT bool allocHost(size_t num, size_t stride);
 		BLIB_EXPORT bool allocDevice(size_t num, size_t stride);
 
+		//Allocates both host and device memory
+		BLIB_EXPORT bool alloc(size_t num, size_t stride);
+
 		BLIB_EXPORT ~DataPtr();
 
 	};

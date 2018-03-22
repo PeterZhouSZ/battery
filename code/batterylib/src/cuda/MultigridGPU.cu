@@ -587,7 +587,7 @@ __global__ void gaussSeidelLineKernel(
 }
 
 template <typename T>
-void solveGaussSeidelForType(const GaussSeidelParams & params) {
+void solveGaussSeidelForType(const SmootherParams & params) {
 
 	T bsq = T(0.0);
 	launchReduceKernel(
@@ -699,7 +699,7 @@ void solveGaussSeidelForType(const GaussSeidelParams & params) {
 }
 
 void solveGaussSeidel(
-	const GaussSeidelParams & params
+	const SmootherParams & params
 ) {
 	if (params.type == TYPE_FLOAT)
 		solveGaussSeidelForType<float>(
@@ -707,6 +707,132 @@ void solveGaussSeidel(
 		);
 	else if(params.type == TYPE_DOUBLE)
 		solveGaussSeidelForType<double>(
+			params
+			);
+
+}
+
+
+
+
+/////////////////////////////////
+
+template <typename T>
+__global__ void jacobiKernel(
+	uint3 res,
+	cudaSurfaceObject_t surfB,
+	cudaSurfaceObject_t surfX,
+	cudaSurfaceObject_t surfXnew,
+	const T * matrixData
+) {
+	VOLUME_VOX_GUARD(res);
+
+	const size_t rowI = linearIndex(res, vox) * 7;
+
+	const T * row = matrixData + rowI;
+	const T rowVals[7] = {
+		row[0],row[1],row[2],row[3],row[4],row[5],row[6]
+	};
+	
+	T sum = T(0);
+
+	sum += (rowVals[0] == T(0)) ? T(0) : rowVals[0] * read<T>(surfX, vox - make_uint3(0, 0, 1));
+	sum += (rowVals[1] == T(0)) ? T(0) : rowVals[1] * read<T>(surfX, vox - make_uint3(0, 1, 0));
+	sum += (rowVals[2] == T(0)) ? T(0) : rowVals[2] * read<T>(surfX, vox - make_uint3(1, 0, 0));
+	T diag = rowVals[3];
+	sum += (rowVals[4] == T(0)) ? T(0) : rowVals[4] * read<T>(surfX, vox + make_uint3(1, 0, 0));
+	sum += (rowVals[5] == T(0)) ? T(0) : rowVals[5] * read<T>(surfX, vox + make_uint3(0, 1, 0));
+	sum += (rowVals[6] == T(0)) ? T(0) : rowVals[6] * read<T>(surfX, vox + make_uint3(0, 0, 1));
+
+	T bval = read<T>(surfB, vox);
+	T newVal = (bval - sum) / diag;
+
+	write<T>(surfXnew, vox, newVal);
+
+}
+
+
+template <typename T>
+void solveJacobiForType(const SmootherParams & params) {
+
+	T bsq = T(0.0);
+	launchReduceKernel(
+		params.type,
+		REDUCE_OP_SQUARESUM,
+		params.res,
+		params.surfB,
+		params.auxBufferGPU,
+		params.auxBufferCPU,
+		&bsq
+	);
+
+	T tol_error = T(1);
+
+	cudaSurfaceObject_t X[2] = {
+		params.surfX,
+		params.surfXtemp
+	};
+
+	
+
+	for (auto i = 0; i < params.maxIter; ++i) {
+
+		
+		//kernel launch
+		BLOCKS3D(8, params.res);
+
+		for (auto k = 0; k < 2; k++) {
+			jacobiKernel<T> << <numBlocks, block >> > (
+				params.res,
+				params.surfB,
+				X[k % 2],
+				X[(k + 1) % 2],
+				(T*)params.matrixData
+				);
+		}
+
+		//r = b - A*x
+		residual(
+			params.type,
+			params.res,
+			params.surfR,
+			params.surfB,
+			params.surfX,
+			params.matrixData
+		);
+
+		T rsq = T(0.0);
+		launchReduceKernel(
+			params.type,
+			REDUCE_OP_SQUARESUM,
+			params.res,
+			params.surfR,
+			params.auxBufferGPU,
+			params.auxBufferCPU,
+			&rsq
+		);
+
+		tol_error = sqrt(rsq / bsq);
+
+		if (tol_error <= *((T*)params.tolerance))
+			break;
+
+	}
+
+	*((T*)params.errorOut) = tol_error;
+
+}
+
+
+void solveJacobi(
+	const SmootherParams & params
+) {
+	if (params.type == TYPE_FLOAT)
+		solveJacobiForType<float>(
+			params
+			);
+	else if (params.type == TYPE_DOUBLE)
+		solveJacobiForType<double>(
 			params
 			);
 

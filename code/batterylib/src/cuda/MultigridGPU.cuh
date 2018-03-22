@@ -74,11 +74,12 @@ void residual(
 );
 
 
-struct GaussSeidelParams {
+struct SmootherParams {
 	PrimitiveType type;
 	void * matrixData;
 	cudaSurfaceObject_t surfB;
 	cudaSurfaceObject_t surfX;
+	cudaSurfaceObject_t surfXtemp;
 	cudaSurfaceObject_t surfR;
 	uint3 res;
 	void * errorOut;
@@ -90,5 +91,11 @@ struct GaussSeidelParams {
 
 
 void solveGaussSeidel(
-	const GaussSeidelParams & params
+	const SmootherParams & params
+);
+
+
+
+void solveJacobi(
+	const SmootherParams & params
 );

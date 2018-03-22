@@ -1259,8 +1259,13 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//Direct solver
 				if (_verbose) {
 					std::cout << tabs(lastLevel) << "Exact solve at Level " << lastLevel << std::endl;
-				}				
-				v[lastLevel] = exactSolver.solve(f[lastLevel]);			
+				}			
+
+				//std::cout << "x pre exact " << i << ": " << v[i].squaredNorm() << std::endl;
+
+				v[lastLevel] = exactSolver.solve(f[lastLevel]);		
+
+				//std::cout << "x post exact " << i << ": " << v[i].squaredNorm() << std::endl;
 			}
 			//Restrict
 			else if (i > prevI) {
@@ -1268,7 +1273,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				if (i > 0) v[i].setZero();
 
 				
-				//std::cout << "x pre gs restr " << i << ": " << v[i].squaredNorm() << std::endl;
+			//	std::cout << "x pre gs restr " << i << ": " << v[i].squaredNorm() << std::endl;
 
 				//Pre smoother
 				T err = solveGaussSeidel(A[i], f[i], v[i], r[i], _dims[i], tolerance, preN, false); // df = f  A*v
@@ -1283,16 +1288,20 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 				//Restriction
 
-				std::cout << "x pre gs restr " << i + 1 << ": " << f[i + 1].squaredNorm() << std::endl;
+				//std::cout << "f pre restr " << i + 1 << ": " << f[i + 1].squaredNorm() << std::endl;
 				restrictionWeighted(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1], _D[i].data());
 				
-				std::cout << "x post gs restr " << i+1 << ": " << f[i+1].squaredNorm() << std::endl;
+				//std::cout << "f post restr " << i+1 << ": " << f[i+1].squaredNorm() << std::endl;
 			
 			}
 			else {
 
+				//std::cout << "x pre interp " << i + 1 << ": " << v[i + 1].squaredNorm() << std::endl;
+
 				//Interpolation
 				interpolationWeighted<T>(v[i + 1].data(), _dims[i + 1], tmpx[i].data(), _dims[i], _D[i + 1].data());
+
+				//std::cout << "xtemp post interp " << i << ": " << tmpx[i].squaredNorm() << std::endl;
 
 				//addDebugChannel(vol, v[i], _dims[i], "v presmoothed", i, true);
 

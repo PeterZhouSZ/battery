@@ -59,6 +59,11 @@ bool blib::DataPtr::allocDevice(size_t num, size_t stride)
 }
 
 
+bool blib::DataPtr::alloc(size_t num, size_t stride)
+{
+	return allocDevice(num, stride) && allocHost(num, stride);
+}
+
 blib::DataPtr::~DataPtr()
 {
 	if (cpu) delete[] cpu;

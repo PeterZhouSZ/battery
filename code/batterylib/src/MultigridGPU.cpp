@@ -213,13 +213,12 @@ bool ::MultigridGPU<T>::prepare(
 		_LastNNZ = nnz;
 		
 		
-		_ALastColInd.allocDevice(nnz, sizeof(int));
-		_ALastColInd.allocHost(nnz, sizeof(int));
-		_ALast.allocDevice(nnz, sizeof(int));
-		_ALast.allocHost(nnz, sizeof(int));
+		_ALastColInd.alloc(nnz, sizeof(int));
+		_ALast.alloc(nnz, primitiveSizeof(_type));
 		
-		memcpy(_ALast.cpu, Acpu.data(), nnz * sizeof(int));
-		memcpy(_ALastColInd.cpu, AColcpu.data(), nnz * sizeof(int));
+		
+		memcpy(_ALast.cpu, Acpu.data(), _ALast.byteSize());
+		memcpy(_ALastColInd.cpu, AColcpu.data(), _ALastColInd.byteSize());
 		_ALast.commit();
 		_ALastRowPtr.commit();
 		_ALastColInd.commit();
@@ -439,11 +438,7 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 	
 
 
-	//need surface sub, add, setToZero
-	//matrixdata * surface multiply, residual r - A*x
-	//weighted interpolation
-	//surface squared norm
-	//gauss seidel zebra pass - similar to A*x
+	
 
 	for (auto k = 0; k < maxIterations; k++) {
 
@@ -457,14 +452,36 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 				//	std::cout << tabs(i) << "Exact solve at Level " << lastLevel << std::endl;
 				}
 
+				T err = T(0);
+				SmootherParams gsp;
+				gsp.type = _type;
+				gsp.matrixData = _A[i].gpu;
+				gsp.surfB = _f[i].getSurface();
+				gsp.surfX = _x[i].getSurface();
+				gsp.surfXtemp = _tmpx[i].getSurface();
+				gsp.surfR = _r[i].getSurface();
+				gsp.res = make_uint3(_dims[i]);
+				gsp.errorOut = &err;
+				gsp.tolerance = &tolerance;
+				gsp.auxBufferCPU = _auxReduceBuffer.cpu;
+				gsp.auxBufferGPU = _auxReduceBuffer.gpu;
+				gsp.maxIter = 32;
 
-				_f[i].copyTo(_fLast);
+				//std::cout << "x pre gs restr " << i << ": " << squareNorm(_x[i], _dims[i]) << std::endl;
+
+				solveGaussSeidel(gsp);
+				//solveJacobi(gsp);
+
+				/*_f[i].copyTo(_fLast);
 
 				size_t N = _dims[i].x * _dims[i].y * _dims[i].z;
 
+				//std::cout << "x pre exact " << i << ": " << squareNorm(_x[i], _dims[i]) << std::endl;
+
 				int singularity = 0;
+				bool exactStatus = false;
 				if (_type == TYPE_FLOAT) {
-					_CUSOLVER(cusolverSpScsrlsvqr(
+					exactStatus = _CUSOLVER(cusolverSpScsrlsvqr(
 						_cusolverHandle,
 						N,
 						_LastNNZ,
@@ -479,28 +496,38 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 						&singularity
 					));
 				}
-				else {
-					if (_type == TYPE_FLOAT) {
-						_CUSOLVER(cusolverSpDcsrlsvqr(
-							_cusolverHandle,
-							N,
-							_LastNNZ,
-							_descrA,
-							(const double *)_ALast.gpu,
-							(const int *)_ALastRowPtr.gpu,
-							(const int *)_ALastColInd.gpu,
-							(const double *)_fLast.gpu,
-							tolerance,
-							0,
-							(double *)_xLast.gpu,
-							&singularity
-						));
-					}
+				else if (_type == TYPE_DOUBLE) {					
+					exactStatus = _CUSOLVER(cusolverSpDcsrlsvqr(
+						_cusolverHandle,
+						N,
+						_LastNNZ,
+						_descrA,
+						(const double *)_ALast.gpu,
+						(const int *)_ALastRowPtr.gpu,
+						(const int *)_ALastColInd.gpu,
+						(const double *)_fLast.gpu,
+						tolerance,
+						0,
+						(double *)_xLast.gpu,
+						&singularity
+					));
+
 				}
 
-				_x[i].copyFrom(_xLast);
+				{
+					
+					_xLast.allocHost(_xLast.num, _xLast.stride);
+					_xLast.retrieve();
 
-				//v[lastLevel] = exactSolver.solve(f[lastLevel]);
+					char b;
+					b = 0;
+
+				}
+				_x[i].copyFrom(_xLast);*/
+
+				//std::cout << "x post exact " << i << ": " << squareNorm(_x[i], _dims[i]) << std::endl;
+
+			
 			}
 			//Restrict
 			else if (i > prevI) {
@@ -511,11 +538,12 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 				}
 
 				T err = T(0);
-				GaussSeidelParams gsp;
+				SmootherParams gsp;
 				gsp.type = _type;
 				gsp.matrixData = _A[i].gpu;
 				gsp.surfB = _f[i].getSurface();
 				gsp.surfX = _x[i].getSurface();
+				gsp.surfXtemp = _tmpx[i].getSurface();
 				gsp.surfR = _r[i].getSurface();
 				gsp.res = make_uint3(_dims[i]);
 				gsp.errorOut = &err;
@@ -524,14 +552,15 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 				gsp.auxBufferGPU = _auxReduceBuffer.gpu;
 				gsp.maxIter = preN;
 
-			//	std::cout << "x pre gs restr " << i << ": " << squareNorm(_x[i], _dims[i]) << std::endl;
+				//std::cout << "x pre gs restr " << i << ": " << squareNorm(_x[i], _dims[i]) << std::endl;
 
 				solveGaussSeidel(gsp);
+				//solveJacobi(gsp);
 
 				
 				//return 0;
 				//std::cout << err << std::endl;
-				std::cout << "f pre restr " << i + 1 << ": " << squareNorm(_f[i+1], _dims[i+1]) << std::endl;
+				//std::cout << "f pre restr " << i + 1 << ": " << squareNorm(_f[i+1], _dims[i+1]) << std::endl;
 
 				launchWeightedRestrictionKernel(
 					_type,
@@ -542,12 +571,13 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 					make_uint3(_dims[i + 1])
 				);
 
-				std::cout << "f post restr " << i + 1 << ": " << squareNorm(_f[i+1], _dims[i+1]) << std::endl;
+				//std::cout << "f post restr " << i + 1 << ": " << squareNorm(_f[i+1], _dims[i+1]) << std::endl;
 
 			}			
 			//Prolongate
 			else {
 
+				//std::cout << "x pre interp " << i + 1 << ": " << squareNorm(_x[i + 1], _dims[i + 1]) << std::endl;
 				launchWeightedInterpolationKernel(
 					_type,
 					_x[i+1].getSurface(),
@@ -557,6 +587,8 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 					make_uint3(_dims[i])
 				);
 
+				//std::cout << "xtemp post interp " << i << ": " << squareNorm(_tmpx[i], _dims[i]) << std::endl;
+
 				surfaceAddition(
 					_type,
 					_x[i].getSurface(),
@@ -565,11 +597,12 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 					);
 
 				T err = T(0);
-				GaussSeidelParams gsp;
+				SmootherParams gsp;
 				gsp.type = _type;
 				gsp.matrixData = _A[i].gpu;
 				gsp.surfB = _f[i].getSurface();
 				gsp.surfX = _x[i].getSurface();
+				gsp.surfXtemp = _tmpx[i].getSurface();
 				gsp.surfR = _r[i].getSurface();
 				gsp.res = make_uint3(_dims[i]);
 				gsp.errorOut = &err;
@@ -579,6 +612,7 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 				gsp.maxIter = postN;
 
 				solveGaussSeidel(gsp);
+				//solveJacobi(gsp);
 
 
 			}
