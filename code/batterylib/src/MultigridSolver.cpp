@@ -24,6 +24,8 @@ template class MultigridSolver<double>;
 #endif
 
 //#define PERIODIC
+//#define HARMONIC
+#define MOLENAAR
 
 template <typename T = double>
 void addDebugChannel(Volume & vol,  const Eigen::Matrix<T, Eigen::Dynamic, 1> & v, ivec3 dim, const std::string & name, int levnum = -1, bool normalize = false) {
@@ -888,9 +890,18 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 
 	
 	//D getter
+
 	const auto getD = [&dim, D](ivec3 pos) {
 		return D[linearIndex(dim, pos)];
 	};
+
+	/*const auto getDFine = [&_dims,_D,level](ivec3 pos) {
+		auto dims = _dims.front();
+		auto & D = _D.front();
+			
+		return D[linearIndex(dim, pos)];
+	};*/
+
 
 
 	
@@ -903,6 +914,7 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 		return getD(newPos);
 	};
 #else
+
 	const auto sample = [&getD, dim, D](ivec3 pos, Dir dir) {
 		const int k = getDirIndex(dir);
 		assert(pos.x >= 0 && pos.y >= 0 && pos.z >= 0);
@@ -918,6 +930,8 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 		}
 		return getD(newPos);
 	};
+
+
 #endif
 
 	const vec3 faceArea = {
@@ -949,20 +963,46 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 				auto i = linearIndex(dim, ipos);
 
 				T Di = getD(ipos);
-				auto Dvec = vec3(Di);
+				
 
+#ifdef HARMONIC
+				
+				vec3 Dneg = vec3(
+					sample(ipos, X_NEG),
+					sample(ipos, Y_NEG),
+					sample(ipos, Z_NEG)
+				);
+				Dneg.x = (2 * Dneg.x * Di) / (Dneg.x + Di);
+				Dneg.y = (2 * Dneg.y * Di) / (Dneg.y + Di);
+				Dneg.z = (2 * Dneg.z * Di) / (Dneg.z + Di);
+
+				vec3 Dpos = vec3(
+					sample(ipos, X_POS),
+					sample(ipos, Y_POS),
+					sample(ipos, Z_POS)
+				);
+				Dpos.x = (2 * Dpos.x * Di) / (Dpos.x + Di);
+				Dpos.y = (2 * Dpos.y * Di) / (Dpos.y + Di);
+				Dpos.z = (2 * Dpos.z * Di) / (Dpos.z + Di);
+
+
+#else
+				auto Dvec = vec3(Di);
 				auto Dneg = (vec3(
 					sample(ipos, X_NEG),
 					sample(ipos, Y_NEG),
 					sample(ipos, Z_NEG)
 				) + vec3(Dvec)) * T(0.5);
+				
+
 
 				auto Dpos = (vec3(
 					sample(ipos, X_POS),
 					sample(ipos, Y_POS),
 					sample(ipos, Z_POS)
 				) + vec3(Dvec)) * T(0.5);
-
+#endif
+				
 
 				std::array<Coeff, 7> coeffs;
 				T rhs = T(0);
