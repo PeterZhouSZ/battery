@@ -151,7 +151,7 @@ bool ::MultigridGPU<T>::prepare(
 
 
 	//Prepare cusolver to directly solve last level 
-	{
+	if(false){
 
 		//Handle to cusolver lib
 		_CUSOLVER(cusolverSpCreate(&_cusolverHandle));
@@ -675,8 +675,12 @@ std::vector<int> blib::MultigridGPU<T>::genCycle(CycleType ctype, uint levels)
 		for (auto i = levels - 2; i != -1; i--) {
 			cycle.push_back(i);
 		}
-
 	}
+	else if (ctype == V_CYCLE_SINGLE) {
+		cycle = { 0, 1, 0 };
+	}
+
+	
 
 	return cycle;
 }

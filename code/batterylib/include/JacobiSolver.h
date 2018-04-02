@@ -183,6 +183,11 @@ namespace blib {
 			/*for (auto k = 0; k < 6; k+=2) {
 				gaussSeidelStepZebra(A, b, x, dim, Dir(k));
 			}*/
+/*
+
+			for (auto i = 0; i < 256; i++) {
+				gaussSeidelBoundaries(A, b, x, dim);
+			}*/
 
 			gaussSeidelStepLineZebra<T, 0, 1, false>(A, b, x, dim);
 			gaussSeidelStepLineZebra<T, 0, 1, true>(A, b, x, dim);
@@ -190,6 +195,10 @@ namespace blib {
 			gaussSeidelStepLineZebra<T, 1, 1, true>(A, b, x, dim);
 			gaussSeidelStepLineZebra<T, 2, 1, false>(A, b, x, dim);
 			gaussSeidelStepLineZebra<T, 2, 1, true>(A, b, x, dim);
+
+
+			
+			
 
 			//gaussSeidelStepParallel(A, b, x, dim);
 
@@ -242,6 +251,86 @@ namespace blib {
 		}
 
 
+	}
+
+
+	template <typename T>
+	void gaussSeidelBoundaries(
+		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
+		ivec3 dim
+	) {
+
+		//Xneg
+		gaussSeidelBoundary<T, 0, -1, false>(A, b, X, dim);
+		gaussSeidelBoundary<T, 0, -1, true>(A, b, X, dim);
+		//xpos
+		gaussSeidelBoundary<T, 0, 1, false>(A, b, X, dim);
+		gaussSeidelBoundary<T, 0, 1, true>(A, b, X, dim);
+
+		//yneg
+		gaussSeidelBoundary<T, 1, -1, false>(A, b, X, dim);
+		gaussSeidelBoundary<T, 1, -1, true>(A, b, X, dim);
+		//ypos
+		gaussSeidelBoundary<T, 1, 1, false>(A, b, X, dim);
+		gaussSeidelBoundary<T, 1, 1, true>(A, b, X, dim);
+
+		//zneg
+		gaussSeidelBoundary<T, 2, -1, false>(A, b, X, dim);
+		gaussSeidelBoundary<T, 2, -1, true>(A, b, X, dim);
+		//zpos
+		gaussSeidelBoundary<T, 2, 1, false>(A, b, X, dim);
+		gaussSeidelBoundary<T, 2, 1, true>(A, b, X, dim);
+	}
+
+	template <typename T, int dir, int sgn, bool alternate>
+	void gaussSeidelBoundary(
+		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
+		ivec3 dim
+	) {
+
+		
+		const int secDirs[2] = {
+			(dir + 1) % 3,
+			(dir + 2) % 3
+		};
+
+		
+
+		for (auto i = 0; i < dim[secDirs[0]] / 2; i++) {
+			for (auto j = 0; j < dim[secDirs[1]]; j++) {
+				ivec3 vox;
+				vox[dir] = (sgn == 1) ? (dim[dir]-1) : 0;
+				vox[secDirs[0]] = i * 2;
+				vox[secDirs[1]] = j;
+
+				if (!alternate)
+					vox[secDirs[0]] += j % 2;
+				else
+					vox[secDirs[0]] += 1 - j % 2;
+
+				auto row = linearIndex(dim, vox);
+
+				T sum = T(0);
+				T diag = T(0);
+				for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
+					auto  col = it.col();
+					if (col == row) {
+						diag = it.value();
+						continue;
+					}
+					sum += it.value() * X[col];
+				}
+
+				X[row] = (b[row] - sum) / diag;
+
+			}
+		}
+
+	
 	}
 
 

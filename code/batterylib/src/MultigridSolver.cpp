@@ -18,9 +18,12 @@ template class MultigridSolver<double>;
 
 //#define MG_LINSYS_TO_FILE
 
+
 #ifdef MG_LINSYS_TO_FILE
 	#include <fstream>
 #endif
+
+//#define PERIODIC
 
 template <typename T = double>
 void addDebugChannel(Volume & vol,  const Eigen::Matrix<T, Eigen::Dynamic, 1> & v, ivec3 dim, const std::string & name, int levnum = -1, bool normalize = false) {
@@ -215,13 +218,27 @@ void restriction(
 }
 
 
+ivec3 neighDirs[8] = {
+	{ 0,0,0 },
+	{ 1,0,0 },
+	{ 0,1,0 },
+	{ 1,1,0 },
+	{ 0,0,1 },
+	{ 1,0,1 },
+	{ 0,1,1 },
+	{ 1,1,1 }
+};
+
 template <typename T>
 void restrictionWeighted(
+	Dir dir,
 	T * src, ivec3 srcDim,
 	T * dest, ivec3 destDim,
 	T * srcWeights
 ) {
+#ifndef DEBUG
 #pragma omp parallel for if(destDim.x > 4)
+#endif
 	for (auto z = 0; z < destDim.z; z++) {
 		for (auto y = 0; y < destDim.y; y++) {
 			for (auto x = 0; x < destDim.x; x++) {
@@ -230,25 +247,77 @@ void restrictionWeighted(
 				auto srcI = linearIndex(srcDim, iposSrc);
 				auto destI = linearIndex(destDim, ipos);
 
+#ifdef PERIODIC
+				T val = 0;
+				T W = 0;
+				for (auto d = 0; d < 8; d++) {					
+					ivec3 newPos = (ipos + neighDirs[d]) % srcDim;										
+					auto newI = linearIndex(srcDim,newPos);
+					val += src[newI] * srcWeights[newI];
+					W += srcWeights[newI];					
+				}
+#else
+
 				ivec3 s = { 1, srcDim.x, srcDim.x * srcDim.y };
+				
 				if (iposSrc.x == srcDim.x - 1 /*|| x == 0*/) s[0] = 0;
 				if (iposSrc.y == srcDim.y - 1 /*|| y == 0*/) s[1] = 0;
 				if (iposSrc.z == srcDim.z - 1 /*|| z == 0*/) s[2] = 0;
 
-				T val = src[srcI] * srcWeights[srcI] +
+				T vals[8] = {
+					src[srcI],
+					src[srcI + s[0]],
+					src[srcI + s[1]],
+					src[srcI + s[1] + s[0]],
+					src[srcI + s[2]],
+					src[srcI + s[2] + s[0]],
+					src[srcI + s[2] + s[1]],
+					src[srcI + s[2] + s[1] + s[0]]
+				};
+
+				T w[8] = {
+					srcWeights[srcI],
+					srcWeights[srcI + s[0]],
+					srcWeights[srcI + s[1]],
+					srcWeights[srcI + s[1] + s[0]],
+					srcWeights[srcI + s[2]],
+					srcWeights[srcI + s[2] + s[0]],
+					srcWeights[srcI + s[2] + s[1]],
+					srcWeights[srcI + s[2] + s[1] + s[0]]
+				};
+
+				T val = 0;
+				T W = 0;
+				for (auto i = 0; i < 8; i++) {					
+					val += vals[i] * w[i];
+					W += w[i];
+				}
+
+				/*T _val = 0;
+				T _W= 0;
+				for (auto i = 0; i < 8; i++) {
+					if (dir == X_NEG && iposSrc.x == srcDim.x - 1 && (i % 2 == 1)) {
+						continue;
+					}
+					_val += vals[i] * w[i];
+					_W += w[i];
+				}*/
+
+				/*T val = src[srcI] * srcWeights[srcI] +
 					src[srcI + s[0]] * srcWeights[srcI + s[0]] +
 					src[srcI + s[1]] * srcWeights[srcI + s[1]] +
 					src[srcI + s[1] + s[0]] * srcWeights[srcI + s[0] + s[1]] +
 					src[srcI + s[2]] * srcWeights[srcI + s[2]] +
 					src[srcI + s[2] + s[0]] * srcWeights[srcI + s[2] + s[0]] +
 					src[srcI + s[2] + s[1]] * srcWeights[srcI + s[2] + s[1]] +
-					src[srcI + s[2] + s[1] + s[0]] * srcWeights[srcI + s[2] + s[1] + s[0]];
+					src[srcI + s[2] + s[1] + s[0]] * srcWeights[srcI + s[2] + s[1] + s[0]];*/
 
-				T W = srcWeights[srcI] + srcWeights[srcI + s[0]] + srcWeights[srcI + s[1]] + srcWeights[srcI + s[0] + s[1]] + srcWeights[srcI + s[2]] +
-					srcWeights[srcI + s[2] + s[0]] + srcWeights[srcI + s[2] + s[1]] + srcWeights[srcI + s[2] + s[1] + s[0]];
-
+				/*T W = srcWeights[srcI] + srcWeights[srcI + s[0]] + srcWeights[srcI + s[1]] + srcWeights[srcI + s[0] + s[1]] + srcWeights[srcI + s[2]] +
+					srcWeights[srcI + s[2] + s[0]] + srcWeights[srcI + s[2] + s[1]] + srcWeights[srcI + s[2] + s[1] + s[0]];*/
+#endif
 
 				val /= W;
+				//_val /= _W;
 				//val *= T(1.0 / 8.0);
 
 				dest[destI] = val;
@@ -342,7 +411,9 @@ void interpolationWeighted(
 	T * srcWeights
 ) {
 
+#ifndef DEBUG
 #pragma omp parallel for if(destDim.x > 4)
+#endif
 	for (auto z = 0; z < destDim.z; z++) {
 		for (auto y = 0; y < destDim.y; y++) {
 			for (auto x = 0; x < destDim.x; x++) {
@@ -355,11 +426,39 @@ void interpolationWeighted(
 				auto destI = linearIndex(destDim, ipos);
 				auto srcI = linearIndex(srcDim, iposSrc);
 
+
+
 				ivec3 srcStride = r * ivec3( 1, srcDim.x, srcDim.x * srcDim.y );
 				if (x == destDim.x - 1 || x == 0) srcStride[0] = 0;
 				if (y == destDim.y - 1 || y == 0) srcStride[1] = 0;
 				if (z == destDim.z - 1 || z == 0) srcStride[2] = 0;
 
+#ifdef PERIODIC
+				T vals[8];
+				T w[8];
+
+				
+				for (auto d = 0; d < 8; d++) {
+					ivec3 step = r * neighDirs[d];
+					ivec3 newPos = (ipos + step + srcDim) % srcDim;
+					auto newI = linearIndex(srcDim, newPos);
+					vals[d] = src[newI];
+					w[d] = srcWeights[newI];
+				}
+
+	/*			T vals = src[srcI] * srcWeights[srcI];
+				T W = srcWeights[srcI];
+
+				for (auto d = 0; d < 3; d++) {
+					for (auto sgn = -1; sgn <= 1; sgn += 2) {
+						ivec3 newPos = ipos;
+						newPos[d] = (newPos[d] + sgn + srcDim[d]) % srcDim[d];
+						auto newI = linearIndex(srcDim, newPos);
+						val += src[newI] * srcWeights[newI];
+						W += srcWeights[newI];
+					}
+				}*/
+#else
 				T vals[8] = {
 					src[srcI],
 					src[srcI	+ srcStride[0]],
@@ -385,7 +484,7 @@ void interpolationWeighted(
 					srcWeights[srcI + srcStride[1] + srcStride[2]],
 					srcWeights[srcI + srcStride[0] + srcStride[1] + srcStride[2]]
 				};
-
+#endif
 				
 
 
@@ -425,12 +524,13 @@ void interpolationWeighted(
 
 
 
+/*
 
 				T old  = T(3.0 / 4.0) * src[srcI] + T(1.0 / 12.0) * (
 					src[srcI + srcStride[0]] +
 					src[srcI + srcStride[1]] + 
 					src[srcI + srcStride[2]]
-					);
+					);*/
 
 
 				dest[destI] = val;
@@ -653,7 +753,7 @@ bool MultigridSolver<T>::prepare(
 
 	_cellDim = cellDim;
 	_iterations = 0;
-
+	_dir = dir;
 	bool res = true;
 
 	_lv = levels;
@@ -791,6 +891,18 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 	const auto getD = [&dim, D](ivec3 pos) {
 		return D[linearIndex(dim, pos)];
 	};
+
+
+	
+#ifdef PERIODIC
+	const auto sample = [&getD, dim, D](ivec3 pos, Dir dir) {
+		const int k = getDirIndex(dir);
+		ivec3 newPos = pos;
+		int sgn = getDirSgn(dir);
+		newPos[k] = (newPos[k] + sgn + dim[k]) % dim[k];
+		return getD(newPos);
+	};
+#else
 	const auto sample = [&getD, dim, D](ivec3 pos, Dir dir) {
 		const int k = getDirIndex(dir);
 		assert(pos.x >= 0 && pos.y >= 0 && pos.z >= 0);
@@ -806,6 +918,7 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 		}
 		return getD(newPos);
 	};
+#endif
 
 	const vec3 faceArea = {
 		_cellDim.y * _cellDim.z,
@@ -876,6 +989,8 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 					*/
 					auto cellDist = _cellDim;
 					c.useInMatrix = true;
+
+#ifndef PERIODIC
 					if (ipos[k] == 0 && sgn == -1) {
 						cellDist[k] = _cellDim[k] * T(0.5);
 						c.useInMatrix = false;
@@ -884,9 +999,17 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 						cellDist[k] = _cellDim[k] * T(0.5);
 						c.useInMatrix = false;
 					}
+#endif
 
 					c.val = (Dface * faceArea[k]) / cellDist[k];
+
+#ifdef PERIODIC
+					auto newPos = ipos;
+					newPos[k] = (newPos[k] + sgn + dim[k]) % dim[k];
+					c.col = linearIndex(dim, newPos);
+#else
 					c.col = i + sgn * stride[k];
+#endif
 
 					//Add to diagonal
 					if (c.useInMatrix || k == dirPrimary)
@@ -1214,10 +1337,11 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 	enum CycleType {
 		V_CYCLE,
-		W_CYCLE
+		W_CYCLE,
+		V_CYCLE_SINGLE
 	};
 
-	CycleType ctype = W_CYCLE;
+	CycleType ctype = V_CYCLE_SINGLE;
 	std::vector<int> cycle; //+ down, -up
 
 	if (ctype == V_CYCLE) {
@@ -1247,6 +1371,9 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 			cycle.push_back(i);
 		}
 
+	}
+	else if (ctype == V_CYCLE_SINGLE) {
+		cycle = { 0, 1, 0 };
 	}
 
 
@@ -1289,7 +1416,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//Restriction
 
 				//std::cout << "f pre restr " << i + 1 << ": " << f[i + 1].squaredNorm() << std::endl;
-				restrictionWeighted(r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1], _D[i].data());
+				restrictionWeighted(_dir, r[i].data(), _dims[i], f[i + 1].data(), _dims[i + 1], _D[i].data());
 				
 				//std::cout << "f post restr " << i+1 << ": " << f[i+1].squaredNorm() << std::endl;
 			

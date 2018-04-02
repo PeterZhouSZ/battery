@@ -335,8 +335,13 @@ void Ui::update(double dt)
 		0, _app._volume->numChannels() - 1
 	);
 
+	auto & renderChannel = _app._volume->getChannel(_app._options["Render"].get<int>("channel"));
+
 	ImGui::TextColored(ImVec4(1, 1, 0, 1), "%s",
-		_app._volume->getChannel(_app._options["Render"].get<int>("channel")).getName().c_str()
+		renderChannel.getName().c_str()
+	);
+	ImGui::TextColored(ImVec4(1, 1, 0, 1), "%d %d %d",
+		renderChannel.dim().x, renderChannel.dim().y, renderChannel.dim().z
 	);
 
 
@@ -391,10 +396,22 @@ void Ui::update(double dt)
 	Dir dir = Dir(_app._options["Diffusion"].get<int>("direction"));
 	
 
+	if (ImGui::Button("GPU Solver")) {
+		_app.solveMultigridGPU();
+	}
+
+	ImGui::SameLine();
+
+	if (ImGui::Button("CPU Solver")) {
+		_app.solveMultigridCPU();
+	}
+
 	
 	static bool particleAsBoundary = false;
 	ImGui::Checkbox("part", &particleAsBoundary);
 	ImGui::SameLine();		
+
+	
 		
 	if (ImGui::Button("Diffusion Solver")) {
 		decltype(_app._diffSolver)::value_type tol = 
@@ -450,6 +467,8 @@ void Ui::update(double dt)
 			"| Prep: " << tPrep.count() << 
 			"s | Solve: " << tSolve.count() << 
 			"s | Tau: " << tTort.count() << "\n";
+
+		std::cout << "Iterations: " << _app._diffSolver.iterations() << std::endl;
 
 		
 	}

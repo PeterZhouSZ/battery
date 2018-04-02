@@ -18,7 +18,8 @@ namespace blib {
 
 		enum CycleType {
 			V_CYCLE,
-			W_CYCLE
+			W_CYCLE,
+			V_CYCLE_SINGLE
 		};
 
 		BLIB_EXPORT MultigridGPU(bool verbose);
@@ -44,6 +45,10 @@ namespace blib {
 
 		BLIB_EXPORT void setVerbose(bool val) {
 			_verbose = val;
+		}
+
+		BLIB_EXPORT uint iterations() const {
+			return _iterations;
 		}
 
 	private:

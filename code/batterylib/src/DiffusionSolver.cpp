@@ -715,8 +715,10 @@ BLIB_EXPORT bool DiffusionSolver<T>::solveWithoutParticles(
 
 	stab.setMaxIterations(iterPerStep);
 
-	for (auto i = 0; i < maxIter; i += iterPerStep) {
+	int i = 0;
+	for (i = 0; i < maxIter; i += iterPerStep) {
 		x = stab.solveWithGuess(b, x);		
+		//iter += stab.iterations();
 		float er = stab.error();		
 		if (_verbose) {			
 			std::cout << "i:" << i << ", estimated error: " << er << std::endl;
@@ -725,6 +727,9 @@ BLIB_EXPORT bool DiffusionSolver<T>::solveWithoutParticles(
 			break;
 	}	
 	
+
+	_iterations = stab.iterations();
+
 	auto end = std::chrono::system_clock::now();
 
 

@@ -86,6 +86,8 @@ namespace blib {
 
 		std::vector<std::vector<T>> _D;
 
+		Dir _dir;
+
 	};
 
 }

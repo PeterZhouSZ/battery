@@ -100,6 +100,15 @@ inline __device__ uint3 clampedVox(const uint3 & res, uint3 vox, Dir dir) {
 	return vox;
 }
 
+inline __device__ uint3 periodicVox(const uint3 & res, uint3 vox, Dir dir) {
+	const int k = _getDirIndex(dir);
+	int sgn = _getDirSgn(dir); 	
+	const int & resK = _at<int>(res, k);
+	const int newVox = (_at<int>(vox, k) + sgn + resK) % resK;	
+	_at<uint>(vox, k) = uint(newVox);	
+	return vox;
+}
+
 /*
 Templated surface write
 */

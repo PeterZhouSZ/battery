@@ -68,6 +68,8 @@ namespace blib {
 
 		BLIB_EXPORT T porosity() const { return _porosity; }
 
+		BLIB_EXPORT uint iterations() const { return _iterations;  }
+
 	private:
 			
 		
@@ -81,6 +83,8 @@ namespace blib {
 
 
 		T _porosity;
+
+		uint _iterations;
 
 	};
 

@@ -46,7 +46,8 @@ protected:
 	virtual void callbackScroll(GLFWwindow * w, double xoffset, double yoffset) override;
 	virtual void callbackChar(GLFWwindow * w, unsigned int code) override;
 
-	
+	void solveMultigridCPU();
+	void solveMultigridGPU();
 
 	virtual void reset();
 
@@ -84,7 +85,7 @@ protected:
 
 	blib::DiffusionSolver<double> _diffSolver;
 	blib::MultigridSolver<double> _multiSolver;
-	blib::MultigridGPU<float> _multigridGPUSolver;
+	blib::MultigridGPU<double> _multigridGPUSolver;
 
 
 	friend Ui;

@@ -275,9 +275,93 @@ void launchWeightedInterpolationKernel(
 		weightedInterpolationKernel<double> << < numBlocks, block >> > (surfSrc, surfWeight, resSrc, surfDest, resDest);
 }
 
-
-
-
+//
+//template <typename T>
+//__global__ void prepareSystemKernelPeriodic(LinSysParams) {
+//	VOLUME_VOX_GUARD(params.res);
+//
+//	const T highConc = T(1.0);
+//	const T lowConc = T(0.0);
+//	const T concetrationBegin = (_getDirSgn(params.dir) == 1) ? highConc : lowConc;
+//	const T concetrationEnd = (_getDirSgn(params.dir) == 1) ? lowConc : highConc;
+//
+//	const T cellDim[3] = { params.cellDim.x,params.cellDim.y,params.cellDim.z };
+//	const T faceArea[3] = { cellDim[1] * cellDim[2],cellDim[0] * cellDim[2],cellDim[0] * cellDim[1] };
+//
+//	const size_t i = linearIndex(params.res, vox);
+//	const size_t rowI = i * 7;
+//	T Di = read<T>(params.surfD, vox);
+//
+//
+//	T Dneg[3] = {
+//		(read<T>(params.surfD, periodicVox(params.res, vox, X_NEG)) + Di) * T(0.5),
+//		(read<T>(params.surfD, periodicVox(params.res, vox, Y_NEG)) + Di) * T(0.5),
+//		(read<T>(params.surfD, periodicVox(params.res, vox, Z_NEG)) + Di) * T(0.5)
+//	};
+//
+//	T Dpos[3] = {
+//		(read<T>(params.surfD, periodicVox(params.res, vox, X_POS)) + Di) * T(0.5),
+//		(read<T>(params.surfD, periodicVox(params.res, vox, Y_POS)) + Di) * T(0.5),
+//		(read<T>(params.surfD, periodicVox(params.res, vox, Z_POS)) + Di) * T(0.5)
+//	};
+//
+//	T coeffs[7];
+//	bool useInMatrix[7];
+//
+//	coeffs[DIR_NONE] = T(0);	
+//
+//	for (uint j = 0; j < DIR_NONE; j++) {
+//		const uint k = _getDirIndex(Dir(j));
+//		const int sgn = _getDirSgn(Dir(j));
+//		const T Dface = (sgn == -1) ? Dneg[k] : Dpos[k];
+//
+//		T cellDist[3] = { cellDim[0],cellDim[1],cellDim[2] };
+//		
+//		coeffs[j] = (Dface * faceArea[k]) / cellDist[k];
+//
+//		//Subtract from diagonal
+//		if (k == params.dirPrimary)
+//			coeffs[DIR_NONE] -= coeffs[j];
+//	}
+//
+//	/*
+//	Right hand side
+//	*/
+//
+//	const uint primaryRes = ((uint*)&params.res)[params.dirPrimary];
+//	T rhs = T(0);
+//	if (_at<uint>(vox, params.dirPrimary) == 0) {
+//		Dir dir = _getDir(params.dirPrimary, -1);
+//		rhs -= coeffs[dir] * concetrationBegin;
+//	}
+//	else if (_at<uint>(vox, params.dirPrimary) == primaryRes - 1) {
+//		Dir dir = _getDir(params.dirPrimary, 1);
+//		rhs -= coeffs[dir] * concetrationEnd;
+//	}
+//	//Write to F
+//	write<T>(params.surfF, vox, rhs);
+//
+//
+//	//X initial guess
+//	T xGuess = T(0);
+//	if (_getDirSgn(params.dir) == 1)
+//		xGuess = 1.0f - (_at<uint>(vox, params.dirPrimary) / T(primaryRes + 1));
+//	else
+//		xGuess = (_at<uint>(vox, params.dirPrimary) / T(primaryRes + 1));
+//
+//	//Write to X
+//	write<T>(params.surfX, vox, xGuess);
+//
+//	T * matrixRow = ((T*)params.matrixData) + rowI;
+//	matrixRow[0] = coeffs[Z_NEG];
+//	matrixRow[1] = coeffs[Y_NEG];
+//	matrixRow[2] = coeffs[X_NEG];
+//	matrixRow[3] = coeffs[DIR_NONE];
+//	matrixRow[4] = coeffs[X_POS];
+//	matrixRow[5] = coeffs[Y_POS];
+//	matrixRow[6] = coeffs[Z_POS];
+//
+//}
 
 template <typename T>
 __global__ void prepareSystemKernel(LinSysParams params) {
@@ -295,6 +379,7 @@ __global__ void prepareSystemKernel(LinSysParams params) {
 	const size_t rowI = i * 7;
 	T Di = read<T>(params.surfD, vox);
 		
+
 	T Dneg[3] = {
 		(read<T>(params.surfD, clampedVox(params.res, vox, X_NEG)) + Di) * T(0.5),
 		(read<T>(params.surfD, clampedVox(params.res, vox, Y_NEG)) + Di) * T(0.5),
@@ -306,8 +391,6 @@ __global__ void prepareSystemKernel(LinSysParams params) {
 		(read<T>(params.surfD, clampedVox(params.res, vox, Y_POS)) + Di) * T(0.5),
 		(read<T>(params.surfD, clampedVox(params.res, vox, Z_POS)) + Di) * T(0.5)
 	};
-
-	
 
 	T coeffs[7];
 	bool useInMatrix[7];
