@@ -25,7 +25,7 @@ template class MultigridSolver<double>;
 #endif
 
 //#define PERIODIC
-#define HARMONIC
+//#define HARMONIC
 #define MOLENAAR
 
 
@@ -897,7 +897,7 @@ bool MultigridSolver<T>::prepare(
 			d *= T(1/4.0);
 		}
 		//addDebugChannel(v, _D[i-1], _dims[i-1], "D-1 ", i, false);
-		//addDebugChannel(v, _D[i], _dims[i], "D ", i, false);
+		addDebugChannel(v, _D[i], _dims[i], "D ", i, false);
 		
 		
 		//Dlevels_interp[i].resize(total, 0.0f);
@@ -987,6 +987,54 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 		return D[linearIndex(dim, pos)];
 	};
 
+
+	
+	
+	const auto getDFinest = [dim = _dims[0], D = _D[0]](ivec3 pos) {
+		return D[linearIndex(dim, pos)];
+	};
+
+	const auto getDFaceCoarse = [&](ivec3 pos, Dir dir) {
+		int span = (1 << level);
+		int sgn = getDirSgn(dir);
+		int primary = getDirIndex(dir);
+		int secondary[2] = { (primary + 1) % 3, (primary + 2) % 3 };
+
+		/*
+			TODO add checks if dim[0] is not power of 2
+			... adjust span & x span add
+		*/
+
+		pos *= span;
+		if (sgn == 1) {
+			pos[primary] += (span - 1);
+		}		
+
+		T value = T(0);
+		int cnt = 0;
+
+		for (auto i = 0; i < span; i++) {
+			for (auto j = 0; j < span; j++) {
+				ivec3 finePos = pos;
+				finePos[secondary[0]] += i;
+				finePos[secondary[1]] += j;
+
+				ivec3 finePosNeigh = finePos;
+				if (finePos[primary] + sgn >= 0 && finePos[primary] + sgn < dim[primary]) {
+					finePosNeigh[primary] += sgn;
+				}
+
+				auto a = getDFinest(finePos) *pow(2, level);
+				auto b = getDFinest(finePosNeigh) *pow(2, level);
+
+				value += (2 * a*b) / (a + b);
+			}		
+		}
+
+		return value / (span*span);
+		//return D[linearIndex(dim, pos)];
+	};
+
 	/*const auto getDFine = [&_dims,_D,level](ivec3 pos) {
 		auto dims = _dims.front();
 		auto & D = _D.front();
@@ -1060,42 +1108,64 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 				
 
 #ifdef HARMONIC
+
+				
+
+				vec3 DnegH = {
+					getDFaceCoarse(ipos, X_NEG),
+					getDFaceCoarse(ipos, Y_NEG),
+					getDFaceCoarse(ipos, Z_NEG)
+				};
+
+				vec3 DposH = {
+					getDFaceCoarse(ipos, X_POS),
+					getDFaceCoarse(ipos, Y_POS),
+					getDFaceCoarse(ipos, Z_POS)
+				};
+
 				vec3 Dneg, Dpos;
-				//if (level == 0) {
-					Dneg = vec3(
+			//	if (level == 0) {
+				Dneg = vec3(
+					sample(ipos, X_NEG),
+					sample(ipos, Y_NEG),
+					sample(ipos, Z_NEG)
+				);
+				Dneg.x = (2 * Dneg.x * Di) / (Dneg.x + Di);
+				Dneg.y = (2 * Dneg.y * Di) / (Dneg.y + Di);
+				Dneg.z = (2 * Dneg.z * Di) / (Dneg.z + Di);
+
+				Dpos = vec3(
+					sample(ipos, X_POS),
+					sample(ipos, Y_POS),
+					sample(ipos, Z_POS)
+				);
+				Dpos.x = (2 * Dpos.x * Di) / (Dpos.x + Di);
+				Dpos.y = (2 * Dpos.y * Di) / (Dpos.y + Di);
+				Dpos.z = (2 * Dpos.z * Di) / (Dpos.z + Di);
+
+
+				Dneg = DnegH;
+				Dpos = DposH;
+
+				char b;
+				b = 0;
+				//}
+			/*	else {
+					vec3 Dvec = vec3(Di);
+					Dneg = (vec3(
 						sample(ipos, X_NEG),
 						sample(ipos, Y_NEG),
 						sample(ipos, Z_NEG)
-					);
-					Dneg.x = (2 * Dneg.x * Di) / (Dneg.x + Di);
-					Dneg.y = (2 * Dneg.y * Di) / (Dneg.y + Di);
-					Dneg.z = (2 * Dneg.z * Di) / (Dneg.z + Di);
+					) + vec3(Dvec)) * T(0.5);
 
-					Dpos = vec3(
+
+
+					Dpos = (vec3(
 						sample(ipos, X_POS),
 						sample(ipos, Y_POS),
 						sample(ipos, Z_POS)
-					);
-					Dpos.x = (2 * Dpos.x * Di) / (Dpos.x + Di);
-					Dpos.y = (2 * Dpos.y * Di) / (Dpos.y + Di);
-					Dpos.z = (2 * Dpos.z * Di) / (Dpos.z + Di);
-				//}
-// 				else {
-// 					vec3 Dvec = vec3(Di);
-// 					Dneg = (vec3(
-// 						sample(ipos, X_NEG),
-// 						sample(ipos, Y_NEG),
-// 						sample(ipos, Z_NEG)
-// 					) + vec3(Dvec)) * T(0.5);
-// 
-// 
-// 
-// 					Dpos = (vec3(
-// 						sample(ipos, X_POS),
-// 						sample(ipos, Y_POS),
-// 						sample(ipos, Z_POS)
-// 					) + vec3(Dvec)) * T(0.5);
-// 				}
+					) + vec3(Dvec)) * T(0.5);
+				}*/
 
 #else
 				auto Dvec = vec3(Di);
@@ -1193,10 +1263,10 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 				}
 
 				//right hand side is used only on finest level
-				if (level == 0) {
+				//if (level == 0) {
 					//Right hand side
 					_f[level][i] = rhs;
-				}
+				//}
 
 				//initial guess
 				if (getDirSgn(dir) == 1)
@@ -1445,6 +1515,18 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 	const int postN = 1;
 	const int lastLevel = _lv - 1;
 
+	Eigen::BiCGSTAB<Eigen::SparseMatrix<T, Eigen::RowMajor>> _solver;
+	_solver.setTolerance(tolerance);
+	_solver.setMaxIterations(maxIterations);
+
+	for (auto i = 0; i < _lv; i++) {
+		_solver.compute(_A[i]);
+		_x[i] = _solver.solve(_f[i]);	
+		addDebugChannel(vol, _x[i], _dims[i], "SOL", i);
+	}
+
+	//return 0;
+
 	Eigen::SparseLU<SparseMat> exactSolver;
 	exactSolver.analyzePattern(_A[lastLevel]);
 	exactSolver.factorize(_A[lastLevel]);
@@ -1495,10 +1577,10 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 			cycle.push_back(i);
 		}
 
-		for (auto i = _lv - 2; i != (midLevel-1); i--) {
+		for (auto i = _lv - 2; i != (midLevel - 1); i--) {
 			cycle.push_back(i);
 		}
-		for (auto i = midLevel + 1; i != _lv ; i++) {
+		for (auto i = midLevel + 1; i != _lv; i++) {
 			cycle.push_back(i);
 		}
 
@@ -1548,6 +1630,10 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				
 			//	std::cout << "x pre gs restr " << i << ": " << v[i].squaredNorm() << std::endl;
 
+				//_tmpx[i] = _f[i] - _A[i] * _x[i];
+				
+				//addDebugChannel(vol, _tmpx[i], _dims[i], "I(x)", k, true);
+
 				//Pre smoother
 				T err = solveGaussSeidel(_A[i], _f[i], _x[i], _r[i], _dims[i], tolerance, preN, false); // df = f  A*v
 				//T err = solveJacobi(_A[i], _f[i], _x[i], _tmpx[i], _r[i], tolerance, preN, false); // df = f  A*v
@@ -1561,7 +1647,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				
 				//return 0;
 				//addDebugChannel(vol, v[i], _dims[i], "v presmoothed", i, true);
-				addDebugChannel(vol, _r[i], _dims[i], "r", k, true);
+				//addDebugChannel(vol, _r[i], _dims[i], "r", k, true);
 
 				//Restriction
 
@@ -1569,7 +1655,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//restrictionWeighted(_dir, _r[i].data(), _dims[i], _f[i + 1].data(), _dims[i + 1], _D[i].data());
 				//pointRestriction(_r[i].data(), _dims[i], _f[i + 1].data(), _dims[i + 1]);
 				restriction(_r[i].data(), _dims[i], _f[i + 1].data(), _dims[i + 1]);
-				addDebugChannel(vol, _f[i+1], _dims[i+1], "R(r)", k, true);
+				//addDebugChannel(vol, _f[i+1], _dims[i+1], "R(r)", k, true);
 				
 			
 				/*std::cout << "r: " << _r[i].sum() << " vs ";
@@ -1589,10 +1675,11 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//std::cout << "x pre interp " << i + 1 << ": " << v[i + 1].squaredNorm() << std::endl;
 
 				//Interpolation
-				addDebugChannel(vol, _x[i+1], _dims[i+1], "x", k, true);
+				//addDebugChannel(vol, _x[i+1], _dims[i+1], "x", k, true);
 				//interpolationWeighted<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i], _D[i + 1].data());
 				interpolation<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i]);
 				//interp3D<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i]);
+
 				addDebugChannel(vol, _tmpx[i], _dims[i], "I(x)", k, true);
 				//
 				
@@ -1601,9 +1688,11 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				std::cout << "tmpx: " << _tmpx[i].sum();
 				std::cout << std::endl;*/
 
+				std::cout << "\tcorr" << i << " sum " << _tmpx[i].sum() << " sqnorm: " << _tmpx[i].squaredNorm() << std::endl;
 
-				T coarse = _x[i + 1][linearIndex(_dims[i + 1], { 3,3,3 })];
-				T fine = _tmpx[i][linearIndex(_dims[i], { 7,7,7 })];
+
+				//T coarse = _x[i + 1][linearIndex(_dims[i + 1], { 3,3,3 })];
+				//T fine = _tmpx[i][linearIndex(_dims[i], { 7,7,7 })];
 
 				//std::cout << "xtemp post interp " << i << ": " << tmpx[i].squaredNorm() << std::endl;
 

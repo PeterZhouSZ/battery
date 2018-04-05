@@ -196,7 +196,15 @@ namespace blib {
 			gaussSeidelStepLineZebra<T, 1, 1, true>(A, b, x, dim);
 			gaussSeidelStepLineZebra<T, 2, 1, false>(A, b, x, dim);
 			gaussSeidelStepLineZebra<T, 2, 1, true>(A, b, x, dim);
-			
+/*
+
+			gaussSeidelStepLineZebra<T, 0, -1, false>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 0, -1, true>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 1, -1, false>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 1, -1, true>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 2, -1, false>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 2, -1, true>(A, b, x, dim);
+			*/
 
 
 			//gaussSeidelStep(A, b, x);
