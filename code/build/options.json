@@ -45,8 +45,12 @@
             "type": 5
         },
         "GenResolution": {
-            "data": 8,
+            "data": 16,
             "type": 2
+        },
+        "Sphere": {
+            "data": true,
+            "type": 5
         }
     },
     "Optim": {

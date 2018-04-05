@@ -511,8 +511,8 @@ void BatteryApp::solveMultigridCPU()
 	auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
 	auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
 	auto exactSolveDim = 4;
-	//int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
-	int levels = 2;
+	int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
+	//int levels = 2;
 
 
 	Dir dir = Dir(_options["Diffusion"].get<int>("direction"));
@@ -615,6 +615,8 @@ void BatteryApp::reset()
 
 	bool loadDefault = _options["Input"].get<bool>("Default");
 
+	
+
 	_volume = make_unique<blib::Volume>();
 
 	//loadDefault = false;
@@ -642,6 +644,34 @@ void BatteryApp::reset()
 		std::cout << "Resolution: " << dim.x << " x " << dim.y << " x " << dim.z <<
 			" = " << dim.x*dim.y*dim.z << " voxels (" << (dim.x*dim.y*dim.z) / (1024 * 1024.0f) << "M)" << std::endl;
 
+
+		/*if (_options["Input"].get<bool>("Sphere")) {
+			auto d = _volume->getChannel(CHANNEL_BATTERY).dim();
+
+			auto & c = _volume->getChannel(batteryID);
+			uchar* data = (uchar*)c.getCurrentPtr().getCPU();
+
+			for (auto i = 0; i < d[0] - 0; i++) {
+				for (auto j = 0; j < d[1] - 0; j++) {
+					for (auto k = 0; k < d[2] - 0; k++) {
+
+						auto index = linearIndex(c.dim(), { i,j,k });
+
+
+
+						vec3 normPos = { i / float(d[0] - 1),j / float(d[1] - 1), k / float(d[2] - 1), };
+
+
+						if (normPos.x < 0.1f  || normPos.x > 0.9f)
+							data[index] = 0;						
+
+					}
+				}
+			}
+
+			c.getCurrentPtr().commit();
+		}*/
+
 	}
 	else {
 		int res = _options["Input"].get<int>("GenResolution");
@@ -661,6 +691,42 @@ void BatteryApp::reset()
 		);
 		assert(concetrationID == CHANNEL_CONCETRATION);
 
+		bool genSphere = _options["Input"].get<bool>("Sphere");
+		if (genSphere) {
+		
+			auto & c = _volume->getChannel(batteryID);
+			uchar* data = (uchar*)c.getCurrentPtr().getCPU();
+
+			for (auto i = 0; i < d[0] - 0; i++) {
+				for (auto j = 0; j < d[1] - 0; j++) {
+					for (auto k = 0; k < d[2] - 0; k++) {
+
+						auto index = linearIndex(c.dim(), { i,j,k });
+
+
+						if (i > d[0] / 2)
+							data[index] = 255;
+						else
+							data[index] = 0;
+
+						vec3 normPos = { i / float(d[0] - 1),j / float(d[1] - 1), k / float(d[2] - 1), };
+
+						/*if (abs(normPos.x - 0.5f) < 0.25f)
+							data[index] = 255;
+						else
+							data[index] = 0;
+*/
+
+						/*if (glm::length(normPos - vec3(0.5f)) < 0.45f)
+							data[index] = 255;
+						else
+							data[index] = 0;*/
+					}
+				}
+			}
+
+			c.getCurrentPtr().commit();
+		}
 		
 		//Test for fipy cmp
 		/*auto & c = _volume->getChannel(batteryID);

@@ -178,17 +178,18 @@ namespace blib {
 		T bsqnorm = b.squaredNorm();
 		T tol_error = T(1);
 
+
 		for (auto i = 0; i < maxIter; ++i) {
 			//gaussSeidelStep(A, b, x);
 			/*for (auto k = 0; k < 6; k+=2) {
 				gaussSeidelStepZebra(A, b, x, dim, Dir(k));
 			}*/
-/*
 
-			for (auto i = 0; i < 256; i++) {
+
+		/*	for (auto i = 0; i < 256; i++) {
 				gaussSeidelBoundaries(A, b, x, dim);
 			}*/
-
+			
 			gaussSeidelStepLineZebra<T, 0, 1, false>(A, b, x, dim);
 			gaussSeidelStepLineZebra<T, 0, 1, true>(A, b, x, dim);
 			gaussSeidelStepLineZebra<T, 1, 1, false>(A, b, x, dim);
@@ -241,6 +242,7 @@ namespace blib {
 	) {
 
 		for (auto i = 0; i < A.rows(); i++) {
+		//for (auto i = A.rows(); i >= 0; i--) {
 			T sum = T(0);
 			T diag = T(0);
 			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
@@ -266,7 +268,14 @@ namespace blib {
 		ivec3 dim
 	) {
 
-		//Xneg
+		gaussSeidelBoundary<T, 0, -1>(A, b, X, dim);
+		gaussSeidelBoundary<T, 0, 1>(A, b, X, dim);
+		gaussSeidelBoundary<T, 1, -1>(A, b, X, dim);
+		gaussSeidelBoundary<T, 1, 1>(A, b, X, dim);
+		gaussSeidelBoundary<T, 2, -1>(A, b, X, dim);
+		gaussSeidelBoundary<T, 2, 1>(A, b, X, dim);
+
+		/*//Xneg
 		gaussSeidelBoundary<T, 0, -1, false>(A, b, X, dim);
 		gaussSeidelBoundary<T, 0, -1, true>(A, b, X, dim);
 		//xpos
@@ -285,11 +294,55 @@ namespace blib {
 		gaussSeidelBoundary<T, 2, -1, true>(A, b, X, dim);
 		//zpos
 		gaussSeidelBoundary<T, 2, 1, false>(A, b, X, dim);
-		gaussSeidelBoundary<T, 2, 1, true>(A, b, X, dim);
+		gaussSeidelBoundary<T, 2, 1, true>(A, b, X, dim);*/
+	}
+
+	template <typename T, int dir, int sgn>
+	void gaussSeidelBoundary(
+		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
+		ivec3 dim
+	) {
+		const int secDirs[2] = {
+			(dir + 1) % 3,
+			(dir + 2) % 3
+		};
+		for (auto i = 0; i < dim[secDirs[0]]; i++) {
+			for (auto j = 0; j < dim[secDirs[1]]; j++) {
+				ivec3 vox;
+				auto dirBegin = (sgn == 1) ? (dim[dir] - 1) : 0;
+				vox[dir] = dirBegin;
+				vox[secDirs[0]] = i;
+				vox[secDirs[1]] = j;
+
+				//layers from boundary
+				for (auto k = 0; k < 1; k++) {
+					vox[dir] = dirBegin + k*(-sgn);
+
+					auto row = linearIndex(dim, vox);
+
+					T sum = T(0);
+					T diag = T(0);
+					for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
+						auto  col = it.col();
+						if (col == row) {
+							diag = it.value();
+							continue;
+						}
+						sum += it.value() * X[col];
+					}
+
+					X[row] = (b[row] - sum) / diag;
+
+				}
+			}
+		}
+	
 	}
 
 	template <typename T, int dir, int sgn, bool alternate>
-	void gaussSeidelBoundary(
+	void gaussSeidelBoundaryAlternating(
 		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
 		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
 		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
