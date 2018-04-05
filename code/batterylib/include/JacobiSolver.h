@@ -115,7 +115,7 @@ namespace blib {
 				}
 				break;
 			}
-			gaussSeidelStep(A, b, curX, nextX);
+			jacobiStep(A, b, curX, nextX);
 
 		}
 
@@ -195,7 +195,11 @@ namespace blib {
 			gaussSeidelStepLineZebra<T, 1, 1, true>(A, b, x, dim);
 			gaussSeidelStepLineZebra<T, 2, 1, false>(A, b, x, dim);
 			gaussSeidelStepLineZebra<T, 2, 1, true>(A, b, x, dim);
+			
 
+
+			//gaussSeidelStep(A, b, x);
+			//gaussSeidelStepZebra(A, b, x, dim, X_POS);
 
 			
 			
@@ -207,7 +211,7 @@ namespace blib {
 			float err = residual.squaredNorm();
 			tol_error = sqrt(err / bsqnorm);
 
-			if (verbose && i % 128 == 0) {
+			if (verbose) {
 				std::cout << "gauss seidel i: " << i << " err: " << err << ", tol_error: " << tol_error << std::endl;
 			}
 

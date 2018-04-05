@@ -30,13 +30,13 @@ App::App(const char * windowTitle)
 	int monCount = 0;
 	const GLFWvidmode * mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
 	
-	int initW = static_cast<int>(mode->width * 0.85);
+	int initW = static_cast<int>(mode->width * 0.55);
 	int initH = static_cast<int>(mode->height * 0.85);
 
 	//Window setup	
 	auto & wh = _window.handle;
 	wh = glfwCreateWindow(initW, initH, windowTitle, NULL, NULL);
-	glfwSetWindowPos(wh, static_cast<int>(initW * 0.1), static_cast<int>(initH * 0.1));
+	glfwSetWindowPos(wh, static_cast<int>(mode->width * 0.40), static_cast<int>(initH * 0.1));
 	glfwMakeContextCurrent(wh);
 	glfwGetFramebufferSize(wh, &_window.width, &_window.height);
 

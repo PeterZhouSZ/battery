@@ -55,6 +55,10 @@ namespace blib {
 			return _iterations; 
 		}
 
+		BLIB_EXPORT const Vector & result() const {
+			return _x[0];
+		}
+
 	private:
 
 		BLIB_EXPORT bool prepareAtLevel(

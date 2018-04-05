@@ -511,7 +511,8 @@ void BatteryApp::solveMultigridCPU()
 	auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
 	auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
 	auto exactSolveDim = 4;
-	int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
+	//int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
+	int levels = 2;
 
 
 	Dir dir = Dir(_options["Diffusion"].get<int>("direction"));
@@ -536,7 +537,9 @@ void BatteryApp::solveMultigridCPU()
 	std::chrono::duration<double> prepTime = t1 - t0;
 	std::cout << "Prep time: " << prepTime.count() << std::endl;
 
-	_multiSolver.solve(*_volume, 1e-6, 1024);
+	double tol = pow(10.0, -_options["Diffusion"].get<int>("Tolerance"));
+
+	_multiSolver.solve(*_volume, tol, 1024);
 	//_multiSolver.solve(*_volume, 1e-6, 3);
 
 
@@ -614,14 +617,15 @@ void BatteryApp::reset()
 
 	_volume = make_unique<blib::Volume>();
 
-	loadDefault = false;
+	//loadDefault = false;
 
 	if (loadDefault) {
 		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
 		assert(batteryID == CHANNEL_BATTERY);
 
+
 		//_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), 2*ivec3(32,32,16)  );
-		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(184)  );
+		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(_options["Input"].get<int>("GenResolution"))  );
 		_volume->binarize(CHANNEL_BATTERY, 1.0f);
 
 		//Add concetration channel

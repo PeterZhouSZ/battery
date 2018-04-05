@@ -41,8 +41,12 @@
     },
     "Input": {
         "Default": {
-            "data": true,
+            "data": false,
             "type": 5
+        },
+        "GenResolution": {
+            "data": 8,
+            "type": 2
         }
     },
     "Optim": {
