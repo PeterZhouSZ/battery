@@ -15,10 +15,12 @@ namespace blib {
 	class MultigridSolver {
 
 		
-		using SparseMat = Eigen::SparseMatrix<T, Eigen::RowMajor>;
-		using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
+		
 
 	public:
+
+		using SparseMat = Eigen::SparseMatrix<T, Eigen::RowMajor>;
+		using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
 
 		BLIB_EXPORT MultigridSolver(bool verbose);
 
@@ -61,10 +63,6 @@ namespace blib {
 
 	private:
 
-		BLIB_EXPORT bool prepareAtLevel(
-			const T * D, ivec3 dim, Dir dir, 
-			uint level
-		);
 
 		BLIB_EXPORT bool prepareAtLevelFVM(
 			const T * D, ivec3 dim, Dir dir,
@@ -72,11 +70,13 @@ namespace blib {
 		);
 
 		std::vector<SparseMat> _A;		
+		std::vector<SparseMat> _I;
+		std::vector<SparseMat> _R;
 		std::vector<Vector> _f;
 		std::vector<Vector> _x;
 		std::vector<Vector> _tmpx;
 		std::vector<Vector> _r;
-		vec3 _cellDim;
+		glm::tvec3<T, glm::highp> _cellDimFine;
 
 		bool _verbose;
 		uint _lv; //0 = fine level, _lv-1 = coarsest level
