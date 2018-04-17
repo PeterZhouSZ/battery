@@ -23,7 +23,7 @@ template class MultigridSolver<double>;
 #include <fstream>
 
 //#define PERIODIC
-#define HARMONIC
+//#define HARMONIC
 #define MOLENAAR
 
 
@@ -250,6 +250,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 	R.resize(ndest, n);
 	R.reserve(Eigen::VectorXi::Constant(ndest, 8));
 	
+	bool weighted = true;
 
 	//#pragma omp parallel for if(destDim.x > 4)
 	for (auto z = 0; z < destDim.z; z++) {
@@ -275,24 +276,25 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 					srcWeights[srcI + s[2] + s[1]],
 					srcWeights[srcI + s[2] + s[1] + s[0]]
 				};
-/*
 
-				T W = 0.0;
-				for (auto i = 0; i < 8; i++) {
-					W += w[i];
+				if (weighted) {
+					T W = 0.0;
+					for (auto i = 0; i < 8; i++) {
+						W += w[i];
+					}
+					for (auto i = 0; i < 8; i++) {
+						w[i] /= W;
+					}
+					
+					/*W = 0.0;
+					for (auto i = 0; i < 8; i++) {
+						W += w[i];
+					}*/
 				}
-
-				for (auto i = 0; i < 8; i++) {
-					w[i] /= W;
-				}
-				W = 0.0;
-				for (auto i = 0; i < 8; i++) {
-					W += w[i];
-				}
-*/
-
-				for (auto i = 0; i < 8; i++) {
-					w[i] = 1.0 / 8.0;
+				else {
+					for (auto i = 0; i < 8; i++) {
+						w[i] = 1.0 / 8.0;
+					}
 				}
 
 				//T w = 1.0 / 8.0;
@@ -337,9 +339,9 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim) {
 
 				ivec3 srcStride = { 1, srcDim.x, srcDim.x * srcDim.y };
 
-				//T injectCoeff = 9.0 / 12.0;
-				T injectCoeff = 1.0;
-				/*if (x == destDim.x - 1 || x == 0)
+				T injectCoeff = 9.0 / 12.0;
+				//T injectCoeff = 1.0;
+				if (x == destDim.x - 1 || x == 0)
 					injectCoeff += 1.0 / 12.0;								
 				else 
 					I.insert(destI, srcI + srcStride[0] * r[0]) = 1.0 / 12.0;
@@ -352,7 +354,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim) {
 				if (z == destDim.z - 1 || z == 0)
 					injectCoeff += 1.0 / 12.0;
 				else
-					I.insert(destI, srcI + srcStride[2] * r[2]) = 1.0 / 12.0;*/
+					I.insert(destI, srcI + srcStride[2] * r[2]) = 1.0 / 12.0;
 				
 				I.insert(destI, srcI) = injectCoeff;
 
@@ -1081,9 +1083,9 @@ bool MultigridSolver<T>::prepare(
 	for (auto i = 0; i < _lv; i++) {
 
 		_I[i] = interpolationMatrix<T>(_dims[i] / 2);
-		_R[i] = _I[i].transpose() * pow(0.5, 3);
+		//_R[i] = _I[i].transpose() * pow(0.5, 3);
 
-		//_R[i] = restrictionMatrix<T>(_dims[i],_D[i].data());
+		_R[i] = restrictionMatrix<T>(_dims[i],_D[i].data());
 		
 		
 		/*char buf[256];
@@ -1100,7 +1102,7 @@ bool MultigridSolver<T>::prepare(
 			std::ofstream fi(buf);
 			fi << Eigen::MatrixXd(_I[i]);*/
 
-			_A[i] = 0.5 *_R[i - 1] * _A[i - 1] * _I[i - 1];
+			//_A[i] = 0.5 *_R[i - 1] * _A[i - 1] * _I[i - 1];
 		}
 
 
@@ -1689,8 +1691,8 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 				//_f[i + 1] *= 2.0;
 
-				_f[i + 1] = _R[i] * _r[i];
-				//restriction(_r[i].data(), _dims[i], _f[i + 1].data(), _dims[i + 1]);
+				//_f[i + 1] = _R[i] * _r[i];
+				restriction(_r[i].data(), _dims[i], _f[i + 1].data(), _dims[i + 1]);
 
 
 				addDebugChannel(vol, _f[i+1], _dims[i+1], "R(r)", k, true);
@@ -1715,10 +1717,11 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//Interpolation
 				addDebugChannel(vol, _x[i+1], _dims[i+1], "x", k, true);
 				//interpolationWeighted<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i], _D[i + 1].data());
-				//interpolation<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i]);
+				
 				//interp3D<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i]);
 
-				_tmpx[i] = _I[i] * _x[i+1];
+				interpolation<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i]);
+				//_tmpx[i] = _I[i] * _x[i+1];
 
 				addDebugChannel(vol, _tmpx[i], _dims[i], "I(x)", k, true);
 				//
