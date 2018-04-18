@@ -23,7 +23,7 @@ template class MultigridSolver<double>;
 #include <fstream>
 
 //#define PERIODIC
-//#define HARMONIC
+#define HARMONIC
 #define MOLENAAR
 
 
@@ -297,6 +297,13 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 					}
 				}
 
+				//Boundary neumann scaling test - destination
+				/*if (ipos.y == 0 || ipos.z == 0 || ipos.y == destDim.y - 1 || ipos.z == destDim.z - 1) {
+					for (auto i = 0; i < 8; i++) {
+						w[i] *= 4.0;
+					}
+				}*/
+
 				//T w = 1.0 / 8.0;
 				R.insert(destI, srcI) = w[0];
 				R.insert(destI, srcI + s[0]) = w[1];
@@ -339,24 +346,36 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim) {
 
 				ivec3 srcStride = { 1, srcDim.x, srcDim.x * srcDim.y };
 
-				T injectCoeff = 9.0 / 12.0;
-				//T injectCoeff = 1.0;
-				if (x == destDim.x - 1 || x == 0)
-					injectCoeff += 1.0 / 12.0;								
-				else 
-					I.insert(destI, srcI + srcStride[0] * r[0]) = 1.0 / 12.0;
+				if (true) {
+					T injectCoeff = 9.0 / 12.0;
+					if (x == destDim.x - 1 || x == 0)
+						injectCoeff += 1.0 / 12.0;
+					else
+						I.insert(destI, srcI + srcStride[0] * r[0]) = 1.0 / 12.0;
 
-				if (y == destDim.y - 1 || y == 0)
-					injectCoeff += 1.0 / 12.0;
-				else
-					I.insert(destI, srcI + srcStride[1] * r[1]) = 1.0 / 12.0;
+					if (y == destDim.y - 1 || y == 0)
+						injectCoeff += 1.0 / 12.0;
+					else
+						I.insert(destI, srcI + srcStride[1] * r[1]) = 1.0 / 12.0;
 
-				if (z == destDim.z - 1 || z == 0)
-					injectCoeff += 1.0 / 12.0;
-				else
-					I.insert(destI, srcI + srcStride[2] * r[2]) = 1.0 / 12.0;
-				
-				I.insert(destI, srcI) = injectCoeff;
+					if (z == destDim.z - 1 || z == 0)
+						injectCoeff += 1.0 / 12.0;
+					else
+						I.insert(destI, srcI + srcStride[2] * r[2]) = 1.0 / 12.0;
+
+					I.insert(destI, srcI) = injectCoeff;
+				}
+
+
+			/*	if (true) {
+
+
+
+
+				}
+*/
+
+
 
 			/*	T val = T(9.0 / 12.0) * src[srcI] + T(1.0 / 12.0) * (
 					src[srcI + srcStride[0] * r[0]] + src[srcI + srcStride[1] * r[1]] + src[srcI + srcStride[2] * r[2]]);
@@ -1003,6 +1022,9 @@ bool MultigridSolver<T>::prepare(
 	}
 	_porosity = cntd0 / T(origTotal);
 
+
+	
+
 	//Generate first level of D
 	{
 		_D.front().resize(origTotal);
@@ -1011,6 +1033,16 @@ bool MultigridSolver<T>::prepare(
 		for (auto i = 0; i < origTotal; i++) {
 			_D.front()[i] = (Dmask[i] == 0) ? d0 : d1;
 		}
+
+		/*for (auto i = 0; i < origDim[0] - 0; i++) {
+			for (auto j = 0; j < origDim[1] - 0; j++) {
+				for (auto k = 0; k < origDim[2] - 0; k++) {
+					auto index = linearIndex(origDim, { i,j,k });
+					vec3 normPos = { i / float(origDim[0] - 1),j / float(origDim[1] - 1), k / float(origDim[2] - 1), };
+					_D[0][index] = normPos.x + 1.0f / origDim[0];
+				}
+			}
+		}*/
 
 		res &= prepareAtLevelFVM(_D[0].data(), _dims[0], dir, 0);
 
@@ -1032,9 +1064,12 @@ bool MultigridSolver<T>::prepare(
 		const size_t total = dim.x * dim.y * dim.z;
 
 		_dims[i] = dim;
-		_D[i].resize(total);
-		//conv3D(Dlevels[i - 1].data(), _dims[i - 1], Dlevels[i].data(), _dims[i], _restrictOp);
+		_D[i].resize(total,1.0);
+		//conv3D(D[i - 1].data(), _dims[i - 1], D[i].data(), _dims[i], _restrictOp);
 		restriction(_D[i - 1].data(), _dims[i - 1], _D[i].data(), _dims[i]);		
+		//pointRestriction(_D[i - 1].data(), _dims[i - 1], _D[i].data(), _dims[i]);
+		//_D[i]
+
 		/*for (auto & d : _D[i]) {
 			d *= T(1/4.0);
 		}*/
@@ -1082,10 +1117,11 @@ bool MultigridSolver<T>::prepare(
 
 	for (auto i = 0; i < _lv; i++) {
 
-		_I[i] = interpolationMatrix<T>(_dims[i] / 2);
+		//_I[i] = interpolationMatrix<T>(_dims[i] / 2);
 		//_R[i] = _I[i].transpose() * pow(0.5, 3);
 
 		_R[i] = restrictionMatrix<T>(_dims[i],_D[i].data());
+		_I[i] = _R[i].transpose();
 		
 		
 		/*char buf[256];
@@ -1101,8 +1137,9 @@ bool MultigridSolver<T>::prepare(
 			/*sprintf(buf, "I%d.txt", i);
 			std::ofstream fi(buf);
 			fi << Eigen::MatrixXd(_I[i]);*/
-
-			//_A[i] = 0.5 *_R[i - 1] * _A[i - 1] * _I[i - 1];
+			
+			//Galerkin
+			_A[i] = 0.5 *_R[i - 1] * _A[i - 1] * _I[i - 1];
 		}
 
 
@@ -1129,13 +1166,7 @@ bool MultigridSolver<T>::prepare(
 }
 
 
-/*
-template <typename T>
-void galerkin(MultigridSolver<T>::SparseMat & A) {
 
-
-
-}*/
 
 
 template <typename T>
@@ -1691,8 +1722,8 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 				//_f[i + 1] *= 2.0;
 
-				//_f[i + 1] = _R[i] * _r[i];
-				restriction(_r[i].data(), _dims[i], _f[i + 1].data(), _dims[i + 1]);
+				_f[i + 1] = _R[i] * _r[i];
+				//restriction(_r[i].data(), _dims[i], _f[i + 1].data(), _dims[i + 1]);
 
 
 				addDebugChannel(vol, _f[i+1], _dims[i+1], "R(r)", k, true);
@@ -1720,8 +1751,8 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				
 				//interp3D<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i]);
 
-				interpolation<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i]);
-				//_tmpx[i] = _I[i] * _x[i+1];
+				//interpolation<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i]);
+				_tmpx[i] = _I[i] * _x[i+1];
 
 				addDebugChannel(vol, _tmpx[i], _dims[i], "I(x)", k, true);
 				//

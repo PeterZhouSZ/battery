@@ -511,8 +511,8 @@ void BatteryApp::solveMultigridCPU()
 	auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
 	auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
 	auto exactSolveDim = 4;
-	int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
-	//int levels = 2;
+	//int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
+	int levels = 2;
 
 
 	Dir dir = Dir(_options["Diffusion"].get<int>("direction"));
@@ -645,7 +645,7 @@ void BatteryApp::reset()
 			" = " << dim.x*dim.y*dim.z << " voxels (" << (dim.x*dim.y*dim.z) / (1024 * 1024.0f) << "M)" << std::endl;
 
 
-		/*if (_options["Input"].get<bool>("Sphere")) {
+		if (_options["Input"].get<bool>("Sphere")) {
 			auto d = _volume->getChannel(CHANNEL_BATTERY).dim();
 
 			auto & c = _volume->getChannel(batteryID);
@@ -664,13 +664,17 @@ void BatteryApp::reset()
 
 						if (normPos.x < 0.1f  || normPos.x > 0.9f)
 							data[index] = 0;						
+						if (normPos.y < 0.1f || normPos.y > 0.9f)
+							data[index] = 0;
+						if (normPos.z < 0.1f || normPos.z > 0.9f)
+							data[index] = 0;
 
 					}
 				}
 			}
 
 			c.getCurrentPtr().commit();
-		}*/
+		}
 
 	}
 	else {
@@ -704,12 +708,15 @@ void BatteryApp::reset()
 						auto index = linearIndex(c.dim(), { i,j,k });
 
 
+
 						if (i > d[0] / 2)
 							data[index] = 255;
 						else
 							data[index] = 0;
 
 						vec3 normPos = { i / float(d[0] - 1),j / float(d[1] - 1), k / float(d[2] - 1), };
+
+						//data[index] = normPos.x + 0.;
 
 						/*if (abs(normPos.x - 0.5f) < 0.25f)
 							data[index] = 255;

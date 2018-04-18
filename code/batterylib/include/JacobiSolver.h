@@ -179,6 +179,8 @@ namespace blib {
 		T tol_error = T(1);
 
 
+		Eigen::Matrix<T, Eigen::Dynamic, 1> xprime = x;
+
 		for (auto i = 0; i < maxIter; ++i) {
 			//gaussSeidelStep(A, b, x);
 			/*for (auto k = 0; k < 6; k+=2) {
@@ -190,12 +192,53 @@ namespace blib {
 				gaussSeidelBoundaries(A, b, x, dim);
 			}*/
 			
-			gaussSeidelStepLineZebra<T, 0, 1, false>(A, b, x, dim);
-			gaussSeidelStepLineZebra<T, 0, 1, true>(A, b, x, dim);
-			gaussSeidelStepLineZebra<T, 1, 1, false>(A, b, x, dim);
-			gaussSeidelStepLineZebra<T, 1, 1, true>(A, b, x, dim);
-			gaussSeidelStepLineZebra<T, 2, 1, false>(A, b, x, dim);
-			gaussSeidelStepLineZebra<T, 2, 1, true>(A, b, x, dim);
+
+			if (true) {
+				for (auto k = 0; k < 1; k++) {
+					gaussSeidelStepLineZebra<T, 0, 1, false>(A, b, x, dim);
+					gaussSeidelStepLineZebra<T, 0, 1, true>(A, b, x, dim);
+					gaussSeidelStepLineZebra<T, 1, 1, false>(A, b, x, dim);
+					gaussSeidelStepLineZebra<T, 1, 1, true>(A, b, x, dim);
+					gaussSeidelStepLineZebra<T, 2, 1, false>(A, b, x, dim);
+					gaussSeidelStepLineZebra<T, 2, 1, true>(A, b, x, dim);
+				}
+			}
+
+			if (false) {
+
+				int iter = 512;
+				{
+					const int dir = 0;
+					for (auto plane = 0; plane < dim[dir]; plane++) {
+						jacobiPlane<T, dir>(A, b, x, xprime, dim, plane, iter);
+					}
+					
+				}
+
+				//std::cout << "x " << (x - xprime).squaredNorm() << std::endl;
+				{
+					const int dir = 1;
+					for (auto plane = 0; plane < dim[dir]; plane++) {
+						jacobiPlane<T, dir>(A, b, x, xprime, dim, plane, iter);
+					}
+				}
+
+				//std::cout << "y " << (x - xprime).squaredNorm() << std::endl;
+				{
+					const int dir = 2;
+					for (auto plane = 0; plane < dim[dir]; plane++) {
+						jacobiPlane<T, dir>(A, b, x, xprime, dim, plane, iter);
+					}
+				}
+
+				//std::cout << "z " << (x - xprime).squaredNorm() << std::endl;
+
+				//std::cout << "======" << std::endl;
+			}
+
+
+
+
 /*
 
 			gaussSeidelStepLineZebra<T, 0, -1, false>(A, b, x, dim);
@@ -240,6 +283,64 @@ namespace blib {
 
 		return tol_error;
 	}
+
+
+	template <typename T, int dir> 
+	void jacobiPlane(
+		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & xprime,
+		ivec3 dim,
+		int planeInDir,
+		int iterations
+	) {
+		const int secDirs[2] = {
+			(dir + 1) % 3,
+			(dir + 2) % 3
+		};
+
+		Eigen::Matrix<T, Eigen::Dynamic, 1> * X[2] = {
+			&x, &xprime
+		};
+
+		if (iterations % 2 == 1) iterations++;
+
+		for (auto iter = 0; iter < iterations; iter++) {
+
+			auto & x0 = *X[iter % 2];
+			auto & x1 = *X[(iter + 1) % 2];
+
+			#pragma omp parallel for
+			for (auto i = 0; i < dim[secDirs[0]]; i++) {
+				for (auto j = 0; j < dim[secDirs[1]]; j++) {
+					ivec3 vox;
+					vox[dir] = planeInDir;
+					vox[secDirs[0]] = i;
+					vox[secDirs[1]] = j;
+
+
+					auto row = linearIndex(dim, vox);
+					T sum = T(0);
+					T diag = T(0);
+					for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
+						auto  col = it.col();
+						if (col == row) {
+							diag = it.value();
+							continue;
+						}
+						sum += it.value() * x0[col];
+					}
+
+					x1[row] = (b[row] - sum) / diag;
+
+				}
+			}
+		}		
+
+	}
+
+	
 
 
 	template <typename T>
