@@ -238,8 +238,217 @@ void restriction(
 	}
 }
 
+
 template <typename T>
-Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcWeights){
+Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcWeights) {
+	using vec3 = glm::tvec3<T, glm::highp>;
+	const std::array<ivec3, 8> offsets = {
+		{
+			{ 0,0,0 },
+			{ 1,0,0 },
+			{ 0,1,0 },
+			{ 1,1,0 },
+			{ 0,0,1 },
+			{ 1,0,1 },
+			{ 0,1,1 },
+			{ 1,1,1 }
+		}
+	};
+
+	ivec3 destDim = srcDim / 2;
+
+	size_t n = srcDim.x * srcDim.y * srcDim.z;
+	size_t ndest = n / 8;
+
+	Eigen::SparseMatrix<T, Eigen::RowMajor> R;
+	R.resize(ndest, n);
+	R.reserve(Eigen::VectorXi::Constant(ndest, 64));
+
+	bool weighted = true;
+
+	//#pragma omp parallel for if(destDim.x > 4)
+	for (auto z = 0; z < destDim.z; z++) {
+		for (auto y = 0; y < destDim.y; y++) {
+			for (auto x = 0; x < destDim.x; x++) {
+				ivec3 ipos = { x,y,z };
+				ivec3 iposSrc = ipos * 2;
+				auto srcI = linearIndex(srcDim, iposSrc);
+				auto destI = linearIndex(destDim, ipos);
+
+				ivec3 s = { 1, srcDim.x, srcDim.x * srcDim.y };
+
+				T w[4][4][4] = {
+					{
+						{ 1,3,3,1 },
+						{ 3,9,9,3 },
+						{ 3,9,9,3 },
+						{ 1,3,3,1 }
+					},
+					{
+						{ 3,9,9,3 },
+						{ 9,27,27,9 },
+						{ 9,27,27,9 },
+						{ 3,9,9,3 }
+					},
+					{
+						{ 3,9,9,3 },
+						{ 9,27,27,9 },
+						{ 9,27,27,9 },
+						{ 3,9,9,3 }
+					},
+					{
+						{ 1,3,3,1 },
+						{ 3,9,9,3 },
+						{ 3,9,9,3 },
+						{ 1,3,3,1 }
+					},
+
+				};
+
+				if (x == 0) {
+					for (auto j = 0; j < 4; j++) {
+						for (auto k = 0; k < 4; k++) {
+							w[1][j][k] += w[0][j][k];
+							w[0][j][k] = 0;
+						}
+					}
+				}
+
+				if (x == destDim.x -1) {
+					for (auto j = 0; j < 4; j++) {
+						for (auto k = 0; k < 4; k++) {
+							w[2][j][k] += w[3][j][k];
+							w[3][j][k] = 0;
+						}
+					}
+				}
+
+				if (y == 0) {
+					for (auto i = 0; i < 4; i++) {
+						for (auto k = 0; k < 4; k++) {
+							w[i][1][k] += w[i][0][k];
+							w[i][0][k] = 0;
+						}
+					}
+				}
+
+				if (y == destDim.y - 1) {
+					for (auto i = 0; i < 4; i++) {
+						for (auto k = 0; k < 4; k++) {
+							w[i][2][k] += w[i][3][k];
+							w[i][3][k] = 0;
+						}
+					}
+				}
+
+
+				if (z == 0) {
+					for (auto i = 0; i < 4; i++) {
+						for (auto j = 0; j < 4; j++) {
+							w[i][j][1] += w[i][j][0];
+							w[i][j][0] = 0;
+						}
+					}
+				}
+
+				if (z == destDim.z - 1) {
+					for (auto i = 0; i < 4; i++) {
+						for (auto j = 0; j < 4; j++) {
+							w[i][j][2] += w[i][j][3];
+							w[i][j][3] = 0;
+						}
+					}
+				}
+
+				//Apply weights
+				/*T W = 0.0;
+				for (auto i = 0; i < 4; i++) {
+					for (auto j = 0; j < 4; j++) {
+						for (auto k = 0; k < 4; k++) {
+							ivec3 srcPos = ipos * 2 - ivec3(1, 1, 1) + ivec3(i, j, k);
+							if (isValidPos(srcDim, srcPos)) {
+								auto index = linearIndex(srcDim, srcPos);
+								w[i][j][k] *= srcWeights[index];
+								W += w[i][j][k];
+							}
+						}
+					}
+				}
+
+				//Normalize
+				for (auto i = 0; i < 4; i++) {
+					for (auto j = 0; j < 4; j++) {
+						for (auto k = 0; k < 4; k++) {
+							w[i][j][k] /= W;
+						}
+					}
+				}*/
+
+				for (auto i = 0; i < 4; i++) {
+					for (auto j = 0; j < 4; j++) {
+						for (auto k = 0; k < 4; k++) {
+							ivec3 srcPos = ipos * 2 - ivec3(1,1,1) + ivec3(i,j,k);
+
+							if (isValidPos(srcDim, srcPos)) {		
+								auto index = linearIndex(srcDim, srcPos);								
+								R.insert(destI, index) = w[i][j][k];
+							}
+							//ivec3 coarsePos = ipos;
+							/*if (i == 0) coarsePos[0] -= s[0];
+							if (j == 0) coarsePos[1] -= s[1];
+							if (k == 0) coarsePos[2] -= s[2];
+							if (i == 3) coarsePos[0] += s[0];
+							if (j == 3) coarsePos[1] += s[1];
+							if (k == 3) coarsePos[2] += s[2];
+*/
+
+
+							
+							
+						}
+					}
+				}
+
+				/*if (iposSrc.x == srcDim.x - 1 / *|| x == 0* /) s[0] = 0;
+				if (iposSrc.y == srcDim.y - 1 / *|| y == 0* /) s[1] = 0;
+				if (iposSrc.z == srcDim.z - 1 / *|| z == 0* /) s[2] = 0;
+*/
+
+				
+				//T w = 1.0 / 8.0;
+				/*R.insert(destI, srcI) = w[0];
+				R.insert(destI, srcI + s[0]) = w[1];
+				R.insert(destI, srcI + s[1]) = w[2];
+				R.insert(destI, srcI + s[0] + s[1]) = w[3];
+				R.insert(destI, srcI + s[2]) = w[4];
+				R.insert(destI, srcI + s[2] + s[0]) = w[5];
+				R.insert(destI, srcI + s[2] + s[1]) = w[6];
+				R.insert(destI, srcI + s[2] + s[1] + s[0]) = w[7];*/
+
+			}
+		}
+	}
+
+	return R;
+
+}
+
+template <typename T>
+Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix_(ivec3 srcDim, T * srcWeights){
+
+	using vec3 = glm::tvec3<T, glm::highp>;
+	const std::array<ivec3, 8> offsets = {
+		{
+		{ 0,0,0 },
+		{ 1,0,0 },
+		{ 0,1,0 },
+		{ 1,1,0 },
+		{ 0,0,1 },
+		{ 1,0,1 },
+		{ 0,1,1 },
+		{ 1,1,1 }
+		}
+	};
 
 	ivec3 destDim = srcDim / 2;
 
@@ -265,17 +474,37 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 				if (iposSrc.x == srcDim.x - 1 /*|| x == 0*/) s[0] = 0;
 				if (iposSrc.y == srcDim.y - 1 /*|| y == 0*/) s[1] = 0;
 				if (iposSrc.z == srcDim.z - 1 /*|| z == 0*/) s[2] = 0;
+								
+				T w[8];
+				for (auto i = 0; i < 8; i++) {
+					w[i] = srcWeights[srcI + offsets[i][0] * s[0] + offsets[i][1] * s[1] + offsets[i][2] * s[2]];
+					//w[i] = 1.0 / 8.0;
+					/*w[i] = 1.0 / 8.0;
+					if (ipos[0] == 0 || ipos[1] == 0 || ipos[2] == 0 ||
+						ipos[0] == destDim.x - 1 || ipos[1] == destDim.y - 1 || ipos[2] == destDim.z - 1
+						) {
+						w[i] = 1.0 / 8.0;
+					}*/
 
-				T w[8] = {
-					srcWeights[srcI],
-					srcWeights[srcI + s[0]],
-					srcWeights[srcI + s[1]],
-					srcWeights[srcI + s[1] + s[0]],
-					srcWeights[srcI + s[2]],
-					srcWeights[srcI + s[2] + s[0]],
-					srcWeights[srcI + s[2] + s[1]],
-					srcWeights[srcI + s[2] + s[1] + s[0]]
-				};
+
+					/*ivec3 posi = iposSrc + offsets[i];
+					vec3 pos = { posi.x / T(srcDim.x - 1), posi.y / T(srcDim.y - 1), posi.z / T(srcDim.z - 1) };
+					
+					T d = FLT_MAX;
+					for (auto k = 0; k < 3; k++) {
+						d = std::min(d, pos[k]);
+						d = std::min(d, 1.0f - pos[k]);
+					}
+
+					T dmax = 1.0 / destDim.x * 2;
+					if (d < dmax) {
+						w[i] *= 1.0 + (1.0 - (d / dmax));
+					}*/
+
+				}
+
+				
+				
 
 				if (weighted) {
 					T W = 0.0;
@@ -323,7 +552,27 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 
 
 template <typename T>
-Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim) {
+Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim, T * srcWeights, Dir dir) {
+
+
+	auto dirIndex = getDirIndex(dir);
+
+	const std::array<ivec3, 8> offsets = {
+		{
+			{ 0,0,0 },
+			{ 1,0,0 },
+			{ 0,1,0 },
+			{ 1,1,0 },
+			{ 0,0,1 },
+			{ 1,0,1 },
+			{ 0,1,1 },
+			{ 1,1,1 }
+		}
+	};
+
+	auto idot = [](const ivec3 & a, const ivec3 & b) {
+		return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+	};
 
 	ivec3 destDim = srcDim * 2;
 
@@ -332,8 +581,8 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim) {
 
 	Eigen::SparseMatrix<T, Eigen::RowMajor> I;
 	I.resize(ndest, n);
-	I.reserve(Eigen::VectorXi::Constant(ndest, 4));
-
+	I.reserve(Eigen::VectorXi::Constant(ndest, 8));
+	
 	for (auto z = 0; z < destDim.z; z++) {
 		for (auto y = 0; y < destDim.y; y++) {
 			for (auto x = 0; x < destDim.x; x++) {
@@ -341,12 +590,13 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim) {
 				ivec3 ipos = { x,y,z };
 				ivec3 iposSrc = ipos / 2;
 				ivec3 r = ivec3(ipos.x % 2, ipos.y % 2, ipos.z % 2) * 2 - 1;
+
 				auto destI = linearIndex(destDim, ipos);
 				auto srcI = linearIndex(srcDim, iposSrc);
 
 				ivec3 srcStride = { 1, srcDim.x, srcDim.x * srcDim.y };
 
-				if (true) {
+				if (false) {
 					T injectCoeff = 9.0 / 12.0;
 					if (x == destDim.x - 1 || x == 0)
 						injectCoeff += 1.0 / 12.0;
@@ -367,13 +617,153 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim) {
 				}
 
 
-			/*	if (true) {
+				if (true) {
+					srcStride = r * srcStride;
+					/*T w[8] = {
+						srcWeights[srcI],
+						srcWeights[srcI + srcStride[0]],
+						srcWeights[srcI + srcStride[1]],
+						srcWeights[srcI + srcStride[0] + srcStride[1]],
+						srcWeights[srcI + srcStride[2]],
+						srcWeights[srcI + srcStride[0] + srcStride[2]],
+						srcWeights[srcI + srcStride[1] + srcStride[2]],
+						srcWeights[srcI + srcStride[0] + srcStride[1] + srcStride[2]]
+					};*/
+
+					T P[8] = {
+						27, 9, 9, 3, 9, 3, 3, 1						
+					};
 
 
 
+					if ((dirIndex != 0 && (x == destDim.x - 1 || x == 0))) {
+						P[0] += P[1]; P[1] = 0;
+						P[2] += P[3]; P[3] = 0;
+						P[4] += P[5]; P[5] = 0;
+						P[6] += P[7]; P[7] = 0;
+					}
+
+					if ((dirIndex != 1 && (y == destDim.y - 1 || y == 0))) {
+						P[0] += P[2]; P[2] = 0;
+						P[1] += P[3]; P[3] = 0;
+						P[4] += P[6]; P[6] = 0;
+						P[5] += P[7]; P[7] = 0;
+					}
+
+					if ((dirIndex != 2 && (z == destDim.z - 1 || z == 0))) {
+						P[0] += P[4]; P[4] = 0;
+						P[1] += P[5]; P[5] = 0;
+						P[2] += P[6]; P[6] = 0;
+						P[3] += P[7]; P[7] = 0;
+					}
+
+					if ((x == destDim.x - 1 || x == 0)) {
+						for (auto i = 0; i < 8; i++) {
+							P[i] *= 4.0 / 3.0;
+							if (i == 1 || i == 3 || i == 5 || i == 7)
+								P[i] *= (2.0 / 3.0);
+						}
+					}
+					if ((y == destDim.y - 1 || y == 0)) {
+						for (auto i = 0; i < 8; i++) {
+							P[i] *= 4.0 / 3.0;
+							if (i == 2 || i == 3 || i == 6 || i == 7)
+								P[i] *= (2.0 / 3.0);
+						}
+					}
+					if ((z == destDim.z - 1 || z == 0)) {
+						for (auto i = 0; i < 8; i++) {
+							P[i] *= 4.0 / 3.0;
+							if (i == 4 || i == 5 || i == 6 || i == 7)
+								P[i] *= (2.0 / 3.0);
+						}
+					}
+
+					
+
+					T w[8];
+					T W = 0.0;
+					for (auto i = 0; i < 8; i++) {												
+						if (P[i] == 0) continue;
+						w[i] = P[i];
+
+
+						/*if (isValidPos(srcDim, iposSrc + r * offsets[i])) {
+							w[i] *= srcWeights[srcI + idot(offsets[i], srcStride)];
+						}
+						else {
+							//outside of domain, at dirichlet cond - use weight of existing
+							
+							//ONLY FOR X
+							if (i == 1) {
+								w[i] *= srcWeights[srcI + idot(offsets[0], srcStride)];
+							}
+							else if (i == 3) {
+								if(P[2] != 0)
+									w[i] *= srcWeights[srcI + idot(offsets[2], srcStride)];
+								else
+									w[i] *= srcWeights[srcI + idot(offsets[0], srcStride)];
+							}
+							else if (i == 5) {
+								if (P[4] != 0)
+									w[i] *= srcWeights[srcI + idot(offsets[4], srcStride)];
+								else
+									w[i] *= srcWeights[srcI + idot(offsets[0], srcStride)];
+							}
+							else if (i == 7) {
+								if (P[6] != 0)
+									w[i] *= srcWeights[srcI + idot(offsets[6], srcStride)];
+								else if (P[4] != 0)
+									w[i] *= srcWeights[srcI + idot(offsets[4], srcStride)];
+								else
+									w[i] *= srcWeights[srcI + idot(offsets[0], srcStride)];
+							}
+							
+						}*/
+
+						W += w[i];
+					}
+					for (auto i = 0; i < 8; i++) {
+						w[i] /= W;
+					}
+					//std::map<int, T> vals;
+										
+					for (auto i = 0; i < 8; i++) {
+						if (P[i] == 0) continue;
+						if (!isValidPos(srcDim, iposSrc + r * offsets[i])) continue;
+					//	vals[srcI + idot(offsets[i], srcStride)] = w[i];
+						I.insert(destI, srcI + idot(offsets[i], srcStride)) = w[i];
+					}
+
+					
+
+
+				/*	if (w[0] > 0)
+						I.insert(destI, srcI) = w[0];
+
+					if(w[1] > 0)
+						I.insert(destI, srcI + srcStride[0]) = w[1];
+
+					if (w[2] > 0)
+						I.insert(destI, srcI + srcStride[1]) = w[2];
+
+					if (w[3] > 0)
+						I.insert(destI, srcI + srcStride[0] + srcStride[1]) = w[3];
+
+					if (w[4] > 0)
+						I.insert(destI, srcI + +srcStride[2]) = w[4];
+
+					if (w[5] > 0)
+						I.insert(destI, srcI + srcStride[0] + srcStride[2]) = w[5];
+
+					if (w[6] > 0)
+						I.insert(destI, srcI + srcStride[1] + srcStride[2]) = w[6];
+
+					if (w[7] > 0)
+						I.insert(destI, srcI + srcStride[0] + srcStride[1] + srcStride[2]) = w[7];				*/	
 
 				}
-*/
+
 
 
 
@@ -397,7 +787,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim) {
 
 
 	
-
+	I.makeCompressed();
 	return I;
 }
 
@@ -1050,6 +1440,17 @@ bool MultigridSolver<T>::prepare(
 		//Dlevels_interp[0].resize(origTotal, 0.0f);
 	}
 
+	
+
+	/*std::vector<Eigen::Matrix<float, Eigen::Dynamic, 1>> Dvec;
+	Dvec.resize(_lv);
+	Dvec[0].resize(total);
+	for (auto k = 0; k < vec.size(); k++) {
+		Dvec[0][k] = _D[0][k];
+	}*/
+
+
+
 	//Generate rest of levels, based on higher resolution
 	for (uint i = 1; i < _lv; i++) {
 		//const int divFactor = (1 << i);
@@ -1065,6 +1466,21 @@ bool MultigridSolver<T>::prepare(
 
 		_dims[i] = dim;
 		_D[i].resize(total,1.0);
+
+		
+
+		
+
+		
+
+		/*for (auto z = 0; z < dim.z; z++) {
+			for (auto y = 0; y < dim.y; y++) {
+				for (auto x = 0; x < dim.x; x++) {
+				}
+			}
+		}*/
+
+
 		//conv3D(D[i - 1].data(), _dims[i - 1], D[i].data(), _dims[i], _restrictOp);
 		restriction(_D[i - 1].data(), _dims[i - 1], _D[i].data(), _dims[i]);		
 		//pointRestriction(_D[i - 1].data(), _dims[i - 1], _D[i].data(), _dims[i]);
@@ -1120,8 +1536,25 @@ bool MultigridSolver<T>::prepare(
 		//_I[i] = interpolationMatrix<T>(_dims[i] / 2);
 		//_R[i] = _I[i].transpose() * pow(0.5, 3);
 
-		_R[i] = restrictionMatrix<T>(_dims[i],_D[i].data());
-		_I[i] = _R[i].transpose();
+		/*_R[i] = restrictionMatrix<T>(_dims[i],_D[i].data());
+		_I[i] = _R[i].transpose() * 8;
+		*/
+		_I[i] = interpolationMatrix<T>(_dims[i] / 2, _D[i].data(), dir);		
+		_R[i] = _I[i].transpose();// *pow(0.5, 3);
+
+
+
+		/*{
+			char buf[24]; itoa(i, buf, 10);
+			std::ofstream f("I_" + std::string(buf) + ".dat");
+
+			for (auto r = 0; r < _I[i].rows(); r++) {
+				for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_I[i], r); it; ++it) {
+					auto  j = it.col();
+					f << r+1 << " " << j+1 << " " << it.value() << "\n";
+				}				
+			}
+		}*/
 		
 		
 		/*char buf[256];
@@ -1139,10 +1572,11 @@ bool MultigridSolver<T>::prepare(
 			fi << Eigen::MatrixXd(_I[i]);*/
 			
 			//Galerkin
-			_A[i] = 0.5 *_R[i - 1] * _A[i - 1] * _I[i - 1];
+			_A[i] =  _R[i - 1] * _A[i - 1] * _I[i - 1];
+			
 		}
 
-
+		
 
 		/*sprintf(buf, "_A%d.txt", i);
 		std::ofstream fa(buf);
@@ -1619,7 +2053,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 		V_CYCLE_SINGLE
 	};
 
-	CycleType ctype = W_CYCLE;
+	CycleType ctype = V_CYCLE;
 
 	if (_dims[0].x <= 8)
 		ctype = V_CYCLE;
@@ -1670,6 +2104,8 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 	T ratioSum = 0.0;
 	//std::cout << "inital error: " << lastError << std::endl;	
 
+
+
 	for (auto k = 0; k < maxIterations; k++) {
 
 		int prevI = -1;
@@ -1713,6 +2149,13 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//return 0;
 				//addDebugChannel(vol, v[i], _dims[i], "v presmoothed", i, true);
 				addDebugChannel(vol, _r[i], _dims[i], "r", k, true);
+				
+				/*auto rd = _r[i];				
+				for (auto k = 0; k < _D[i].size(); k++) {
+					rd[k] *= _D[i][k];				
+				}
+				addDebugChannel(vol, rd, _dims[i], "rd", k, true);*/
+
 
 				//Restriction
 
@@ -1722,9 +2165,11 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 				//_f[i + 1] *= 2.0;
 
-				_f[i + 1] = _R[i] * _r[i];
+				_f[i + 1] =  _R[i] * _r[i];
 				//restriction(_r[i].data(), _dims[i], _f[i + 1].data(), _dims[i + 1]);
 
+			/*	auto a = _f[i + 1][linearIndex(_dims[i + 1], { 7,1,0 })];
+				auto b = _f[i + 1][linearIndex(_dims[i + 1], { 7,2,0 })];*/
 
 				addDebugChannel(vol, _f[i+1], _dims[i+1], "R(r)", k, true);
 				

@@ -46,6 +46,11 @@ namespace blib {
 			std::lock_guard<std::mutex> lock(_mutex);
 			return _distribtion(_engine);
 		}
+
+		D & getDistribution() {
+			return _distribtion;
+		}
+
 	private:
 		std::mutex _mutex;
 		E _engine;

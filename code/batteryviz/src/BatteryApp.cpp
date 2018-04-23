@@ -59,12 +59,19 @@ void generateSpheresVolume(blib::Volume & volume, uint sphereCount, float sphere
 		
 		uchar * arr = (uchar *)c.getCurrentPtr().getCPU();
 
+		srand(0);
+
+
 		std::vector<vec3> pos;
 		std::vector<float> rad;
 
 		for (auto i = 0; i < sphereCount; i++) {
-			pos.push_back({ uniformDist.next(),uniformDist.next(),uniformDist.next() });
-			rad.push_back({ uniformDist.next()  * sphereRadius });
+			pos.push_back({ (rand() % 1024) / 1024.0f, (rand() % 1024) / 1024.0f, (rand() % 1024) / 1024.0f });
+
+			rad.push_back({ (rand() % 1024) / 1024.0f * sphereRadius });
+
+			//pos.push_back({ uniformDist.next(),uniformDist.next(),uniformDist.next() });
+			//rad.push_back({ uniformDist.next()  * sphereRadius });
 		}
 
 		#pragma omp parallel for
@@ -511,8 +518,8 @@ void BatteryApp::solveMultigridCPU()
 	auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
 	auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
 	auto exactSolveDim = 4;
-	//int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
-	int levels = 2;
+	int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
+	//int levels = 2;
 
 
 	Dir dir = Dir(_options["Diffusion"].get<int>("direction"));
@@ -662,12 +669,27 @@ void BatteryApp::reset()
 						vec3 normPos = { i / float(d[0] - 1),j / float(d[1] - 1), k / float(d[2] - 1), };
 
 
-						if (normPos.x < 0.1f  || normPos.x > 0.9f)
+						int border = 0;
+						if (i <= border || i >= d[0] - border - 1) {
+							data[index] = 0;
+						}
+						/*else if (j <= border || j >= d[1] - border - 1) {
+							data[index] = 0;
+						}
+						else if (k <= border|| k >= d[2] - border - 1) {
+							data[index] = 0;
+						}*/
+						else {
+							data[index] = 255;
+						}
+
+
+					/*	if (normPos.x < 0.1f  || normPos.x > 0.9f)
 							data[index] = 0;						
 						if (normPos.y < 0.1f || normPos.y > 0.9f)
 							data[index] = 0;
 						if (normPos.z < 0.1f || normPos.z > 0.9f)
-							data[index] = 0;
+							data[index] = 0;*/
 
 					}
 				}
@@ -701,7 +723,7 @@ void BatteryApp::reset()
 			auto & c = _volume->getChannel(batteryID);
 			uchar* data = (uchar*)c.getCurrentPtr().getCPU();
 
-			for (auto i = 0; i < d[0] - 0; i++) {
+			/*for (auto i = 0; i < d[0] - 0; i++) {
 				for (auto j = 0; j < d[1] - 0; j++) {
 					for (auto k = 0; k < d[2] - 0; k++) {
 
@@ -718,21 +740,25 @@ void BatteryApp::reset()
 
 						//data[index] = normPos.x + 0.;
 
-						/*if (abs(normPos.x - 0.5f) < 0.25f)
+						/ *if (abs(normPos.x - 0.5f) < 0.25f)
 							data[index] = 255;
 						else
 							data[index] = 0;
-*/
+* /
 
-						/*if (glm::length(normPos - vec3(0.5f)) < 0.45f)
+						/ *if (glm::length(normPos - vec3(0.5f)) < 0.45f)
 							data[index] = 255;
 						else
-							data[index] = 0;*/
+							data[index] = 0;* /
 					}
 				}
-			}
+			}*/
+
+			generateSpheresVolume(*_volume, 128, 0.15f);
 
 			c.getCurrentPtr().commit();
+
+			
 		}
 		
 		//Test for fipy cmp
@@ -754,7 +780,7 @@ void BatteryApp::reset()
 		}* /
 		c.getCurrentPtr().commit();*/
 
-		//generateSpheresVolume(*_volume, 128, 0.15f);
+		
 
 	}
 	/*{

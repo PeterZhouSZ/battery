@@ -178,6 +178,7 @@ namespace blib {
 		T bsqnorm = b.squaredNorm();
 		T tol_error = T(1);
 
+		Eigen::Matrix<T, Eigen::Dynamic, 1> nres = residual;
 
 		Eigen::Matrix<T, Eigen::Dynamic, 1> xprime = x;
 
@@ -188,9 +189,7 @@ namespace blib {
 			}*/
 
 
-		/*	for (auto i = 0; i < 256; i++) {
-				gaussSeidelBoundaries(A, b, x, dim);
-			}*/
+		
 			
 
 			if (true) {
@@ -201,8 +200,14 @@ namespace blib {
 					gaussSeidelStepLineZebra<T, 1, 1, true>(A, b, x, dim);
 					gaussSeidelStepLineZebra<T, 2, 1, false>(A, b, x, dim);
 					gaussSeidelStepLineZebra<T, 2, 1, true>(A, b, x, dim);
-				}
+				}				
 			}
+
+
+
+			/*for (auto i = 0; i < 256; i++) {
+				gaussSeidelBoundaries(A, b, x, dim);
+			}*/
 
 			if (false) {
 
@@ -259,6 +264,32 @@ namespace blib {
 			//gaussSeidelStepParallel(A, b, x, dim);
 
 			residual = b - A*x;
+
+			//Ordered GS
+			/*{
+				nres = residual.cwiseAbs() / residual.lpNorm<1>();
+
+				struct E {
+					T val;
+					int index;
+				};
+				std::vector<E> indices;
+				for (auto i = 0; i < nres.size(); i++) {
+					indices.push_back({ nres[i],i });
+				}
+				std::sort(indices.begin(), indices.end(), [](const E & a, const E & b) { return a.val < b.val; });
+
+				for (auto & e : indices) {
+					gaussSeidelRelax(A, b, x, e.index);
+				}
+
+				residual = b - A*x;
+			}
+*/
+
+			
+
+
 
 			float err = residual.squaredNorm();
 			tol_error = sqrt(err / bsqnorm);
@@ -499,6 +530,28 @@ namespace blib {
 	
 	}
 
+	template<typename T>
+	void gaussSeidelRelax(
+		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
+		size_t row
+	) {
+		
+		T sum = T(0);
+		T diag = T(0);
+		for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
+			auto  col = it.col();
+			if (col == row) {
+				diag = it.value();
+				continue;
+			}
+			sum += it.value() * X[col];
+		}
+
+		X[row] = (b[row] - sum) / diag;
+	}
+
 
 	template <typename T, int dir, int sgn, bool alternate>
 	void gaussSeidelStepLineZebra(
@@ -522,6 +575,19 @@ namespace blib {
 				ivec3 vox;
 				vox[secDirs[0]] = i * 2;
 				vox[secDirs[1]] = j;
+/*
+
+				if (vox[secDirs[0]] == 0 && secDirs[0] == 1) continue;
+				if (vox[secDirs[0]] == dim[secDirs[0]] - 1 && secDirs[0] == 1) continue;
+
+				if (vox[secDirs[1]] == 0 && secDirs[1] == 1) continue;
+				if (vox[secDirs[1]] == dim[secDirs[1]] - 1 && secDirs[1] == 1) continue;
+
+				if (vox[secDirs[0]] == 0 && secDirs[0] == 2) continue;
+				if (vox[secDirs[0]] == dim[secDirs[0]] - 1 && secDirs[0] == 2) continue;
+
+				if (vox[secDirs[1]] == 0 && secDirs[1] == 2) continue;
+				if (vox[secDirs[1]] == dim[secDirs[1]] - 1 && secDirs[1] == 2) continue;*/
 
 				if (!alternate)
 					vox[secDirs[0]] += j % 2;
