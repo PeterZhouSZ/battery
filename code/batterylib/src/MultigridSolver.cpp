@@ -240,7 +240,7 @@ void restriction(
 
 
 template <typename T>
-Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcWeights) {
+Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcWeights, Dir dir) {
 	using vec3 = glm::tvec3<T, glm::highp>;
 	const std::array<ivec3, 8> offsets = {
 		{
@@ -265,6 +265,8 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 	R.reserve(Eigen::VectorXi::Constant(ndest, 64));
 
 	bool weighted = true;
+
+	int dirIndex = getDirIndex(dir);
 
 	//#pragma omp parallel for if(destDim.x > 4)
 	for (auto z = 0; z < destDim.z; z++) {
@@ -305,7 +307,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 
 				};
 
-				if (x == 0) {
+				if (x == 0 && dirIndex != 0) {
 					for (auto j = 0; j < 4; j++) {
 						for (auto k = 0; k < 4; k++) {
 							w[1][j][k] += w[0][j][k];
@@ -314,7 +316,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 					}
 				}
 
-				if (x == destDim.x -1) {
+				if (x == destDim.x -1 && dirIndex != 0) {
 					for (auto j = 0; j < 4; j++) {
 						for (auto k = 0; k < 4; k++) {
 							w[2][j][k] += w[3][j][k];
@@ -323,7 +325,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 					}
 				}
 
-				if (y == 0) {
+				if (y == 0 && dirIndex != 1) {
 					for (auto i = 0; i < 4; i++) {
 						for (auto k = 0; k < 4; k++) {
 							w[i][1][k] += w[i][0][k];
@@ -332,7 +334,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 					}
 				}
 
-				if (y == destDim.y - 1) {
+				if (y == destDim.y - 1 && dirIndex != 1) {
 					for (auto i = 0; i < 4; i++) {
 						for (auto k = 0; k < 4; k++) {
 							w[i][2][k] += w[i][3][k];
@@ -342,7 +344,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 				}
 
 
-				if (z == 0) {
+				if (z == 0 && dirIndex != 2) {
 					for (auto i = 0; i < 4; i++) {
 						for (auto j = 0; j < 4; j++) {
 							w[i][j][1] += w[i][j][0];
@@ -351,7 +353,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 					}
 				}
 
-				if (z == destDim.z - 1) {
+				if (z == destDim.z - 1 && dirIndex != 2) {
 					for (auto i = 0; i < 4; i++) {
 						for (auto j = 0; j < 4; j++) {
 							w[i][j][2] += w[i][j][3];
@@ -361,12 +363,16 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 				}
 
 				//Apply weights
-				/*T W = 0.0;
+		/*		T W = 0.0;
 				for (auto i = 0; i < 4; i++) {
 					for (auto j = 0; j < 4; j++) {
 						for (auto k = 0; k < 4; k++) {
 							ivec3 srcPos = ipos * 2 - ivec3(1, 1, 1) + ivec3(i, j, k);
+							
 							if (isValidPos(srcDim, srcPos)) {
+
+								
+
 								auto index = linearIndex(srcDim, srcPos);
 								w[i][j][k] *= srcWeights[index];
 								W += w[i][j][k];
@@ -383,6 +389,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 						}
 					}
 				}*/
+
 
 				for (auto i = 0; i < 4; i++) {
 					for (auto j = 0; j < 4; j++) {
@@ -1536,11 +1543,11 @@ bool MultigridSolver<T>::prepare(
 		//_I[i] = interpolationMatrix<T>(_dims[i] / 2);
 		//_R[i] = _I[i].transpose() * pow(0.5, 3);
 
-		/*_R[i] = restrictionMatrix<T>(_dims[i],_D[i].data());
-		_I[i] = _R[i].transpose() * 8;
-		*/
-		_I[i] = interpolationMatrix<T>(_dims[i] / 2, _D[i].data(), dir);		
-		_R[i] = _I[i].transpose();// *pow(0.5, 3);
+		_R[i] = restrictionMatrix<T>(_dims[i],_D[i].data(),dir);
+		_I[i] = _R[i].transpose();
+		
+		//_I[i] = interpolationMatrix<T>(_dims[i] / 2, _D[i].data(), dir);		
+		//_R[i] = _I[i].transpose();// *pow(0.5, 3);
 
 
 
@@ -1571,8 +1578,9 @@ bool MultigridSolver<T>::prepare(
 			std::ofstream fi(buf);
 			fi << Eigen::MatrixXd(_I[i]);*/
 			
+
 			//Galerkin
-			_A[i] =  _R[i - 1] * _A[i - 1] * _I[i - 1];
+			_A[i] =   _R[i - 1] * _A[i - 1] * _I[i - 1];
 			
 		}
 
@@ -1595,6 +1603,24 @@ bool MultigridSolver<T>::prepare(
 
 
 	}
+
+	_DVec.resize(_lv);
+	for (auto i = 0; i < _lv; i++) {
+		
+		
+		if (i > 0)
+			_DVec[i] = _R[i - 1] * _DVec[i - 1];
+		else {
+			_DVec[i].resize(_D[i].size());
+			for (auto k = 0; k < _D[i].size(); k++) {
+				_DVec[i][k] = _D[i][k];
+			}
+		}
+
+		addDebugChannel(v, _DVec[i], _dims[i], "D", i, true);
+	}
+
+	
 	
 	return res;
 }
@@ -2038,7 +2064,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 	
 
 	if (_verbose) {
-		addDebugChannel(vol, _x[0], _dims[0], "initial guess ", 0, true);
+		//addDebugChannel(vol, _x[0], _dims[0], "initial guess ", 0, true);
 	}
 
 	
@@ -2171,7 +2197,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 			/*	auto a = _f[i + 1][linearIndex(_dims[i + 1], { 7,1,0 })];
 				auto b = _f[i + 1][linearIndex(_dims[i + 1], { 7,2,0 })];*/
 
-				addDebugChannel(vol, _f[i+1], _dims[i+1], "R(r)", k, true);
+				//addDebugChannel(vol, _f[i+1], _dims[i+1], "R(r)", k, true);
 				
 			
 				/*std::cout << "r: " << _r[i].sum() << " vs ";
@@ -2191,7 +2217,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//std::cout << "x pre interp " << i + 1 << ": " << v[i + 1].squaredNorm() << std::endl;
 
 				//Interpolation
-				addDebugChannel(vol, _x[i+1], _dims[i+1], "x", k, true);
+				//addDebugChannel(vol, _x[i+1], _dims[i+1], "x", k, true);
 				//interpolationWeighted<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i], _D[i + 1].data());
 				
 				//interp3D<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i]);
@@ -2199,7 +2225,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//interpolation<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i]);
 				_tmpx[i] = _I[i] * _x[i+1];
 
-				addDebugChannel(vol, _tmpx[i], _dims[i], "I(x)", k, true);
+				//addDebugChannel(vol, _tmpx[i], _dims[i], "I(x)", k, true);
 				//
 				
 

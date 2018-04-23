@@ -89,6 +89,7 @@ namespace blib {
 		uint _iterations;
 
 		std::vector<std::vector<T>> _D;
+		std::vector<Vector> _DVec;
 
 		Dir _dir;
 

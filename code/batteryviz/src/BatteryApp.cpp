@@ -518,8 +518,8 @@ void BatteryApp::solveMultigridCPU()
 	auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
 	auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
 	auto exactSolveDim = 4;
-	int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
-	//int levels = 2;
+	//int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
+	int levels = 2;
 
 
 	Dir dir = Dir(_options["Diffusion"].get<int>("direction"));
@@ -723,7 +723,7 @@ void BatteryApp::reset()
 			auto & c = _volume->getChannel(batteryID);
 			uchar* data = (uchar*)c.getCurrentPtr().getCPU();
 
-			/*for (auto i = 0; i < d[0] - 0; i++) {
+			for (auto i = 0; i < d[0] - 0; i++) {
 				for (auto j = 0; j < d[1] - 0; j++) {
 					for (auto k = 0; k < d[2] - 0; k++) {
 
@@ -738,23 +738,26 @@ void BatteryApp::reset()
 
 						vec3 normPos = { i / float(d[0] - 1),j / float(d[1] - 1), k / float(d[2] - 1), };
 
+						//if()
+
 						//data[index] = normPos.x + 0.;
 
-						/ *if (abs(normPos.x - 0.5f) < 0.25f)
+						/*/ *if (abs(normPos.x - 0.5f) < 0.25f)
 							data[index] = 255;
 						else
 							data[index] = 0;
-* /
+						* /*/
 
-						/ *if (glm::length(normPos - vec3(0.5f)) < 0.45f)
+						float distC = glm::length(normPos - vec3(0.5f));
+						if (distC < 0.45f && distC > 0.35f)
 							data[index] = 255;
 						else
-							data[index] = 0;* /
+							data[index] = 0;
 					}
 				}
-			}*/
+			}
 
-			generateSpheresVolume(*_volume, 128, 0.15f);
+			//generateSpheresVolume(*_volume, 128, 0.15f);
 
 			c.getCurrentPtr().commit();
 

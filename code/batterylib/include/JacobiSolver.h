@@ -193,14 +193,25 @@ namespace blib {
 			
 
 			if (true) {
-				for (auto k = 0; k < 1; k++) {
+				static int K = 0;
+				
+				if(K%2 == 0){
 					gaussSeidelStepLineZebra<T, 0, 1, false>(A, b, x, dim);
 					gaussSeidelStepLineZebra<T, 0, 1, true>(A, b, x, dim);
 					gaussSeidelStepLineZebra<T, 1, 1, false>(A, b, x, dim);
 					gaussSeidelStepLineZebra<T, 1, 1, true>(A, b, x, dim);
 					gaussSeidelStepLineZebra<T, 2, 1, false>(A, b, x, dim);
 					gaussSeidelStepLineZebra<T, 2, 1, true>(A, b, x, dim);
-				}				
+				}		
+				else {
+						gaussSeidelStepLineZebra<T, 0, -1, true>(A, b, x, dim);
+						gaussSeidelStepLineZebra<T, 0, -1, false>(A, b, x, dim);
+						gaussSeidelStepLineZebra<T, 1, -1, true>(A, b, x, dim);
+						gaussSeidelStepLineZebra<T, 1, -1, false>(A, b, x, dim);
+						gaussSeidelStepLineZebra<T, 2, -1, true>(A, b, x, dim);
+						gaussSeidelStepLineZebra<T, 2, -1, false>(A, b, x, dim);
+				}
+				K++;
 			}
 
 
