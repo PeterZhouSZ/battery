@@ -34,4 +34,16 @@ namespace blib {
 				pos.x < dim.x && pos.y < dim.y && pos.z < dim.z;
 	}
 
+	inline ivec3 posFromLinear(const ivec3 & dim, size_t index) {
+
+		ivec3 pos;
+		pos.x = index % dim.x;
+		index = (index - pos.x) / dim.x;
+		pos.y = index % dim.y;
+		pos.z = index / dim.y;
+		return pos;
+
+		//return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
+	}
+
 }

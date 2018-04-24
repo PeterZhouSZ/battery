@@ -129,12 +129,59 @@ namespace blib {
 	}
 
 	template <typename T>
+	void jacobiStepBoundary(
+		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & xnew,
+		ivec3 dim
+	) {
+
+#ifndef _DEBUG
+#pragma omp parallel for
+#endif
+		for (auto i = 0; i < A.rows(); i++) {
+
+			T sum = 0.0f;
+			T diag = 0.0f;
+			int cnt = 0;
+			T sumA = 0.0;
+			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
+				auto  j = it.col();
+				if (j == i) {
+					diag = it.value();
+					continue;
+				}
+				sum += it.value() * x[j];
+				sumA += it.value();
+				cnt++;
+			}
+
+			T avgA = sumA / cnt;
+			ivec3 pos = posFromLinear(dim,i);
+
+			if (abs(abs(diag) - abs(avgA)) > diag / 2) {
+				xnew[i] = (b[i] - sum) / diag;
+			}
+
+			/*if (diag == 0.0f) {
+			char k;
+			k = 0;
+			}*/
+			
+		}
+	}
+
+	template <typename T>
 	void jacobiStep(
 		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
 		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
 		Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
-		Eigen::Matrix<T, Eigen::Dynamic, 1> & xnew
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & xnew,
+		T weight
 	) {
+
+		//assert(weight >= 0.0 && weight <= 1.0);
 
 #ifndef _DEBUG
 #pragma omp parallel for
@@ -156,7 +203,9 @@ namespace blib {
 				char k;
 				k = 0;
 			}*/
-			xnew[i] = (b[i] - sum) / diag;
+			//xnew[i] = (b[i] - sum) / diag;
+			xnew[i] = (1 - weight) * x[i] + weight * ((b[i] - sum) / diag);
+
 		}
 	}
 
@@ -188,8 +237,35 @@ namespace blib {
 				gaussSeidelStepZebra(A, b, x, dim, Dir(k));
 			}*/
 
+			residual = b - A*x;
 
-		
+			//Ordered GS
+			/*for (auto p = 0; p < 10; p++) {
+				{
+					nres = residual.cwiseAbs() / residual.lpNorm<1>();
+
+					struct E {
+						T val;
+						int index;
+					};
+					std::vector<E> indices;
+					for (auto i = 0; i < nres.size(); i++) {
+						indices.push_back({ nres[i],i });
+					}
+					std::sort(indices.begin(), indices.end(), [](const E & a, const E & b) { return a.val > b.val; });
+
+					for (auto & e : indices) {
+						gaussSeidelRelax(A, b, x, e.index);
+					}
+
+				}
+			}
+*/
+
+			/*for (auto k = 0; k < 64; k++) {
+				jacobiStep(A, b, x, xprime, 2.0 / 3.0);
+				jacobiStep(A, b, xprime, x, 2.0 / 3.0);
+			}*/
 			
 
 			if (true) {
@@ -215,6 +291,8 @@ namespace blib {
 			}
 
 
+			
+
 
 			/*for (auto i = 0; i < 256; i++) {
 				gaussSeidelBoundaries(A, b, x, dim);
@@ -222,7 +300,7 @@ namespace blib {
 
 			if (false) {
 
-				int iter = 512;
+				int iter = 64;
 				{
 					const int dir = 0;
 					for (auto plane = 0; plane < dim[dir]; plane++) {
@@ -274,32 +352,11 @@ namespace blib {
 
 			//gaussSeidelStepParallel(A, b, x, dim);
 
-			residual = b - A*x;
-
-			//Ordered GS
-			/*{
-				nres = residual.cwiseAbs() / residual.lpNorm<1>();
-
-				struct E {
-					T val;
-					int index;
-				};
-				std::vector<E> indices;
-				for (auto i = 0; i < nres.size(); i++) {
-					indices.push_back({ nres[i],i });
-				}
-				std::sort(indices.begin(), indices.end(), [](const E & a, const E & b) { return a.val < b.val; });
-
-				for (auto & e : indices) {
-					gaussSeidelRelax(A, b, x, e.index);
-				}
-
-				residual = b - A*x;
-			}
-*/
-
+			
 			
 
+			
+			residual = b - A*x;
 
 
 			float err = residual.squaredNorm();

@@ -23,8 +23,10 @@ template class MultigridSolver<double>;
 #include <fstream>
 
 //#define PERIODIC
-#define HARMONIC
+//#define HARMONIC
 #define MOLENAAR
+
+#define HALF_VOLUME_IR
 
 
 
@@ -307,6 +309,52 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 
 				};
 
+				/*T w[4][4][4] = {
+					{
+						{ 0,0,0,0 },
+						{ 0,0,0,0 },
+						{ 0,0,0,0 },
+						{ 0,0,0,0 }
+					},
+					{
+						{ 0,0,0,0 },
+						{ 0,1,1,0 },
+						{ 0,1,1,0 },
+						{ 0,0,0,0 }
+					},
+					{
+						{ 0,0,0,0 },
+						{ 0,1,1,0 },
+						{ 0,1,1,0 },
+						{ 0,0,0,0 }
+					},
+					{
+						{ 0,0,0,0 },
+						{ 0,0,0,0 },
+						{ 0,0,0,0 },
+						{ 0,0,0,0 }
+					},
+
+				};*/
+
+#ifdef HALF_VOLUME_IR
+				for (auto i = 0; i < 4; i++) {
+					for (auto j = 0; j < 4; j++) {
+						for (auto k = 0; k < 4; k++) {
+							ivec3 off = { i,j,k };
+
+							for (auto d = 0; d < 3; d++) {
+								if ((ipos[d] == 0 && off[d] == 0) ||
+									(ipos[d] == destDim[d] - 1 && off[d] == 3)
+									) {
+									w[i][j][k] *= (3.0 / 2.0);
+								}															
+							}							
+						}
+					}
+				}
+#endif
+
 				if (x == 0 && dirIndex != 0) {
 					for (auto j = 0; j < 4; j++) {
 						for (auto k = 0; k < 4; k++) {
@@ -363,20 +411,35 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 				}
 
 				//Apply weights
-		/*		T W = 0.0;
+				T W = 0.0;
 				for (auto i = 0; i < 4; i++) {
 					for (auto j = 0; j < 4; j++) {
 						for (auto k = 0; k < 4; k++) {
 							ivec3 srcPos = ipos * 2 - ivec3(1, 1, 1) + ivec3(i, j, k);
 							
-							if (isValidPos(srcDim, srcPos)) {
-
-								
+							if (isValidPos(srcDim, srcPos)) {															
 
 								auto index = linearIndex(srcDim, srcPos);
 								w[i][j][k] *= srcWeights[index];
-								W += w[i][j][k];
+								//W += w[i][j][k];
 							}
+							else {
+								//dirichlet outside of domain
+
+								
+								for (auto d = 0; d < 3; d++) {
+									int dmod = (dirIndex + d) % 3;
+									if (srcPos[dmod] == -1)
+										srcPos[dmod]++;
+									else if (srcPos[dmod] == srcDim[dmod])
+										srcPos[dmod]--;
+								}
+								auto index = linearIndex(srcDim, srcPos);
+								w[i][j][k] *= srcWeights[index];
+								
+							}
+
+							W += w[i][j][k];
 						}
 					}
 				}
@@ -388,7 +451,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 							w[i][j][k] /= W;
 						}
 					}
-				}*/
+				}
 
 
 				for (auto i = 0; i < 4; i++) {
@@ -604,6 +667,25 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim, T * sr
 				ivec3 srcStride = { 1, srcDim.x, srcDim.x * srcDim.y };
 
 				if (false) {
+					I.insert(destI, srcI) = 1.0;
+				}
+
+				/*if (true) {
+					ivec3 iposDestOrigin = iposSrc * 2;
+					T W = srcWeights[destI] +
+						srcWeights[destI + srcStride.x] +
+						srcWeights[destI + srcStride.x + srcStride.y] +
+						srcWeights[destI + srcStride.y] +
+						srcWeights[destI + srcStride.z] +
+						srcWeights[destI + srcStride.x + srcStride.z] +
+						srcWeights[destI + srcStride.x + srcStride.y + srcStride.z] +
+						srcWeights[destI + srcStride.y + srcStride.z];
+					I.insert(destI, srcI) = srcWeights[destI] / W;
+
+				}
+*/
+
+				if (false) {
 					T injectCoeff = 9.0 / 12.0;
 					if (x == destDim.x - 1 || x == 0)
 						injectCoeff += 1.0 / 12.0;
@@ -641,7 +723,29 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim, T * sr
 						27, 9, 9, 3, 9, 3, 3, 1						
 					};
 
-
+#ifdef HALF_VOLUME_IR
+					if ((x == destDim.x - 1 || x == 0)) {
+						for (auto i = 0; i < 8; i++) {
+							P[i] *= 4.0 / 3.0;
+							if (i == 1 || i == 3 || i == 5 || i == 7)
+								P[i] *= (2.0 / 3.0);
+						}
+					}
+					if ((y == destDim.y - 1 || y == 0)) {
+						for (auto i = 0; i < 8; i++) {
+							P[i] *= 4.0 / 3.0;
+							if (i == 2 || i == 3 || i == 6 || i == 7)
+								P[i] *= (2.0 / 3.0);
+						}
+					}
+					if ((z == destDim.z - 1 || z == 0)) {
+						for (auto i = 0; i < 8; i++) {
+							P[i] *= 4.0 / 3.0;
+							if (i == 4 || i == 5 || i == 6 || i == 7)
+								P[i] *= (2.0 / 3.0);
+						}
+					}
+#endif
 
 					if ((dirIndex != 0 && (x == destDim.x - 1 || x == 0))) {
 						P[0] += P[1]; P[1] = 0;
@@ -664,27 +768,6 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim, T * sr
 						P[3] += P[7]; P[7] = 0;
 					}
 
-					if ((x == destDim.x - 1 || x == 0)) {
-						for (auto i = 0; i < 8; i++) {
-							P[i] *= 4.0 / 3.0;
-							if (i == 1 || i == 3 || i == 5 || i == 7)
-								P[i] *= (2.0 / 3.0);
-						}
-					}
-					if ((y == destDim.y - 1 || y == 0)) {
-						for (auto i = 0; i < 8; i++) {
-							P[i] *= 4.0 / 3.0;
-							if (i == 2 || i == 3 || i == 6 || i == 7)
-								P[i] *= (2.0 / 3.0);
-						}
-					}
-					if ((z == destDim.z - 1 || z == 0)) {
-						for (auto i = 0; i < 8; i++) {
-							P[i] *= 4.0 / 3.0;
-							if (i == 4 || i == 5 || i == 6 || i == 7)
-								P[i] *= (2.0 / 3.0);
-						}
-					}
 
 					
 
@@ -694,11 +777,34 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim, T * sr
 						if (P[i] == 0) continue;
 						w[i] = P[i];
 
+						vec3 srcPos = iposSrc + r * offsets[i];
 
-						/*if (isValidPos(srcDim, iposSrc + r * offsets[i])) {
+						if (isValidPos(srcDim, srcPos)) {
 							w[i] *= srcWeights[srcI + idot(offsets[i], srcStride)];
 						}
 						else {
+							//outside of domain, dirichlet (since P[i] > 0)
+							ivec3 offset = offsets[i];
+							offset[dirIndex] -= 1;
+							if (!isValidPos(srcDim, iposSrc + r * offset)) {
+								offset[(dirIndex + 1) % 3] -= 1;
+							}
+							if (!isValidPos(srcDim, iposSrc + r * offset)) {
+								offset[(dirIndex + 2) % 3] -= 1;
+							}
+
+							w[i] *= srcWeights[srcI + idot(offset, srcStride)];
+						
+						}
+
+						/*if(srcPos[dirIndex] == -1){
+
+							
+							
+							w[i] *= srcWeights[srcI + idot(offsets[i], srcStride)];
+
+						}*/
+						/*else {
 							//outside of domain, at dirichlet cond - use weight of existing
 							
 							//ONLY FOR X
@@ -1544,9 +1650,9 @@ bool MultigridSolver<T>::prepare(
 		//_R[i] = _I[i].transpose() * pow(0.5, 3);
 
 		_R[i] = restrictionMatrix<T>(_dims[i],_D[i].data(),dir);
-		_I[i] = _R[i].transpose();
+		//_I[i] = _R[i].transpose();
 		
-		//_I[i] = interpolationMatrix<T>(_dims[i] / 2, _D[i].data(), dir);		
+		_I[i] = interpolationMatrix<T>(_dims[i] / 2, _D[i].data(), dir);		
 		//_R[i] = _I[i].transpose();// *pow(0.5, 3);
 
 
@@ -2124,8 +2230,10 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 	Vector rInit = _f[0] - _A[0] * _x[0];
 
+	T firstResNorm = rInit.squaredNorm();
+
 	T finalError = FLT_MAX;
-	T lastError = sqrt(rInit.squaredNorm() / _f[0].squaredNorm());
+	T lastError = sqrt(rInit.squaredNorm() / _f[0].squaredNorm());	
 	T lastResNorm = rInit.norm();
 	T ratioSum = 0.0;
 	//std::cout << "inital error: " << lastError << std::endl;	
@@ -2161,6 +2269,9 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				
 				//addDebugChannel(vol, _tmpx[i], _dims[i], "I(x)", k, true);
 
+				_r[i] = _f[i] - _A[i] * _x[i];
+				addDebugChannel(vol, _r[i], _dims[i], "rPre", k, true);
+
 				//Pre smoother
 				T err = solveGaussSeidel(_A[i], _f[i], _x[i], _r[i], _dims[i], tolerance, preN, false); // df = f  A*v
 				//T err = solveJacobi(_A[i], _f[i], _x[i], _tmpx[i], _r[i], tolerance, preN, false); // df = f  A*v
@@ -2174,7 +2285,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				
 				//return 0;
 				//addDebugChannel(vol, v[i], _dims[i], "v presmoothed", i, true);
-				addDebugChannel(vol, _r[i], _dims[i], "r", k, true);
+				addDebugChannel(vol, _r[i], _dims[i], "rPost", k, true);
 				
 				/*auto rd = _r[i];				
 				for (auto k = 0; k < _D[i].size(); k++) {
@@ -2197,7 +2308,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 			/*	auto a = _f[i + 1][linearIndex(_dims[i + 1], { 7,1,0 })];
 				auto b = _f[i + 1][linearIndex(_dims[i + 1], { 7,2,0 })];*/
 
-				//addDebugChannel(vol, _f[i+1], _dims[i+1], "R(r)", k, true);
+				addDebugChannel(vol, _f[i+1], _dims[i+1], "R(r)", k, true);
 				
 			
 				/*std::cout << "r: " << _r[i].sum() << " vs ";
@@ -2217,7 +2328,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//std::cout << "x pre interp " << i + 1 << ": " << v[i + 1].squaredNorm() << std::endl;
 
 				//Interpolation
-				//addDebugChannel(vol, _x[i+1], _dims[i+1], "x", k, true);
+				addDebugChannel(vol, _x[i+1], _dims[i+1], "x", k, true);
 				//interpolationWeighted<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i], _D[i + 1].data());
 				
 				//interp3D<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i]);
@@ -2225,7 +2336,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//interpolation<T>(_x[i + 1].data(), _dims[i + 1], _tmpx[i].data(), _dims[i]);
 				_tmpx[i] = _I[i] * _x[i+1];
 
-				//addDebugChannel(vol, _tmpx[i], _dims[i], "I(x)", k, true);
+				addDebugChannel(vol, _tmpx[i], _dims[i], "I(x)", k, true);
 				//
 				
 
@@ -2241,10 +2352,16 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 				//std::cout << "xtemp post interp " << i << ": " << tmpx[i].squaredNorm() << std::endl;
 
-				//addDebugChannel(vol, v[i], _dims[i], "v presmoothed", i, true);
+				
 
 				//Correction
 				_x[i] += _tmpx[i];
+
+				
+					addDebugChannel(vol, _r[i], _dims[i], "r pre corr", i, true); {
+					_r[i] = _f[i] - _A[i] * _x[i];
+					addDebugChannel(vol, _r[i], _dims[i], "r post corr", i, true);
+				}
 
 				//Post smoothing, v[i] is initial guess & result		
 				T err = solveGaussSeidel(_A[i], _f[i], _x[i], _r[i], _dims[i], tolerance, postN, false);
@@ -2254,7 +2371,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 					//std::cout << "^ level " << i << " ||r||^2 = " << _r[i].squaredNorm() << std::endl;
 				}
 
-				//addDebugChannel(vol, v[i], _dims[i], "v presmoothed", i, true);
+				addDebugChannel(vol, _r[i], _dims[i], "r postsmo", i, true);
 
 			}
 
@@ -2278,7 +2395,10 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 
 
 		std::cout << "k = " << k << " | |r|: " << resNorm << ", ratio: " << resNorm / lastResNorm;
-		std::cout << " | |e|: " << err << ", ratio: " << err / lastError << std::endl;
+		std::cout << " | |e|: " << err << ", ratio: " << err / lastError;
+
+		std::cout << " | avg e:" << pow(_r[0].squaredNorm() / firstResNorm, 1.0 / k);
+		std::cout << std::endl;
 
 		ratioSum += resNorm / lastResNorm;
 

@@ -749,6 +749,8 @@ void BatteryApp::reset()
 						* /*/
 
 						float distC = glm::length(normPos - vec3(0.5f));
+						//auto diff = glm::abs(normPos - vec3(0.5f));
+						//float distC = glm::max(glm::max(diff.x, diff.y),-1.0f);
 						if (distC < 0.45f && distC > 0.35f)
 							data[index] = 255;
 						else
