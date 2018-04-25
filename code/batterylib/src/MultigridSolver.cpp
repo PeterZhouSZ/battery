@@ -26,7 +26,7 @@ template class MultigridSolver<double>;
 //#define HARMONIC
 #define MOLENAAR
 
-#define HALF_VOLUME_IR
+//#define HALF_VOLUME_IR
 
 
 
@@ -773,7 +773,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim, T * sr
 
 					T w[8];
 					T W = 0.0;
-					for (auto i = 0; i < 8; i++) {												
+					for (auto i = 0; i < 8; i++) {											
 						if (P[i] == 0) continue;
 						w[i] = P[i];
 
@@ -794,8 +794,9 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim, T * sr
 							}
 
 							w[i] *= srcWeights[srcI + idot(offset, srcStride)];
-						
 						}
+
+						//if (linearIndex(srcDim,srcPos) == )
 
 						/*if(srcPos[dirIndex] == -1){
 
@@ -1511,7 +1512,7 @@ bool MultigridSolver<T>::prepare(
 	_R.resize(_lv);
 
 	//Generate D volume for smaller resolutions
-	_D.resize(_lv);
+	_D.resize(_lv + 1);
 	//std::vector<std::vector<T>> Dlevels(_lv);
 	//std::vector<std::vector<float>> Dlevels_interp(_lv);
 	
@@ -1612,8 +1613,12 @@ bool MultigridSolver<T>::prepare(
 		res &= prepareAtLevelFVM(_D[i].data(), _dims[i], dir, i);
 	}
 
-
-
+	{
+		ivec3 dim = _dims[_lv - 1] / 2;
+		const size_t total = dim.x * dim.y * dim.z;
+		_D[_lv].resize(total, 1.0);
+		restriction(_D[_lv - 1].data(), _dims[_lv - 1], _D[_lv].data(), dim);
+	}
 
 	for (uint i = 0; i < _lv; i++) {
 
@@ -1650,14 +1655,14 @@ bool MultigridSolver<T>::prepare(
 		//_R[i] = _I[i].transpose() * pow(0.5, 3);
 
 		_R[i] = restrictionMatrix<T>(_dims[i],_D[i].data(),dir);
-		//_I[i] = _R[i].transpose();
+		//_I[i] = _R[i].transpose() * 8;
 		
-		_I[i] = interpolationMatrix<T>(_dims[i] / 2, _D[i].data(), dir);		
+		_I[i] = interpolationMatrix<T>(_dims[i] / 2, _D[i + 1].data(), dir);		
 		//_R[i] = _I[i].transpose();// *pow(0.5, 3);
 
 
 
-		/*{
+		{
 			char buf[24]; itoa(i, buf, 10);
 			std::ofstream f("I_" + std::string(buf) + ".dat");
 
@@ -1667,7 +1672,19 @@ bool MultigridSolver<T>::prepare(
 					f << r+1 << " " << j+1 << " " << it.value() << "\n";
 				}				
 			}
-		}*/
+		}
+
+		{
+			char buf[24]; itoa(i, buf, 10);
+			std::ofstream f("R_" + std::string(buf) + ".dat");
+
+			for (auto r = 0; r < _R[i].rows(); r++) {
+				for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_R[i], r); it; ++it) {
+					auto  j = it.col();
+					f << r + 1 << " " << j + 1 << " " << it.value() << "\n";
+				}
+			}
+		}
 		
 		
 		/*char buf[256];
@@ -2185,7 +2202,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 		V_CYCLE_SINGLE
 	};
 
-	CycleType ctype = V_CYCLE;
+	CycleType ctype = W_CYCLE;
 
 	if (_dims[0].x <= 8)
 		ctype = V_CYCLE;
@@ -2403,12 +2420,21 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 		ratioSum += resNorm / lastResNorm;
 
 		lastResNorm = resNorm;
-		lastError = err;
 
-		if (err < tolerance || isinf(err) || isnan(err)) {
+		if (err < tolerance) {
 			finalError = err;
 			break;
 		}
+
+		if (isinf(err) || isnan(err) || err > lastError) {
+			std::cerr << "======= DIVERGENCE =======" << std::endl;
+			finalError = err;
+			break;
+		}
+
+		lastError = err;
+
+		
 			
 
 
