@@ -518,8 +518,8 @@ void BatteryApp::solveMultigridCPU()
 	auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
 	auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
 	auto exactSolveDim = 4;
-	//int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
-	int levels = 2;
+	int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
+	//int levels = 2;
 
 
 	Dir dir = Dir(_options["Diffusion"].get<int>("direction"));
@@ -634,7 +634,10 @@ void BatteryApp::reset()
 
 
 		//_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), 2*ivec3(32,32,16)  );
-		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(_options["Input"].get<int>("GenResolution"))  );
+		ivec3 userSize = ivec3(_options["Input"].get<int>("GenResolution"));
+		ivec3 size = glm::min(_volume->getChannel(CHANNEL_BATTERY).dim(), userSize);
+
+		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(size)  );
 		_volume->binarize(CHANNEL_BATTERY, 1.0f);
 
 		//Add concetration channel
