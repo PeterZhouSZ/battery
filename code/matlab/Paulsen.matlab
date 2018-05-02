@@ -38,8 +38,8 @@ function [ u ] = mgcyc_dir(u, f, L, v1, v2, cl )
 		u(:,[1 n],:) = Uy;
 		u(:,:,[1 o]) = Uz;
 	end
-
 	%% Compute the residual
+
 	df = f - convn(u,L,'same');
 	
 	%% Restriction
