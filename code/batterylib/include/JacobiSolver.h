@@ -11,69 +11,13 @@
 
 namespace blib {
 
-	template <typename T>
-	void solveJacobi(
-		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
-		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
-		Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
-		float tolerance = 1e-4,
-		size_t maxIter = 20000,
-		bool verbose = false
-
-	) {
-		Eigen::Matrix<T, Eigen::Dynamic, 1> xprime(x.size());
-		Eigen::Matrix<T, Eigen::Dynamic, 1> res(x.size());
-
-		maxIter = (maxIter / 2) * 2; //divisible by two
-
-
-		float bsqnorm = b.squaredNorm();
-		float tol2 = tolerance * tolerance * bsqnorm;
-
-		for (auto i = 0; i < maxIter; ++i) {
-
-			auto & curX = (i % 2 == 0) ? x : xprime;
-			auto & nextX = (i % 2 == 0) ? xprime : x;
-
-			res = b - A*curX;
-
-			float err = res.squaredNorm();// / bsqnorm;
-
-										  //float err = res.mean();
-
-			if (verbose && i % 128 == 0) {
-
-				float tol_error = sqrt(err / bsqnorm);
-
-				std::cout << "jacobi i: " << i << " err: " << err << ", tol_error: " << tol_error << std::endl;
-			}
-
-			if (err <= tol2) {
-
-
-				if (verbose) {
-					float tol_error = sqrt(err / bsqnorm);
-					std::cout << "solved " << err << " <= " << tol2 << std::endl;
-					std::cout << "tol_error" << tol_error << std::endl;
-				}
-
-				if (&x != &curX) {
-					std::swap(x, curX);
-				}
-				break;
-			}
-			jacobiStep(A, b, curX, nextX);
-
-		}
-
-	}
-
+	
 	template <typename T>
 	T solveJacobi(
 		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
 		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
 		Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
-		Eigen::Matrix<T, Eigen::Dynamic, 1> & xprime,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & xprime, // Double buffered
 		Eigen::Matrix<T, Eigen::Dynamic, 1> & residual,
 		float tolerance = 1e-4,
 		size_t maxIter = 20000,
@@ -96,9 +40,8 @@ namespace blib {
 
 			residual = b - A*curX;
 
-			float err = residual.squaredNorm();// / bsqnorm;
-
-										  //float err = res.mean();
+			float err = residual.squaredNorm();
+										  
 			tol_error = sqrt(err / bsqnorm);
 
 			if (verbose && i % 128 == 0) {
@@ -162,16 +105,15 @@ namespace blib {
 
 			if (abs(abs(diag) - abs(avgA)) > diag / 2) {
 				xnew[i] = (b[i] - sum) / diag;
-			}
-
-			/*if (diag == 0.0f) {
-			char k;
-			k = 0;
-			}*/
+			}	
 			
 		}
 	}
 
+
+	/*
+		Jacobi relaxation with weighting
+	*/
 	template <typename T>
 	void jacobiStep(
 		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
@@ -181,7 +123,7 @@ namespace blib {
 		T weight
 	) {
 
-		//assert(weight >= 0.0 && weight <= 1.0);
+		
 
 #ifndef _DEBUG
 #pragma omp parallel for
@@ -197,13 +139,7 @@ namespace blib {
 					continue;
 				}
 				sum += it.value() * x[j];
-			}
-
-			/*if (diag == 0.0f) {
-				char k;
-				k = 0;
-			}*/
-			//xnew[i] = (b[i] - sum) / diag;
+			}		
 			xnew[i] = (1 - weight) * x[i] + weight * ((b[i] - sum) / diag);
 
 		}
@@ -232,14 +168,10 @@ namespace blib {
 		Eigen::Matrix<T, Eigen::Dynamic, 1> xprime = x;
 
 		for (auto i = 0; i < maxIter; ++i) {
-			//gaussSeidelStep(A, b, x);
-			/*for (auto k = 0; k < 6; k+=2) {
-				gaussSeidelStepZebra(A, b, x, dim, Dir(k));
-			}*/
 
 			residual = b - A*x;
 
-			//Ordered GS
+			//Ordered GS by relative residual
 			/*for (auto p = 0; p < 10; p++) {
 				{
 					nres = residual.cwiseAbs() / residual.lpNorm<1>();
@@ -260,46 +192,25 @@ namespace blib {
 
 				}
 			}
-*/
+			*/
 
-			/*for (auto k = 0; k < 64; k++) {
-				jacobiStep(A, b, x, xprime, 2.0 / 3.0);
-				jacobiStep(A, b, xprime, x, 2.0 / 3.0);
-			}*/
-			
 
-			if (true) {
-				static int K = 0;
-				
-				if(K%2 == 0){
-					gaussSeidelStepLineZebra<T, 0, 1, false>(A, b, x, dim);
-					gaussSeidelStepLineZebra<T, 0, 1, true>(A, b, x, dim);
-					gaussSeidelStepLineZebra<T, 1, 1, false>(A, b, x, dim);
-					gaussSeidelStepLineZebra<T, 1, 1, true>(A, b, x, dim);
-					gaussSeidelStepLineZebra<T, 2, 1, false>(A, b, x, dim);
-					gaussSeidelStepLineZebra<T, 2, 1, true>(A, b, x, dim);
-				}		
-				else {
-						gaussSeidelStepLineZebra<T, 0, -1, true>(A, b, x, dim);
-						gaussSeidelStepLineZebra<T, 0, -1, false>(A, b, x, dim);
-						gaussSeidelStepLineZebra<T, 1, -1, true>(A, b, x, dim);
-						gaussSeidelStepLineZebra<T, 1, -1, false>(A, b, x, dim);
-						gaussSeidelStepLineZebra<T, 2, -1, true>(A, b, x, dim);
-						gaussSeidelStepLineZebra<T, 2, -1, false>(A, b, x, dim);
-				}
-				K++;
+
+			gaussSeidelStepLineZebra<T, 0, 1, false>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 0, 1, true>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 1, 1, false>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 1, 1, true>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 2, 1, false>(A, b, x, dim);
+			gaussSeidelStepLineZebra<T, 2, 1, true>(A, b, x, dim);
+
+
+			//Boundary sweep
+			if (false) {
+				gaussSeidelBoundaries(A, b, x, dim);
 			}
 
-
-			
-
-
-			/*for (auto i = 0; i < 256; i++) {
-				gaussSeidelBoundaries(A, b, x, dim);
-			}*/
-
+			//GS plane sweep (Jacobi in-plane)
 			if (false) {
-
 				int iter = 64;
 				{
 					const int dir = 0;
@@ -307,53 +218,22 @@ namespace blib {
 						jacobiPlane<T, dir>(A, b, x, xprime, dim, plane, iter);
 					}
 					
-				}
-
-				//std::cout << "x " << (x - xprime).squaredNorm() << std::endl;
+				}				
 				{
 					const int dir = 1;
 					for (auto plane = 0; plane < dim[dir]; plane++) {
 						jacobiPlane<T, dir>(A, b, x, xprime, dim, plane, iter);
 					}
 				}
-
-				//std::cout << "y " << (x - xprime).squaredNorm() << std::endl;
 				{
 					const int dir = 2;
 					for (auto plane = 0; plane < dim[dir]; plane++) {
 						jacobiPlane<T, dir>(A, b, x, xprime, dim, plane, iter);
 					}
-				}
+				}				
 
-				//std::cout << "z " << (x - xprime).squaredNorm() << std::endl;
-
-				//std::cout << "======" << std::endl;
+				
 			}
-
-
-
-
-/*
-
-			gaussSeidelStepLineZebra<T, 0, -1, false>(A, b, x, dim);
-			gaussSeidelStepLineZebra<T, 0, -1, true>(A, b, x, dim);
-			gaussSeidelStepLineZebra<T, 1, -1, false>(A, b, x, dim);
-			gaussSeidelStepLineZebra<T, 1, -1, true>(A, b, x, dim);
-			gaussSeidelStepLineZebra<T, 2, -1, false>(A, b, x, dim);
-			gaussSeidelStepLineZebra<T, 2, -1, true>(A, b, x, dim);
-			*/
-
-
-			//gaussSeidelStep(A, b, x);
-			//gaussSeidelStepZebra(A, b, x, dim, X_POS);
-
-			
-			
-
-			//gaussSeidelStepParallel(A, b, x, dim);
-
-			
-			
 
 			
 			residual = b - A*x;
@@ -449,8 +329,7 @@ namespace blib {
 		Eigen::Matrix<T, Eigen::Dynamic, 1> & x
 	) {
 
-		for (auto i = 0; i < A.rows(); i++) {
-		//for (auto i = A.rows(); i >= 0; i--) {
+		for (auto i = 0; i < A.rows(); i++) {		
 			T sum = T(0);
 			T diag = T(0);
 			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
@@ -482,27 +361,7 @@ namespace blib {
 		gaussSeidelBoundary<T, 1, 1>(A, b, X, dim);
 		gaussSeidelBoundary<T, 2, -1>(A, b, X, dim);
 		gaussSeidelBoundary<T, 2, 1>(A, b, X, dim);
-
-		/*//Xneg
-		gaussSeidelBoundary<T, 0, -1, false>(A, b, X, dim);
-		gaussSeidelBoundary<T, 0, -1, true>(A, b, X, dim);
-		//xpos
-		gaussSeidelBoundary<T, 0, 1, false>(A, b, X, dim);
-		gaussSeidelBoundary<T, 0, 1, true>(A, b, X, dim);
-
-		//yneg
-		gaussSeidelBoundary<T, 1, -1, false>(A, b, X, dim);
-		gaussSeidelBoundary<T, 1, -1, true>(A, b, X, dim);
-		//ypos
-		gaussSeidelBoundary<T, 1, 1, false>(A, b, X, dim);
-		gaussSeidelBoundary<T, 1, 1, true>(A, b, X, dim);
-
-		//zneg
-		gaussSeidelBoundary<T, 2, -1, false>(A, b, X, dim);
-		gaussSeidelBoundary<T, 2, -1, true>(A, b, X, dim);
-		//zpos
-		gaussSeidelBoundary<T, 2, 1, false>(A, b, X, dim);
-		gaussSeidelBoundary<T, 2, 1, true>(A, b, X, dim);*/
+	
 	}
 
 	template <typename T, int dir, int sgn>
@@ -510,8 +369,11 @@ namespace blib {
 		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
 		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
 		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
-		ivec3 dim
+		ivec3 dim,
+		int layers = 1
 	) {
+
+
 		const int secDirs[2] = {
 			(dir + 1) % 3,
 			(dir + 2) % 3
@@ -525,7 +387,7 @@ namespace blib {
 				vox[secDirs[1]] = j;
 
 				//layers from boundary
-				for (auto k = 0; k < 1; k++) {
+				for (auto k = 0; k < layers; k++) {
 					vox[dir] = dirBegin + k*(-sgn);
 
 					auto row = linearIndex(dim, vox);
@@ -556,7 +418,6 @@ namespace blib {
 		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
 		ivec3 dim
 	) {
-
 		
 		const int secDirs[2] = {
 			(dir + 1) % 3,
@@ -598,6 +459,8 @@ namespace blib {
 	
 	}
 
+
+	//Gauss seidel relax specific row
 	template<typename T>
 	void gaussSeidelRelax(
 		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
@@ -643,19 +506,6 @@ namespace blib {
 				ivec3 vox;
 				vox[secDirs[0]] = i * 2;
 				vox[secDirs[1]] = j;
-/*
-
-				if (vox[secDirs[0]] == 0 && secDirs[0] == 1) continue;
-				if (vox[secDirs[0]] == dim[secDirs[0]] - 1 && secDirs[0] == 1) continue;
-
-				if (vox[secDirs[1]] == 0 && secDirs[1] == 1) continue;
-				if (vox[secDirs[1]] == dim[secDirs[1]] - 1 && secDirs[1] == 1) continue;
-
-				if (vox[secDirs[0]] == 0 && secDirs[0] == 2) continue;
-				if (vox[secDirs[0]] == dim[secDirs[0]] - 1 && secDirs[0] == 2) continue;
-
-				if (vox[secDirs[1]] == 0 && secDirs[1] == 2) continue;
-				if (vox[secDirs[1]] == dim[secDirs[1]] - 1 && secDirs[1] == 2) continue;*/
 
 				if (!alternate)
 					vox[secDirs[0]] += j % 2;
@@ -687,10 +537,6 @@ namespace blib {
 					}
 
 					X[row] = (b[row] - sum) / diag;
-
-					/*if (row == 0) {
-						printf("i0 ... %f, %f\n", sum, X[row]);
-					}*/
 
 				}
 
@@ -733,14 +579,7 @@ namespace blib {
 
 			
 			begin[k] += sgn * d; 
-			//end[k] += sgn * d;
-
-			//#pragma omp parallel for
-
 			
-			
-			//for (auto zi = 0; zi < dim.z; zi += step.z) {
-				//z = begin.z + zi*sgn;
 			for (auto z = begin.z; z != end.z && z != end.z + step.z / 2; z += step.z) {
 				for (auto y = begin.y; y != end.y && y != end.y + step.y / 2; y += step.y) {
 					for (auto x = begin.x; x != end.x && x != end.x + step.x / 2; x += step.x) {
@@ -763,57 +602,12 @@ namespace blib {
 			}
 
 
-
-
-
-
-		}
-
-
-		
+		}		
 
 }
 
 
 
-	template <typename T>
-	void gaussSeidelStepParallel(
-		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
-		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
-		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
-		ivec3 dim
-	) {
-
-
-		for (auto k = 0; k < 2; k++) {
-
-			#pragma omp parallel for
-			for (auto z = 0; z < dim.z; z++) {
-				for (auto y = 0; y < dim.y; y++) {
-					int xstart = ((y + z) % 2 == k) ? 0 : 1;
-					for (auto x = xstart; x < dim.x; x += 2) {
-						assert((x + y + z) % 2 == k);
-
-						auto i = linearIndex(dim, { x,y,z });
-
-						T sum = T(0);
-						T diag = T(0);
-						for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
-							auto  j = it.col();
-							if (j == i) {
-								diag = it.value();
-								continue;
-							}							
-							sum += it.value() * X[j];
-						}
-						X[i] = (b[i] - sum) / diag;
-
-					}
-				}
-			}
-
-		}
-
-	}
+	
 
 }
