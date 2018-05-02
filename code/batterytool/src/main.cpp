@@ -104,11 +104,14 @@ bool tortuosity() {
 	*/
 	blib::Volume volume;
 	uint IDMask = 0;
+	uint IDConc = 1;
 	try {
 		IDMask = volume.emplaceChannel(
 			blib::loadTiffFolder(argInput.Get().c_str(), true)
 		);
 		volume.binarize(IDMask, 1.0f);
+
+		IDConc = volume.addChannel(volume.getChannel(IDMask).dim(), TYPE_FLOAT);
 
 	}
 	catch (const char * ex) {
@@ -127,7 +130,7 @@ bool tortuosity() {
 	}
 
 	//Solution for export
-	uint concChannel = volume.addChannel(c.dim(), TYPE_FLOAT);
+	
 
 	if (argVerbose) {
 		auto dim = c.dim();
@@ -186,8 +189,8 @@ bool tortuosity() {
 			const std::string exportPath = (argInput.Get() + std::string("/conc_dir_") + char(char(dir) + '0')
 				+ std::string("_") + tmpstamp("%Y_%m_%d_%H_%M_%S") 
 				+ std::string(".vol"));			
-			solver.resultToVolume(volume.getChannel(concChannel));
-			bool res = blib::saveVolumeBinary(exportPath.c_str(), volume.getChannel(concChannel));
+			solver.resultToVolume(volume.getChannel(IDConc));
+			bool res = blib::saveVolumeBinary(exportPath.c_str(), volume.getChannel(IDConc));
 			if (argVerbose) {
 				std::cout << "export to" << (exportPath) << std::endl;
 			}
