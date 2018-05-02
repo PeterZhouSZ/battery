@@ -5,6 +5,7 @@
 #include <cusparse.h>
 #include <cusolverSp.h>
 
+#include "../../include/BatteryLibDef.h"
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
@@ -36,9 +37,9 @@ namespace blib {
 		int line,
 		bool abort = true);
 
-	void cudaOccupiedMemory(size_t * total, size_t * occupied, int device = 0);
+	BLIB_EXPORT void cudaOccupiedMemory(size_t * total, size_t * occupied, int device = 0);
 
-	void cudaPrintMemInfo(int device = 0);
+	BLIB_EXPORT void cudaPrintMemInfo(int device = 0);
 
 	//todo performance:
 	//https://devblogs.nvidia.com/how-implement-performance-metrics-cuda-cc/

@@ -92,28 +92,42 @@ bool blib::DataPtr::commit()
 
 blib::Texture3DPtr::Texture3DPtr()
 {
-	_cpu.ptr = nullptr;
-	_cpu.pitch = 0;
-	_cpu.xsize = 0;
-	_cpu.ysize = 0;
-
-	_gpu = nullptr;
-
-	_desc.x = 0;
-	_desc.y = 0;
-	_desc.z = 0;
-	_desc.w = 0;
-	_desc.f = cudaChannelFormatKindUnsigned;
-
-	_extent.width = 0;
-	_extent.height = 0;
-	_extent.depth = 0;
-
-	_glID = 0;
+	memset(this, 0, sizeof(Texture3DPtr));
+	_desc.f = cudaChannelFormatKindUnsigned;	
 }
 
 
 
+blib::Texture3DPtr & blib::Texture3DPtr::operator=(blib::Texture3DPtr &&other)
+{
+	memcpy(this, &other, sizeof(other));	
+	memset(&other, 0, sizeof(Texture3DPtr));
+	return *this;
+}
+
+blib::Texture3DPtr::Texture3DPtr(blib::Texture3DPtr &&other)
+{
+	memcpy(this, &other, sizeof(other));
+	memset(&other, 0, sizeof(Texture3DPtr));
+}
+
+blib::Texture3DPtr::~Texture3DPtr()
+{
+	if (_cpu.ptr) {
+		delete[] _cpu.ptr;		
+	}
+
+	if (_gpu) {		
+		_CUDA(cudaDestroySurfaceObject(_surface));	
+		if (_glID != 0) {
+			_CUDA(cudaGraphicsUnregisterResource(_gpuRes));			
+			GL(glBindTexture(GL_TEXTURE_3D, _glID));			
+			GL(glDeleteTextures(1, &_glID));
+		}		
+	}
+
+	memset(this, 0, sizeof(Texture3DPtr));
+}
 
 bool blib::Texture3DPtr::alloc(PrimitiveType type, ivec3 dim, bool alsoOnCPU)
 {

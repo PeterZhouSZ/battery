@@ -32,8 +32,8 @@ blib::VolumeChannel::VolumeChannel(ivec3 dim, PrimitiveType type, bool doubleBuf
 }
 
 
-blib::VolumeChannel::VolumeChannel(const Texture3DPtr & ptr, ivec3 dim, const std::string & name)
-	: _ptr{ptr}, _dim(dim), _type(ptr.type()), _doubleBuffered(false), _name(name), _current(0)
+blib::VolumeChannel::VolumeChannel(Texture3DPtr && ptr, ivec3 dim, const std::string & name)
+	: _ptr{std::move(ptr)}, _dim(dim), _type(ptr.type()), _doubleBuffered(false), _name(name), _current(0)
 {
 
 }

@@ -429,9 +429,9 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 	if (_debugVolume) {
 		cudaDeviceSynchronize();
 		auto i = 0;
-		_debugVolume->emplaceChannel(VolumeChannel(_r[i], _dims[i],"r"));
+		/*_debugVolume->emplaceChannel(VolumeChannel(_r[i], _dims[i],"r"));
 		_debugVolume->emplaceChannel(VolumeChannel(_x[i], _dims[i], "x"));
-		_debugVolume->emplaceChannel(VolumeChannel(_f[i], _dims[i], "f"));
+		_debugVolume->emplaceChannel(VolumeChannel(_f[i], _dims[i], "f"));*/
 	}
 
 

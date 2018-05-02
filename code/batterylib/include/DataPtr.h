@@ -42,7 +42,14 @@ namespace blib {
 		TODO!!!! destructor, free gpu (and cpu) resources
 	*/
 	struct Texture3DPtr {	
-		Texture3DPtr();
+		BLIB_EXPORT Texture3DPtr();
+		BLIB_EXPORT ~Texture3DPtr();
+
+		BLIB_EXPORT Texture3DPtr(const Texture3DPtr &) = delete;
+		BLIB_EXPORT Texture3DPtr & operator = (const Texture3DPtr &) = delete;
+
+		BLIB_EXPORT Texture3DPtr(Texture3DPtr &&other);
+		BLIB_EXPORT Texture3DPtr & operator = (Texture3DPtr &&other);
 				
 		/*
 			Returns host memory
@@ -161,7 +168,7 @@ namespace blib {
 		cudaChannelFormatDesc _desc;
 		cudaExtent _extent;
 		uint _glID;
-		PrimitiveType _type;
+		PrimitiveType _type;		
 		
 	};
 
