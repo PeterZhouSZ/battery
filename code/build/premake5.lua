@@ -149,8 +149,8 @@ project "batterytool"
 		"../",--root
 		toolDir .. "src/",				 	
       	toolDir .. "external/",	
-		glew .. "/include",		
-		glfw .. "/include",
+--		glew .. "/include",		
+--		glfw .. "/include",
 		glm,
 		eigen		
 	}
@@ -162,13 +162,13 @@ project "batterytool"
 	}
 
 	links { 	   
-	 	"glfw3",	 	        
-	    "opengl32",
+	 	--"glfw3",	 	        
+	    --"opengl32",
 	    "batterylib"   
 	} 
 
 	defines {
-		"GLEW_STATIC", 
+		--"GLEW_STATIC", 
 		"WIN64",		
 		"GLM_ENABLE_EXPERIMENTAL",
 		"_CRT_SECURE_NO_WARNINGS",
@@ -178,9 +178,9 @@ project "batterytool"
 	filter "configurations:Debug"
     	defines { "DEBUG" }
     	flags { "Symbols" }    
-    	links {"glew32sd"}
+--    	links {"glew32sd"}
 
 	filter "configurations:Release"
 		defines { "NDEBUG" }
 		optimize "On"
-		links {"glew32s"}
+--		links {"glew32s"}

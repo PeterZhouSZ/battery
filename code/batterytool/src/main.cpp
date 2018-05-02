@@ -5,7 +5,6 @@
 #include <batterylib/include/DiffusionSolver.h>
 #include <batterylib/include/VolumeIO.h>
 
-#include <GLFW/glfw3.h>
 
 #include <chrono>
 #include <numeric>
