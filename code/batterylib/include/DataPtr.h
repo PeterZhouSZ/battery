@@ -88,7 +88,7 @@ namespace blib {
 			Size of element
 		*/
 		BLIB_EXPORT uint64 stride() const {
-			return _desc.x + _desc.y + _desc.z + _desc.w;
+			return (_desc.x  + _desc.y + _desc.z + _desc.w) / 8;
 		}
 
 		BLIB_EXPORT ivec3 dim() const {

@@ -58,6 +58,8 @@ namespace blib{
 		BLIB_EXPORT std::string getName() const;
 		
 
+		BLIB_EXPORT static bool enableOpenGLInterop;
+
 	private:		
 		ivec3 _dim;
 		PrimitiveType _type;

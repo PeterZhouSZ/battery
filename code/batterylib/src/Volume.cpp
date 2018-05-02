@@ -18,10 +18,19 @@ blib::VolumeChannel::VolumeChannel(ivec3 dim, PrimitiveType type, bool doubleBuf
 
 
 	//Allocate buffer(s)
-	_ptr[_current].allocOpenGL(type, dim, true);
-	if (doubleBuffered) {
-		_ptr[(_current + 1) % 2].allocOpenGL(type, dim, true);	
+	if (VolumeChannel::enableOpenGLInterop) {
+		_ptr[_current].allocOpenGL(type, dim, true);
+		if (doubleBuffered) {
+			_ptr[(_current + 1) % 2].allocOpenGL(type, dim, true);
+		}
 	}
+	else {
+		_ptr[_current].alloc(type, dim, true);
+		if (doubleBuffered) {
+			_ptr[(_current + 1) % 2].alloc(type, dim, true);
+		}
+	}
+	
 
 	
 	//Test fill
@@ -181,13 +190,15 @@ std::string blib::VolumeChannel::getName() const
 	return _name;
 }
 
+bool blib::VolumeChannel::enableOpenGLInterop = false;
+
 ///////////////////////////
 
 
 blib::Volume::Volume() 
 {
 	//Todo move somewhere else
-	if (!glewInited) {
+	if (VolumeChannel::enableOpenGLInterop && !glewInited) {
 		auto glewCode = glewInit();
 		if (glewCode != GLEW_OK)
 			throw glewGetErrorString(glewCode);

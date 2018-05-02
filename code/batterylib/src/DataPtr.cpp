@@ -138,10 +138,12 @@ bool blib::Texture3DPtr::alloc(PrimitiveType type, ivec3 dim, bool alsoOnCPU)
 
 	setDesc(type);
 
-	if (!_CUDA(cudaMalloc3DArray(&_gpu, &_desc, _extent, cudaArraySurfaceLoadStore)))
+	if (!_CUDA(cudaMalloc3DArray(&_gpu, &_desc, _extent, 0)))
 		return false;
 
 	
+	createSurface();
+
 	if (!alsoOnCPU)
 		return true;
 	
@@ -270,9 +272,13 @@ bool blib::Texture3DPtr::commit()
 	p.srcPtr = _cpu;	
 	p.dstArray = _gpu;
 	
-	_CUDA(cudaGraphicsMapResources(1, &_gpuRes, 0));
+	if(_glID != 0)
+		_CUDA(cudaGraphicsMapResources(1, &_gpuRes, 0));
+
 	bool res = _CUDA(cudaMemcpy3D(&p));
-	_CUDA(cudaGraphicsUnmapResources(1, &_gpuRes, 0));
+	
+	if (_glID != 0)
+		_CUDA(cudaGraphicsUnmapResources(1, &_gpuRes, 0));
 	return res;
 
 
@@ -299,9 +305,12 @@ bool blib::Texture3DPtr::retrieve()
 	p.srcArray = _gpu;
 	p.dstPtr = _cpu;	
 
-	_CUDA(cudaGraphicsMapResources(1, &_gpuRes, 0));
+	if (_glID != 0)
+		_CUDA(cudaGraphicsMapResources(1, &_gpuRes, 0));
 	bool res = _CUDA(cudaMemcpy3D(&p));
-	_CUDA(cudaGraphicsUnmapResources(1, &_gpuRes, 0));
+
+	if (_glID != 0)
+		_CUDA(cudaGraphicsUnmapResources(1, &_gpuRes, 0));
 
 	return res;
 }
@@ -418,29 +427,29 @@ void blib::Texture3DPtr::setDesc(PrimitiveType type)
 	switch (type) {
 
 	case TYPE_FLOAT3:
-		_desc.x = sizeof(float);
-		_desc.y = sizeof(float);
-		_desc.z = sizeof(float);
+		_desc.x = sizeof(float) * 8;
+		_desc.y = sizeof(float) * 8;
+		_desc.z = sizeof(float) * 8;
 		_desc.w = 0;
 		_desc.f = cudaChannelFormatKindFloat;
 		break;
 	case TYPE_FLOAT4:
-		_desc.x = sizeof(float);
-		_desc.y = sizeof(float);
-		_desc.z = sizeof(float);
-		_desc.w = sizeof(float);
+		_desc.x = sizeof(float) * 8;
+		_desc.y = sizeof(float) * 8;
+		_desc.z = sizeof(float) * 8;
+		_desc.w = sizeof(float) * 8;
 		_desc.f = cudaChannelFormatKindFloat;
 		break;
 	case TYPE_FLOAT:
-		_desc.x = sizeof(float);
+		_desc.x = sizeof(float) * 8;
 		_desc.y = 0;
 		_desc.z = 0;
 		_desc.w = 0;
 		_desc.f = cudaChannelFormatKindFloat;
 		break;
 	case TYPE_DOUBLE:
-		_desc.x = sizeof(int2) / 2;
-		_desc.y = sizeof(int2) / 2;
+		_desc.x = (sizeof(int2) / 2) * 8;
+		_desc.y = (sizeof(int2) / 2) * 8;
 		_desc.z = 0;
 		_desc.w = 0;
 		_desc.f = cudaChannelFormatKindSigned;
@@ -448,7 +457,7 @@ void blib::Texture3DPtr::setDesc(PrimitiveType type)
 	case TYPE_UCHAR:
 		//
 	default:
-		_desc.x = sizeof(char);
+		_desc.x = sizeof(unsigned char) * 8;
 		_desc.y = 0;
 		_desc.z = 0;
 		_desc.w = 0;

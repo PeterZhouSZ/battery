@@ -114,7 +114,7 @@ BatteryApp::BatteryApp()
 
 
 	
-	
+	blib::VolumeChannel::enableOpenGLInterop = true;
 
 	{
 		std::ifstream optFile(OPTIONS_FILENAME);

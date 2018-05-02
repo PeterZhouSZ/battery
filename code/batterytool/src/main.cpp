@@ -82,21 +82,14 @@ std::vector<Dir> getDirs(std::string & flagStr) {
 template <typename T>
 bool tortuosity() {
 
+	blib::VolumeChannel::enableOpenGLInterop = false;
 	
-
 
 	if (argVerbose) {
 		std::cout << "Precision: " << argPrecision.Get() << std::endl;
 		std::cout << "Tolerance: " << argTol.Get() << std::endl;
 		std::cout << "MaxIterations: " << argMaxIterations.Get() << " intermediate steps: " << argStep.Get() << std::endl;
 	}
-
-
-	//VolumeChannel.DataPtr uses glTexture3D -> need opengl context
-	///todo create context without a window or implement dataptr without gl interop
-	glfwInit();
-	auto wh = glfwCreateWindow(1, 1, "", NULL, NULL);
-	glfwMakeContextCurrent(wh);
 
 
 	/*
