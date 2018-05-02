@@ -8,9 +8,6 @@
 - [EIGEN](http://eigen.tuxfamily.org/index.php?title=Main_Page) *>= 3.3.4*
 - [CUDA](https://developer.nvidia.com/cuda-downloads) (tested on 9.0)
 
-## Build tools:
-- [Premake5](https://premake.github.io/download.html)
-- [premake-cuda](https://github.com/krsvojte/premake-cuda) script (included)
 
 ### Environment variables
 
@@ -18,6 +15,10 @@
 - **GLEW_PATH** to GLEW root directory, **static** build
 - **GLM_PATH** to GLM root directory
 - **EIGEN_PATH** to EIGEN root directory
+
+## Build tools:
+- [Premake5](https://premake.github.io/download.html)
+- [premake-cuda](https://github.com/krsvojte/premake-cuda) script (included)
 
 
 ## Build steps (Windows):
