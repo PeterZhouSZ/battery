@@ -33,6 +33,15 @@ namespace blib {
 			vec3 cellDim
 		);
 
+		BLIB_EXPORT bool prepareNew(
+			const VolumeChannel & mask,
+			const VolumeChannel & concetration,
+			Dir dir,
+			T d0, T d1,
+			uint levels,
+			vec3 cellDim
+		);
+
 		BLIB_EXPORT T solve(			
 			T tolerance,
 			size_t maxIterations,
@@ -52,6 +61,7 @@ namespace blib {
 		}
 
 	private:
+		void commitGPUParams();
 
 		void prepareSystemAtLevel(uint level);
 
@@ -59,12 +69,40 @@ namespace blib {
 
 		T squareNorm(Texture3DPtr & surf, ivec3 dim);
 
+		void exportLevel(int level);
+
 		std::vector<DataPtr> _A;
 		std::vector<Texture3DPtr> _D;
 		std::vector<Texture3DPtr> _f;
 		std::vector<Texture3DPtr> _x;
 		std::vector<Texture3DPtr> _tmpx;
 		std::vector<Texture3DPtr> _r;
+
+		struct SparseMat {
+			void allocPerRow(size_t rows, size_t cols, size_t perRow, PrimitiveType primType);
+			size_t byteSize();
+			DataPtr data;			
+			DataPtr row;
+			DataPtr col;
+			cusparseMatDescr_t descr;
+			size_t NNZ;
+		};
+
+		struct Level {
+			SparseMat A;
+			SparseMat R;
+			SparseMat I;
+			DataPtr f;
+			DataPtr x;
+			DataPtr tmpx;
+			DataPtr r;
+			ivec3 dim;
+			size_t size() { return dim.x*dim.y*dim.z; }
+
+		};
+		std::vector<Level> _levels;
+		
+		
 
 
 		//Last level direct solve

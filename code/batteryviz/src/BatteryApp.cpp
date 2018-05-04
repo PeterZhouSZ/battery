@@ -596,6 +596,10 @@ void BatteryApp::solveMultigridGPU()
 		levels,
 		cellDim
 	);
+
+//	return;
+
+
 	auto t1 = std::chrono::system_clock::now();
 	std::chrono::duration<double> prepTime = t1 - t0;
 	std::cout << "GPU Prep time: " << prepTime.count() << std::endl;

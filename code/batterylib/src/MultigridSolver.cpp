@@ -17,8 +17,7 @@ template class MultigridSolver<double>;
 #include<Eigen/SparseCholesky>	
 #include <Eigen/Eigen>	
 
-//#define MG_LINSYS_TO_FILE
-
+#define MG_LINSYS_TO_FILE
 
 #include <fstream>
 
@@ -415,7 +414,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 				for (auto i = 0; i < 4; i++) {
 					for (auto j = 0; j < 4; j++) {
 						for (auto k = 0; k < 4; k++) {
-							ivec3 srcPos = ipos * 2 - ivec3(1, 1, 1) + ivec3(i, j, k);
+							/*ivec3 srcPos = ipos * 2 - ivec3(1, 1, 1) + ivec3(i, j, k);
 							
 							if (isValidPos(srcDim, srcPos)) {															
 
@@ -437,7 +436,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 								auto index = linearIndex(srcDim, srcPos);
 								w[i][j][k] *= srcWeights[index];
 								
-							}
+							}*/
 
 							W += w[i][j][k];
 						}
@@ -2103,7 +2102,7 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 		for (auto i = 0; i < _A[level].rows(); i++) {
 			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[level], i); it; ++it) {
 				auto  j = it.col();
-				f << i << " " << j << " " << it.value() << "\n";
+				f << i+1 << " " << j+1 << " " << it.value() << "\n";
 			}
 
 			if (_A[level].rows() < 100 || i % (_A[level].rows() / 100))

@@ -67,6 +67,11 @@ inline __device__ uint _getDirIndex(Dir dir) {
 	return uint(-1);
 }
 
+inline __device__ size_t _linearIndex(const uint3 & dim, const uint3 & pos) {
+	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
+}
+
+
 
 inline __device__ int _getDirSgn(Dir dir) {
 	return -((dir % 2) * 2 - 1);
@@ -144,6 +149,15 @@ inline __device__ float read(cudaSurfaceObject_t surf, const uint3 & vox) {
 	float val = 0.0f;
 #ifdef __CUDA_ARCH__
 	surf3Dread(&val, surf, vox.x * sizeof(float), vox.y, vox.z);
+#endif
+	return val;
+}
+
+template<>
+inline __device__ uchar read(cudaSurfaceObject_t surf, const uint3 & vox) {
+	uchar val = 0.0f;
+#ifdef __CUDA_ARCH__
+	surf3Dread(&val, surf, vox.x * sizeof(uchar), vox.y, vox.z);
 #endif
 	return val;
 }

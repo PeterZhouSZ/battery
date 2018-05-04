@@ -8,10 +8,14 @@
 
 bool blib::DataPtr::retrieve(size_t offset, size_t size)
 {
-	assert(cpu != nullptr);
+	
 	assert(gpu != nullptr);
 	assert(stride > 0);
 	assert(size > 0);
+
+	if (!cpu) {
+		allocHost(num, stride);
+	}
 
 	return _CUDA(
 		cudaMemcpy((uchar*)cpu + stride * offset, (uchar*)gpu + stride * offset, size, cudaMemcpyDeviceToHost)

@@ -41,6 +41,52 @@ namespace blib {
 
 	BLIB_EXPORT void cudaPrintMemInfo(int device = 0);
 
+
+	class CUDATimer {		
+	public:
+
+		CUDATimer(bool autoStart = false) {
+			cudaEventCreate(&_startEvent);
+			cudaEventCreate(&_stopEvent);
+			if (autoStart) start();
+		}
+
+		~CUDATimer() {
+			cudaEventDestroy(_startEvent);
+			cudaEventDestroy(_stopEvent);
+		}
+
+		void start() {			
+			cudaEventRecord(_startEvent);
+			_running = true;
+		}
+
+		void stop() {
+			_running = false;
+			cudaEventRecord(_stopEvent);
+		}
+	
+		float timeMs() {
+			if (_running) stop();
+			cudaEventSynchronize(_stopEvent);
+			float ms = 0;
+			cudaEventElapsedTime(&ms, _startEvent, _stopEvent);
+			return ms;
+		}
+
+		//Time in seconds
+		float time() {
+			return timeMs() / 1000.0f;
+		}
+
+		
+
+	private:
+		bool _running;
+		cudaEvent_t _startEvent;
+		cudaEvent_t _stopEvent;
+	};
+
 	//todo performance:
 	//https://devblogs.nvidia.com/how-implement-performance-metrics-cuda-cc/
 	

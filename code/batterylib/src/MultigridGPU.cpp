@@ -2,13 +2,14 @@
 
 #include "cuda/Volume.cuh"
 #include "cuda/MultigridGPU.cuh"
+#include "cuda/MultigridGPUNew.cuh"
 
 using namespace blib;
 
 template class MultigridGPU<float>;
 template class MultigridGPU<double>;
 
-//#define MG_LINSYS_TO_FILE
+#define MG_LINSYS_TO_FILE
 
 #include <iostream>
 #include <string>
@@ -16,6 +17,8 @@ template class MultigridGPU<double>;
 #ifdef MG_LINSYS_TO_FILE
 #include <fstream>
 #endif
+
+#include <chrono>
 
 
 #include <Eigen/IterativeLinearSolvers>
@@ -234,6 +237,216 @@ bool ::MultigridGPU<T>::prepare(
 
 	return true;
 }
+
+template <typename T>
+void blib::MultigridGPU<T>::commitGPUParams()
+{
+
+	MultigridGPUParams mg;
+	mg.numLevels = _levels.size();
+	for (auto i = 0; i < _levels.size(); i++) {
+		auto & Lhost = _levels[i];
+		auto & Ldevice = mg.levels[i];
+		DataPtr x;
+
+		Ldevice.A.row = Lhost.A.row.gpu;
+		Ldevice.A.col = Lhost.A.col.gpu;
+		Ldevice.A.data = Lhost.A.data.gpu;
+		Ldevice.A.NNZ = Lhost.A.NNZ;
+
+		Ldevice.f = Lhost.f.gpu;
+		Ldevice.x = Lhost.x.gpu;
+		Ldevice.tmpx = Lhost.tmpx.gpu;
+		Ldevice.r = Lhost.r.gpu;
+		Ldevice.dim = make_uint3(Lhost.dim.x, Lhost.dim.y, Lhost.dim.z);		
+	}
+
+	mg.type = _type;
+
+	_CUDA(_commitGPUParamsImpl(mg));
+	
+}
+
+
+
+template <typename T>
+void blib::MultigridGPU<T>::SparseMat::allocPerRow(size_t rows, size_t cols, size_t perRow, PrimitiveType primType)
+{
+	_CUSPARSE(cusparseCreateMatDescr(&descr));
+	_CUSPARSE(cusparseSetMatType(descr, CUSPARSE_MATRIX_TYPE_GENERAL));
+	_CUSPARSE(cusparseSetMatIndexBase(descr, CUSPARSE_INDEX_BASE_ZERO));
+
+	size_t N = rows;
+	NNZ = rows * perRow;
+	
+	row.allocDevice(N + 1, sizeof(int));
+	{
+		int lastRow = NNZ;
+		cudaMemcpy(&((int*)row.gpu)[N], &lastRow, sizeof(int), cudaMemcpyHostToDevice);
+	}
+
+	col.allocDevice(NNZ, sizeof(int));
+	data.allocDevice(NNZ, primitiveSizeof(primType));
+}
+
+
+template <typename T>
+size_t blib::MultigridGPU<T>::SparseMat::byteSize()
+{
+	return data.byteSize() + row.byteSize() + col.byteSize();
+}
+
+
+
+template <typename T>
+BLIB_EXPORT bool blib::MultigridGPU<T>::prepareNew(const VolumeChannel & mask, const VolumeChannel & concetration, Dir dir, T d0, T d1, uint levels, vec3 cellDim)
+{
+
+	assert(levels > 0);
+
+	//Initialize cusparse
+	{
+		_CUSPARSE(cusparseCreate(&_cusparseHandle));
+		_CUDA(cudaStreamCreate(&_stream));
+		_CUSPARSE(cusparseSetStream(_cusparseHandle, _stream));
+	}
+
+	_levels.resize(levels);
+
+	//Prepare first level
+
+	{
+		auto & L = _levels[0];
+		L.dim = mask.dim();		
+
+
+		size_t N = L.size();
+		
+		cudaPrintMemInfo();
+
+		auto & A = L.A;
+		A.allocPerRow(N, N, 7, _type);
+		L.R.allocPerRow(N / 2, N, 64, _type);
+		L.I.allocPerRow(N, N / 2, 8, _type);
+
+		size_t bytes = A.byteSize();// +L.R.byteSize() + L.I.byteSize();
+		std::cout << "Sparse mats: " << bytes / (1024 * 1024.0f) << "MB" << std::endl;
+			
+
+		L.f.allocDevice(N, primitiveSizeof(_type));
+		L.x.allocDevice(N, primitiveSizeof(_type));
+		L.r.allocDevice(N, primitiveSizeof(_type));
+		L.tmpx.allocDevice(N, primitiveSizeof(_type));
+		
+
+		commitGPUParams();
+
+		CUDATimer tPrep(true);
+		MGPrepareSystem(
+			0,
+			mask.getCurrentPtr().getSurface(),
+			d0,d1,
+			make_double3(cellDim.x, cellDim.y, cellDim.z),
+			dir			
+		);
+		std::cout << "GPU linsys prep time: " << tPrep.timeMs() << " ms" << std::endl;
+
+		cudaPrintMemInfo();
+		
+		//MGPrepareR, MGPrepareI
+		
+
+		
+#ifdef MG_LINSYS_TO_FILE
+		_CUDA(cudaDeviceSynchronize());
+		exportLevel(0);
+#endif
+
+		//CUDA accelerated building of lin system
+		//prepareSystem()
+		//results in L.A,f,x 
+	}
+
+
+	//Prepare rest of the levels
+
+	for (auto i = 1; i < _levels.size(); i++) {
+		auto & prevL = _levels[i - 1];
+		auto & L = _levels[i];
+		
+		//Calculate dims
+		L.dim = prevL.dim / 2;		
+		if (prevL.dim.x % 2 == 1) L.dim.x++;
+		if (prevL.dim.y % 2 == 1) L.dim.y++;
+		if (prevL.dim.z % 2 == 1) L.dim.z++;
+		
+		//Galerkin 
+		//L.A = prevL.R * prevL.A * prevL.I;
+		
+
+	}	
+
+
+	commitGPUParams();
+
+	return true;
+
+}
+
+
+
+template <typename T>
+void blib::MultigridGPU<T>::exportLevel(int level)
+{
+#ifdef MG_LINSYS_TO_FILE
+	auto & L = _levels[level];
+
+
+	L.A.data.retrieve();
+	L.A.row.retrieve();
+	L.A.col.retrieve();
+
+	char buf[24]; itoa(level, buf, 10);
+	std::ofstream f("A_GPU_" + std::string(buf) + ".dat");
+
+
+	
+	int col = 0;
+	int i = 0;
+	int rowptr = 0;
+	auto N = L.size();
+
+	std::vector<int> colDupl;
+
+	for (auto row = 0; row < N; row++) {
+		colDupl.clear();
+
+		int rowBegin = ((int*)L.A.row.cpu)[row];
+		int rowEnd = ((int*)L.A.row.cpu)[row + 1];
+		
+		for (int i = rowBegin; i < rowEnd; i++) {
+			colDupl.push_back(((int*)L.A.col.cpu)[i]);
+			f << (row + 1) << "\t" << ((int*)L.A.col.cpu)[i] + 1 << "\t" << ((T*)L.A.data.cpu)[i] << "\n";
+		}
+
+
+		if (!std::is_sorted(colDupl.begin(), colDupl.end())) {
+			std::cout << row << " not sorted" << std::endl;
+		}
+		//Check for duplicates
+
+		std::sort(colDupl.begin(), colDupl.end());
+		auto it = std::unique(colDupl.begin(), colDupl.end());
+		if (it != colDupl.end()) {
+			std::cout << "dupl!" << std::endl;
+		}
+	}
+
+#endif
+
+}
+
+
 
 
 template <typename T>
