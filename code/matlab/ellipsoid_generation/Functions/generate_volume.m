@@ -112,6 +112,17 @@ for iPosSlice = 1:100
     imwrite(slice_data,path);
 end
 
+
+% Calculate tortousity and add it to the filename:
+batterytool_exe = 'D:\Battery_code\battery\batterytool.exe';
+command = [batterytool_exe, ' -t ', DATA_DIR];
+[~,cmdout] = dos(command);
+split = strsplit(cmdout, ',\t');
+%tortuosity = str2double(split{3}); % The order should be:
+% {folder, porosity, tortousity, seconds_elapsed, xyz dimensions}
+movefile(DATA_DIR, [DATA_DIR, '_tau_', split{3}]);
+
+
 % Computing the simulation time
 Temps_simulation = toc
 
