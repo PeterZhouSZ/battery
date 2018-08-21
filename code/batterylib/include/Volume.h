@@ -6,6 +6,7 @@
 
 #include <array>
 #include <vector>
+#include <memory>
 
 namespace blib{
 
@@ -17,7 +18,9 @@ namespace blib{
 		BLIB_EXPORT VolumeChannel(
 			ivec3 dim, 
 			PrimitiveType type, 
-			bool doubleBuffered = true);
+			bool doubleBuffered = true,
+			const std::string & name = "New channel"
+			);
 		
 		BLIB_EXPORT VolumeChannel(
 			Texture3DPtr && ptr,
@@ -74,7 +77,7 @@ namespace blib{
 	struct Volume {
 		BLIB_EXPORT Volume();
 
-		BLIB_EXPORT uint addChannel(ivec3 dim, PrimitiveType type);
+		BLIB_EXPORT uint addChannel(ivec3 dim, PrimitiveType type, bool doubleBuffered = true, const std::string & name = "New Channel");
 		BLIB_EXPORT uint emplaceChannel(VolumeChannel && channel, uint index = UINT_MAX);		
 		
 		
@@ -107,7 +110,9 @@ namespace blib{
 		
 
 	private:
-		std::vector<VolumeChannel> _channels;
+		std::vector<
+			std::shared_ptr<VolumeChannel>
+		> _channels;
 		
 	};	
 

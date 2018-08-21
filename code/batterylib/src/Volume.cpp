@@ -11,9 +11,9 @@ using namespace blib;
 
 bool glewInited = false;
 
-blib::VolumeChannel::VolumeChannel(ivec3 dim, PrimitiveType type, bool doubleBuffered)
+blib::VolumeChannel::VolumeChannel(ivec3 dim, PrimitiveType type, bool doubleBuffered, const std::string & name)
 	: _dim(dim), _type(type), _current(0), _doubleBuffered(doubleBuffered),
-	_name("Unnamed channel")
+	_name(name)
 {	
 
 
@@ -208,20 +208,23 @@ blib::Volume::Volume()
 }
 
 
-uint blib::Volume::addChannel(ivec3 dim, PrimitiveType type)
+uint blib::Volume::addChannel(ivec3 dim, PrimitiveType type, bool doubleBuffered, const std::string & name)
 {
-	_channels.push_back(VolumeChannel(dim, type));
+	_channels.push_back(
+		std::make_shared<VolumeChannel>(dim, type, doubleBuffered, name)
+	);
 	return static_cast<uint>(_channels.size() - 1);
 }
 
 uint blib::Volume::emplaceChannel(VolumeChannel && channel, uint index)
 {
 	if (index >= numChannels()) {
-		_channels.push_back(std::move(channel));
+		_channels.push_back(std::make_shared<VolumeChannel>(std::move(channel)));
+		//_channels.push_back(std::move(channel));
 		return static_cast<uint>(_channels.size() - 1);
 	}
 	else {		
-		_channels[index] = std::move(channel);		
+		*_channels[index] = std::move(channel);		
 		return index;
 	}
 	
@@ -230,7 +233,7 @@ uint blib::Volume::emplaceChannel(VolumeChannel && channel, uint index)
 VolumeChannel & blib::Volume::getChannel(uint index)
 {
 	assert(index < _channels.size());
-	return _channels[index];
+	return *_channels[index];
 }
 
 bool blib::Volume::hasChannel(uint index) const
@@ -246,7 +249,7 @@ BLIB_EXPORT uint blib::Volume::numChannels() const
 const VolumeChannel & blib::Volume::getChannel(uint index) const
 {
 	assert(index < _channels.size());
-	return _channels[index];
+	return *_channels[index];
 }
 
 
