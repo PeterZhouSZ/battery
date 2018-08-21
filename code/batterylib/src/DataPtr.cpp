@@ -6,6 +6,25 @@
 #include <assert.h>
 #include <cuda_gl_interop.h>
 
+
+blib::DataPtr::DataPtr()
+{
+	memset(this, 0, sizeof(DataPtr));	
+}
+
+blib::DataPtr & blib::DataPtr::operator=(blib::DataPtr &&other)
+{
+	memcpy(this, &other, sizeof(other));
+	memset(&other, 0, sizeof(DataPtr));
+	return *this;
+}
+
+blib::DataPtr::DataPtr(blib::DataPtr &&other)
+{
+	memcpy(this, &other, sizeof(other));
+	memset(&other, 0, sizeof(DataPtr));
+}
+
 bool blib::DataPtr::retrieve(size_t offset, size_t size)
 {
 	
@@ -49,14 +68,18 @@ bool blib::DataPtr::allocDevice(size_t num, size_t stride)
 		if (num == this->num && stride == this->stride) 
 			return true;
 
+		
 		_CUDA(cudaFree(gpu));
 		gpu = nullptr;
 	}
 
-	if (_CUDA(cudaMalloc(&gpu, num*stride)) && gpu != nullptr){
+	if (_CUDA(cudaMalloc((void **)&gpu, num*stride)) && gpu != nullptr){
 		this->stride = stride;
 		this->num = num;
 		return true;
+	}
+	else {
+		assert(false);		
 	}
 
 	return false;
@@ -70,8 +93,14 @@ bool blib::DataPtr::alloc(size_t num, size_t stride)
 
 blib::DataPtr::~DataPtr()
 {
-	if (cpu) delete[] cpu;
-	if(gpu) _CUDA(cudaFree(gpu));	
+	if (cpu) {
+		delete[] cpu;
+		cpu = nullptr;
+	}
+	if (gpu) {
+		_CUDA(cudaFree(gpu));
+		gpu = nullptr;
+	}
 }
 
 bool blib::DataPtr::commit(size_t offset, size_t size) {

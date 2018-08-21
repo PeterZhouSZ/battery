@@ -8,12 +8,23 @@
 
 namespace blib {
 
+	
+
 	struct DataPtr {
 		void * cpu = nullptr;
 		void * gpu = nullptr;		
 		size_t stride = 0; //byte stride between elements		
 		
 		size_t num;
+
+		BLIB_EXPORT DataPtr();
+
+		BLIB_EXPORT DataPtr(const DataPtr &) = delete;
+		BLIB_EXPORT DataPtr & operator = (const DataPtr &) = delete;
+
+		BLIB_EXPORT DataPtr(DataPtr &&other);
+		BLIB_EXPORT DataPtr & operator = (DataPtr &&other);
+
 		BLIB_EXPORT size_t byteSize() const { return num*stride; }
 
 		
