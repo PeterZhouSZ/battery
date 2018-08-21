@@ -817,15 +817,20 @@ void BatteryApp::reset()
 	_volume->getChannel(CHANNEL_BATTERY).setName("Battery");
 	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");
 
+	auto debugID = _volume->addChannel(
+		_volume->getChannel(CHANNEL_BATTERY).dim(),
+		TYPE_DOUBLE
+	);
 
-	MGGPU<double> mggpu;
+
+	
 	MGGPU<double>::Params p;
 	p.levels = 5;
 	p.dir = X_NEG;
 	p.d0 = 0.0001;
 	p.d1 = 1.0;
 	//p.cellDim = {0,}
-	mggpu.prepare(_volume->getChannel(CHANNEL_BATTERY), p);
+	_mggpu.prepare(_volume->getChannel(CHANNEL_BATTERY), p, _volume->getChannel(debugID) );
 
 
 	const bool multigridGPU = false;

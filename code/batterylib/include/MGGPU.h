@@ -32,7 +32,8 @@ namespace blib {
 
 		BLIB_EXPORT bool prepare(
 			const VolumeChannel & mask,
-			Params params
+			Params params,
+			VolumeChannel & debugChannel
 		);
 
 
@@ -59,8 +60,8 @@ namespace blib {
 		Params _params;
 		const VolumeChannel * _mask;
 
-		using SparseMat = int;
-		using Vector = int;
+		using SparseMat = int; //Todo cusparse mat
+		using Vector = int; //Todo cusparse vec
 
 		struct Level {			
 			ivec3 dim;
