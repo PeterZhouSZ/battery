@@ -12,6 +12,18 @@ blib::DataPtr::DataPtr()
 	memset(this, 0, sizeof(DataPtr));	
 }
 
+blib::DataPtr::~DataPtr()
+{
+	if (cpu) {
+		delete[] cpu;		
+	}
+	if (gpu) {
+		_CUDA(cudaFree(gpu));		
+	}
+
+	memset(this, 0, sizeof(DataPtr));
+}
+
 blib::DataPtr & blib::DataPtr::operator=(blib::DataPtr &&other)
 {
 	memcpy(this, &other, sizeof(other));
@@ -33,7 +45,7 @@ bool blib::DataPtr::retrieve(size_t offset, size_t size)
 	assert(size > 0);
 
 	if (!cpu) {
-		allocHost(num, stride);
+		allocHost();
 	}
 
 	return _CUDA(
@@ -46,16 +58,15 @@ bool blib::DataPtr::retrieve()
 	return retrieve(0, byteSize());
 }
 
-bool blib::DataPtr::allocHost(size_t num, size_t stride)
+bool blib::DataPtr::allocHost()
 {
+	assert(gpu != nullptr);
+
 	if (cpu) {
-
-		if (num == this->num && stride == this->stride)
-			return true;
-
 		delete[] cpu;
 		cpu = nullptr;
 	}
+	
 
 	cpu = new uchar[num*stride];
 	return true;
@@ -73,9 +84,17 @@ bool blib::DataPtr::allocDevice(size_t num, size_t stride)
 		gpu = nullptr;
 	}
 
+	
+
 	if (_CUDA(cudaMalloc((void **)&gpu, num*stride)) && gpu != nullptr){
 		this->stride = stride;
 		this->num = num;
+		
+		//Realloc cpu if existed
+		if (cpu) {
+			allocHost();
+		}
+
 		return true;
 	}
 	else {
@@ -88,20 +107,10 @@ bool blib::DataPtr::allocDevice(size_t num, size_t stride)
 
 bool blib::DataPtr::alloc(size_t num, size_t stride)
 {
-	return allocDevice(num, stride) && allocHost(num, stride);
+	return allocDevice(num, stride) && allocHost();
 }
 
-blib::DataPtr::~DataPtr()
-{
-	if (cpu) {
-		delete[] cpu;
-		cpu = nullptr;
-	}
-	if (gpu) {
-		_CUDA(cudaFree(gpu));
-		gpu = nullptr;
-	}
-}
+
 
 bool blib::DataPtr::commit(size_t offset, size_t size) {
 
@@ -177,12 +186,10 @@ bool blib::Texture3DPtr::alloc(PrimitiveType type, ivec3 dim, bool alsoOnCPU)
 	
 	createSurface();
 
-	if (!alsoOnCPU)
-		return true;
-	
-	void * hostPtr = new char[byteSize()];
-	_cpu = make_cudaPitchedPtr(hostPtr, stride() * _extent.width, _extent.width, _extent.height);
-
+	if (alsoOnCPU) {
+		return allocCPU();
+	}
+		
 	return true;
 
 }
@@ -211,10 +218,8 @@ bool blib::Texture3DPtr::allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnC
 	setDesc(type);
 	
 	
-	if (alsoOnCPU) {
-		auto size = byteSize();
-		void * hostPtr = new char[size];
-		_cpu = make_cudaPitchedPtr(hostPtr, stride() * _extent.width, _extent.width, _extent.height);
+	if (alsoOnCPU) {		
+		allocCPU();
 	}		
 		
 	GL(glGenTextures(1, (GLuint*)&_glID));
@@ -272,6 +277,14 @@ bool blib::Texture3DPtr::allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnC
 
 	
 	
+	return true;
+}
+
+bool blib::Texture3DPtr::allocCPU(){
+	assert(byteSize() > 0);
+
+	void * hostPtr = new char[byteSize()];
+	_cpu = make_cudaPitchedPtr(hostPtr, stride() * _extent.width, _extent.width, _extent.height);
 	return true;
 }
 

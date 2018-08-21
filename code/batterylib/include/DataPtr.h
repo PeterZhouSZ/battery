@@ -11,9 +11,9 @@ namespace blib {
 	
 
 	struct DataPtr {
-		void * cpu = nullptr;
-		void * gpu = nullptr;		
-		size_t stride = 0; //byte stride between elements		
+		void * cpu;
+		void * gpu;
+		size_t stride; //byte stride between elements		
 		
 		size_t num;
 
@@ -39,7 +39,7 @@ namespace blib {
 		BLIB_EXPORT bool retrieve();
 
 		//Simple alloc
-		BLIB_EXPORT bool allocHost(size_t num, size_t stride);
+		BLIB_EXPORT bool allocHost();
 		BLIB_EXPORT bool allocDevice(size_t num, size_t stride);
 
 		//Allocates both host and device memory
@@ -49,9 +49,7 @@ namespace blib {
 
 	};
 
-	/*
-		TODO!!!! destructor, free gpu (and cpu) resources
-	*/
+	
 	struct Texture3DPtr {	
 		BLIB_EXPORT Texture3DPtr();
 		BLIB_EXPORT ~Texture3DPtr();
@@ -115,6 +113,8 @@ namespace blib {
 			Allocates 3D array using OpenGL interop
 		*/
 		BLIB_EXPORT bool allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnCPU = false);
+
+		BLIB_EXPORT bool allocCPU();
 
 				
 		/*

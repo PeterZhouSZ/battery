@@ -147,9 +147,9 @@ bool ::MultigridGPU<T>::prepare(
 	//Auxiliary buffer for reduction
 	{
 		const size_t maxN = _dims[0].x * _dims[0].y * _dims[0].z;
-		const size_t reduceN = maxN / VOLUME_REDUCTION_BLOCKSIZE;
-		_auxReduceBuffer.allocHost(reduceN, primitiveSizeof(_type));
+		const size_t reduceN = maxN / VOLUME_REDUCTION_BLOCKSIZE;		
 		_auxReduceBuffer.allocDevice(reduceN, primitiveSizeof(_type));
+		_auxReduceBuffer.allocHost();
 	}
 
 
@@ -184,9 +184,9 @@ bool ::MultigridGPU<T>::prepare(
 		_fLast.allocDevice(N, primitiveSizeof(_type));
 
 		_ALastRowPtr.allocDevice((M + 1), sizeof(int));
-		_ALastRowPtr.allocHost((M + 1), sizeof(int));
+		_ALastRowPtr.allocHost();
 
-		_A.back().allocHost(_A.back().num, _A.back().stride);
+		_A.back().allocHost();
 		_A.back().retrieve();
 
 
@@ -471,10 +471,7 @@ void blib::MultigridGPU<T>::prepareSystemAtLevel(uint level)
 	);
 
 	if (allocOnCPU) {
-		_A[level].allocHost(
-			N*valPerRow,
-			primitiveSizeof(_type)
-		);
+		_A[level].allocHost();
 	}
 
 

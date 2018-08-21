@@ -41,7 +41,7 @@
     },
     "Input": {
         "Default": {
-            "data": false,
+            "data": true,
             "type": 5
         },
         "GenResolution": {

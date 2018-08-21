@@ -622,13 +622,14 @@ void BatteryApp::solveMultigridGPU()
 void BatteryApp::reset()
 {
 
+	
+
 	_simulationTime = 0.0f;
 	_convergenceTime = -1.0f;
 
 	bool loadDefault = _options["Input"].get<bool>("Default");
 
 	
-
 	_volume = make_unique<blib::Volume>();
 
 	//loadDefault = false;
@@ -796,41 +797,37 @@ void BatteryApp::reset()
 		
 
 	}
-	/*{
-		int res = 128;
-		ivec3 d = ivec3(res, res, res);
-		auto newId = _volume->addChannel(d, TYPE_DOUBLE);
-		auto & c = _volume->getChannel(newId);
-		c.setName("testDoubleRender");
-		double * data = (double*)c.getCurrentPtr().getCPU();
-		for (auto i = 0; i < d[0] - 0; i++) {
-			for (auto j = 0; j < d[1] - 1; j++) {
-				for (auto k = 0; k < d[2] - 0; k++) {
-					data[i + j*c.dim().x + k*c.dim().y*c.dim().x] = (j+i+k) / double(3*res);
-				}
-			}
-		}
-		c.getCurrentPtr().commit();
-
-	}*/
-
+	
 	_volume->getChannel(CHANNEL_BATTERY).setName("Battery");
 	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");
 
-	auto debugID = _volume->addChannel(
-		_volume->getChannel(CHANNEL_BATTERY).dim(),
-		TYPE_DOUBLE
-	);
-
-
 	
-	MGGPU<double>::Params p;
-	p.levels = 5;
-	p.dir = X_NEG;
-	p.d0 = 0.0001;
-	p.d1 = 1.0;
-	//p.cellDim = {0,}
-	_mggpu.prepare(_volume->getChannel(CHANNEL_BATTERY), p, _volume->getChannel(debugID) );
+	{
+		MGGPU<double>::Params p;
+		p.levels = 5;
+		p.dir = X_NEG;
+		p.d0 = 0.0001;
+		p.d1 = 1.0;
+		//p.cellDim = { 0, }
+
+		auto & c = _volume->getChannel(CHANNEL_BATTERY);
+		auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
+		auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
+		auto exactSolveDim = 4;		
+		p.cellDim = vec3(1.0 / maxDim);
+		p.levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
+		p.dir = Dir(_options["Diffusion"].get<int>("direction"));
+
+		std::cout << "Multigrid solver levels " << p.levels << std::endl;		
+
+		auto t0 = std::chrono::system_clock::now();		
+		_mggpu.prepare(_volume->getChannel(CHANNEL_BATTERY), p, *_volume);
+		auto t1 = std::chrono::system_clock::now();
+
+		std::chrono::duration<double> prepTime = t1 - t0;
+		std::cout << "Prep time: " << prepTime.count() << "s" << std::endl;
+
+	}
 
 
 	const bool multigridGPU = false;

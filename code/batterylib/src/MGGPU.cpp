@@ -5,13 +5,24 @@
 #include <iostream>
 
 #include "cuda/MGGPU.cuh"
+#include "CudaUtility.h"
+
 
 
 using namespace blib;
 
 template class MGGPU<double>;
 
+MGGPU_Volume toMGGPUVolume(const VolumeChannel & volchan, int id = -1) {
+	MGGPU_Volume mgvol;
 
+	mgvol.surf = volchan.getCurrentPtr().getSurface();
+	mgvol.res = make_uint3(volchan.dim().x, volchan.dim().y, volchan.dim().z);
+	mgvol.type = volchan.type();
+	mgvol.volID = id;
+
+	return mgvol;
+}
 
 
 template <typename T>
@@ -22,28 +33,85 @@ MGGPU<T>::MGGPU()
 
 
 template <typename T>
-bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, VolumeChannel & debugChannel){
+bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volume){
 
+	
 	_params = params;
 	_mask = &mask;
+	_volume = &volume;
 
 
+	alloc();
 
-
-	MGGPU_Volume MGmask;
-	MGmask.surf = mask.getCurrentPtr().getSurface();
-	MGmask.res = make_uint3(mask.dim().x, mask.dim().y, mask.dim().z);
-	MGmask.type = mask.type();
-
-	//VolumeChannel domain = VolumeChannel(mask.dim(), TYPE_DOUBLE, false);
 	
 
-	MGGPU_Volume MGDomain;
-	MGDomain.surf = debugChannel.getCurrentPtr().getSurface();
-	MGDomain.res = make_uint3(debugChannel.dim().x, debugChannel.dim().y, debugChannel.dim().z);
-	MGDomain.type = debugChannel.type();
+	//Generate continous domain at first level
+	MGGPU_Volume MGmask = toMGGPUVolume(mask, 0);
+	MGGPU_GenerateDomain(MGmask, _params.d0, _params.d1, _levels[0].domain);	
 
-	MGGPU_GenerateDomain(MGmask, _params.d0, _params.d1, MGDomain);
+	//Restrict domain to further levels
+	MGGPU_KernelPtr domainRestrKernel = (double *)MGGPU_GetDomainRestrictionKernel().v;
+	for (int i = 1; i < _levels.size(); i++) {
+		MGGPU_Convolve(_levels[i-1].domain, domainRestrKernel, 2, _levels[i].domain);
+	}
+
+
+	//Send system params to gpu
+	MGGPU_SysParams sysp;
+	sysp.highConc = double(1.0);
+	sysp.lowConc = double(0.0);
+	sysp.concetrationBegin = (getDirSgn(params.dir) == 1) ? sysp.highConc : sysp.lowConc;
+	sysp.concetrationEnd = (getDirSgn(params.dir) == 1) ? sysp.lowConc : sysp.highConc;
+	
+	sysp.cellDim[0] = params.cellDim.x;
+	sysp.cellDim[1] = params.cellDim.y;
+	sysp.cellDim[2] = params.cellDim.z;
+	sysp.faceArea[0] = sysp.cellDim[1] * sysp.cellDim[2];
+	sysp.faceArea[1] = sysp.cellDim[0] * sysp.cellDim[2];
+	sysp.faceArea[2] = sysp.cellDim[0] * sysp.cellDim[1];	
+
+	sysp.dirPrimary = getDirIndex(params.dir);
+	sysp.dirSecondary = make_uint2((sysp.dirPrimary + 1) % 3, (sysp.dirPrimary + 2) % 3);
+
+	sysp.dir = params.dir;
+
+	if (!commitSysParams(sysp)) {
+		return false;
+	}	
+
+	auto & sysTop = _levels[0].A;	
+	sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));
+
+
+	
+
+	MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f);
+	
+//debug
+#ifdef DEBUG
+	{		
+		sysTop.retrieve();		
+		auto & ftex = volume.getChannel(_levels[0].f.volID).getCurrentPtr();
+		ftex.allocCPU();
+		ftex.retrieve();
+
+
+		char b;
+		b = 0;
+	}
+#endif
+
+
+	
+	
+
+
+	cudaDeviceSynchronize();
+
+	return true;
+
+
+	
 	
 
 
@@ -94,6 +162,41 @@ bool MGGPU<T>::alloc()
 	const auto origDim = _mask->dim();
 	const size_t origTotal = origDim.x * origDim.y * origDim.z;
 
+	_levels.resize(numLevels());
+	_levels[0].dim = origDim;
+	for (auto i = 1; i < numLevels(); i++) {
+		//TODO: add odd size handling
+		const auto prevDim = _levels[i - 1].dim;
+		_levels[i].dim = { prevDim.x / 2, prevDim.y / 2, prevDim.z / 2 };
+	}
+
+	auto label = [](const std::string & prefix, int i) {
+		char buf[16];
+		itoa(i, buf, 10);
+		return prefix + std::string(buf);
+	};
+
+	//Domain & vector allocation
+	for (auto i = 0; i < numLevels(); i++) {
+		int domain = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("domain", i));
+		int x = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("x", i));
+		int tmpx = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("tmpx", i));
+		int r = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("r", i));
+		int f = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("f", i));
+		
+		_levels[i].domain = toMGGPUVolume(_volume->getChannel(domain), domain);
+		_levels[i].x = toMGGPUVolume(_volume->getChannel(x), x);
+		_levels[i].tmpx = toMGGPUVolume(_volume->getChannel(tmpx), tmpx);
+		_levels[i].r = toMGGPUVolume(_volume->getChannel(r), r);
+		_levels[i].f = toMGGPUVolume(_volume->getChannel(f), f);
+	}
+
+
+
+	cudaPrintMemInfo(0);
+	/*const auto origDim = _mask->dim();
+	const size_t origTotal = origDim.x * origDim.y * origDim.z;
+
 	
 	_levels.resize(numLevels());
 	_levels[0].dim = origDim;
@@ -136,9 +239,9 @@ bool MGGPU<T>::alloc()
 		size_t Icolptr = N * perRowI * sizeof(int);
 
 
-		/*levelMem[i] += Aval + Arowptr + Acolptr + b + x + tmpx + D;
+		/ *levelMem[i] += Aval + Arowptr + Acolptr + b + x + tmpx + D;
 		levelMem[i] += Rval + Rrowptr + Rcolptr;
-		levelMem[i] += Ival + Irowptr + Icolptr;*/
+		levelMem[i] += Ival + Irowptr + Icolptr;* /
 
 		//A kernels
 		int aidim = 3 + i * 4;
@@ -155,6 +258,7 @@ bool MGGPU<T>::alloc()
 	}
 
 	std::cout << "Total  " << float(totalMem) / (1024.0f * 1024.0f * 1024.0f) << "GB" << std::endl;
+*/
 
 
 	

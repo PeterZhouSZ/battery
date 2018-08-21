@@ -6,6 +6,8 @@
 
 #include <array>
 
+#include "../src/cuda/MGGPU.cuh"
+
 namespace blib {
 
 
@@ -33,7 +35,7 @@ namespace blib {
 		BLIB_EXPORT bool prepare(
 			const VolumeChannel & mask,
 			Params params,
-			VolumeChannel & debugChannel
+			Volume & volume
 		);
 
 
@@ -59,19 +61,30 @@ namespace blib {
 
 		Params _params;
 		const VolumeChannel * _mask;
+		Volume * _volume;
 
 		using SparseMat = int; //Todo cusparse mat
 		using Vector = int; //Todo cusparse vec
 
 		struct Level {			
 			ivec3 dim;
-			SparseMat A;
+			MGGPU_Volume domain;
+
+			MGGPU_Volume x;
+			MGGPU_Volume tmpx;
+			MGGPU_Volume r;
+			MGGPU_Volume f;
+
+			DataPtr A;
+
+			size_t N() const { return dim.x*dim.y*dim.z; }
+			/*SparseMat A;
 			SparseMat I;
 			SparseMat R;
 			Vector b;
 			Vector x;
 			Vector tmpx;
-			Vector r;
+			Vector r;*/
 			
 		};
 
