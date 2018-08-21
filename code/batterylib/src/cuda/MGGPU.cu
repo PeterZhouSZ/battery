@@ -122,12 +122,7 @@ __device__ void MGGPU_GetSystemTopKernel(
 		(read<T>(domain.surf, clampedVox(domain.res, vox, Y_POS)) + Di) * T(0.5),
 		(read<T>(domain.surf, clampedVox(domain.res, vox, Z_POS)) + Di) * T(0.5)
 	};
-
-	/*#pragma unroll
-	for (uint i = 0; i < 7; i++) {
-		out->v[i] = const_sys_params.faceArea[i % 3];
-	}
-	return;*/
+	
 
 	T coeffs[7];	
 	bool useInMatrix[7];

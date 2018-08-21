@@ -70,6 +70,101 @@ inline __device__ __host__ MGGPU_DomainRestrictKernel MGGPU_GetDomainRestriction
 	return kernel;
 }
 
+inline __device__ __host__ MGGPU_RestrictKernel MGGPU_GetRestrictionKernel(
+	const uint3 & vox, 
+	const uint3 & targetRes,
+	int dirIndex
+) {
+
+	MGGPU_RestrictKernel kernel;	
+
+	double w[4][4][4] = {
+		{
+			{ 1,3,3,1 },
+			{ 3,9,9,3 },
+			{ 3,9,9,3 },
+			{ 1,3,3,1 }
+		},
+		{
+			{ 3,9,9,3 },
+			{ 9,27,27,9 },
+			{ 9,27,27,9 },
+			{ 3,9,9,3 }
+		},
+		{
+			{ 3,9,9,3 },
+			{ 9,27,27,9 },
+			{ 9,27,27,9 },
+			{ 3,9,9,3 }
+		},
+		{
+			{ 1,3,3,1 },
+			{ 3,9,9,3 },
+			{ 3,9,9,3 },
+			{ 1,3,3,1 }
+		},
+
+	};
+
+	if (vox.x == 0 && dirIndex != 0) {
+		for (auto j = 0; j < 4; j++) {
+			for (auto k = 0; k < 4; k++) {
+				w[1][j][k] += w[0][j][k];
+				w[0][j][k] = 0;
+			}
+		}
+	}
+
+	if (vox.x == targetRes.x - 1 && dirIndex != 0) {
+		for (auto j = 0; j < 4; j++) {
+			for (auto k = 0; k < 4; k++) {
+				w[2][j][k] += w[3][j][k];
+				w[3][j][k] = 0;
+			}
+		}
+	}
+
+	if (vox.y == 0 && dirIndex != 1) {
+		for (auto i = 0; i < 4; i++) {
+			for (auto k = 0; k < 4; k++) {
+				w[i][1][k] += w[i][0][k];
+				w[i][0][k] = 0;
+			}
+		}
+	}
+
+	if (vox.y == targetRes.y - 1 && dirIndex != 1) {
+		for (auto i = 0; i < 4; i++) {
+			for (auto k = 0; k < 4; k++) {
+				w[i][2][k] += w[i][3][k];
+				w[i][3][k] = 0;
+			}
+		}
+	}
+
+
+	if (vox.z == 0 && dirIndex != 2) {
+		for (auto i = 0; i < 4; i++) {
+			for (auto j = 0; j < 4; j++) {
+				w[i][j][1] += w[i][j][0];
+				w[i][j][0] = 0;
+			}
+		}
+	}
+
+	if (vox.z == targetRes.z - 1 && dirIndex != 2) {
+		for (auto i = 0; i < 4; i++) {
+			for (auto j = 0; j < 4; j++) {
+				w[i][j][2] += w[i][j][3];
+				w[i][j][3] = 0;
+			}
+		}
+	}
+	
+	memcpy(&kernel, w, 4 * 4 * 4 * sizeof(double));
+	return kernel;
+}
+
 
 inline __device__ __host__ void MGGPU_CombineKernels(
 	MGGPU_KernelPtr * a, int an,
@@ -77,10 +172,11 @@ inline __device__ __host__ void MGGPU_CombineKernels(
 	MGGPU_KernelPtr * c
 ) {
 	int cn = (an + bn - 1);		
-
 }
 
-
+/*
+	Generates domain from mask and two double values
+*/
 void MGGPU_GenerateDomain(
 	const MGGPU_Volume & binaryMask,
 	double value_zero,
@@ -88,11 +184,6 @@ void MGGPU_GenerateDomain(
 	MGGPU_Volume & output
 );
 
-
-void MGGPU_RestrictDomain(
-	const MGGPU_Volume & domain,
-	MGGPU_Volume & output
-);
 
 /*
 	Convolves using a single kernel
