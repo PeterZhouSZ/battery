@@ -46,12 +46,92 @@ using MGGPU_DomainRestrictKernel = MGGPU_Kernel3D<2>;
 using MGGPU_KernelPtr = double *;
 
 
-inline __device__ __host__ MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
+inline __device__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 	const MGGPU_Volume & domain,
 	const uint3 & vox,
-	const Dir & dir
+	int dirIndex
 ) {
 	MGGPU_InterpKernel kernel;
+
+	double P[8] = {
+		27, 9, 9, 3, 9, 3, 3, 1
+	};
+
+	const uint3 offsets[8] = {
+		{
+			{ 0,0,0 },
+			{ 1,0,0 },
+			{ 0,1,0 },
+			{ 1,1,0 },
+			{ 0,0,1 },
+			{ 1,0,1 },
+			{ 0,1,1 },
+			{ 1,1,1 }
+		}
+	};
+
+	if ((dirIndex != 0 && (vox.x == domain.res.x - 1 || vox.x == 0))) {
+		P[0] += P[1]; P[1] = 0;
+		P[2] += P[3]; P[3] = 0;
+		P[4] += P[5]; P[5] = 0;
+		P[6] += P[7]; P[7] = 0;
+	}
+
+	if ((dirIndex != 1 && (vox.y == domain.res.y - 1 || vox.y == 0))) {
+		P[0] += P[2]; P[2] = 0;
+		P[1] += P[3]; P[3] = 0;
+		P[4] += P[6]; P[6] = 0;
+		P[5] += P[7]; P[7] = 0;
+	}
+
+	if ((dirIndex != 2 && (vox.z == domain.res.z - 1 || vox.z == 0))) {
+		P[0] += P[4]; P[4] = 0;
+		P[1] += P[5]; P[5] = 0;
+		P[2] += P[6]; P[6] = 0;
+		P[3] += P[7]; P[7] = 0;
+	}
+
+	/*double w[8];
+	double W = 0.0;
+	for (int i = 0; i < 8; i++) {
+		if (P[i] == 0) continue;
+		w[i] = P[i];
+
+		vec3 srcPos = iposSrc + r * offsets[i];
+
+		if (isValidPos(srcDim, srcPos)) {
+			w[i] *= srcWeights[srcI + idot(offsets[i], srcStride)];
+		}
+		else {
+			//outside of domain, dirichlet (since P[i] > 0)
+			ivec3 offset = offsets[i];
+			offset[dirIndex] -= 1;
+			if (!isValidPos(srcDim, iposSrc + r * offset)) {
+				offset[(dirIndex + 1) % 3] -= 1;
+			}
+			if (!isValidPos(srcDim, iposSrc + r * offset)) {
+				offset[(dirIndex + 2) % 3] -= 1;
+			}
+
+			w[i] *= srcWeights[srcI + idot(offset, srcStride)];
+		}
+
+
+		W += w[i];
+	}
+	for (auto i = 0; i < 8; i++) {
+		w[i] /= W;
+	}*/
+
+
+	kernel.v[0][0][0] = v;
+	kernel.v[0][0][1] = v;
+	kernel.v[0][1][0] = v;
+	kernel.v[0][1][1] = v;
+	kernel.v[1][0][0] = v;
+	kernel.v[1][0][1] = v;
+	kernel.v[1][1][0] = v;
+	kernel.v[1][1][1] = v;
 
 	return kernel;
 }
@@ -157,6 +237,23 @@ inline __device__ __host__ MGGPU_RestrictKernel MGGPU_GetRestrictionKernel(
 			for (auto j = 0; j < 4; j++) {
 				w[i][j][2] += w[i][j][3];
 				w[i][j][3] = 0;
+			}
+		}
+	}
+
+	double W = 0.0;
+	for (auto i = 0; i < 4; i++) {
+		for (auto j = 0; j < 4; j++) {
+			for (auto k = 0; k < 4; k++) {
+				W += w[i][j][k];
+			}
+		}
+	}
+
+	for (auto i = 0; i < 4; i++) {
+		for (auto j = 0; j < 4; j++) {
+			for (auto k = 0; k < 4; k++) {
+				w[i][j][k] /= W;
 			}
 		}
 	}
