@@ -54,6 +54,7 @@ a = a / sum(sum(a))
 i = ones(2,2) / (2*2)
 
 ra = conv2(r,a)
+ra = ra(1:2:end, 1:2:end)
 ai = conv2(a,i)
 
 rai0 = conv2(r,ai)

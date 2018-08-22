@@ -6,6 +6,7 @@
 
 #include "cuda/MGGPU.cuh"
 #include "CudaUtility.h"
+#include <chrono>
 
 
 
@@ -81,8 +82,14 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 
 	auto & sysTop = _levels[0].A;	
 	sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));
-
+	
+	
+	
 	MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f);
+	
+	{
+		std::cout << "i " << 0 << ", kn: " << "N/A" << ", per row:" << 7 << ", n: " << _levels[0].N() << ", row: " << sizeof(MGGPU_SystemTopKernel) << "B" << ", total: " << (_levels[0].N() * sizeof(MGGPU_SystemTopKernel)) / (1024.0f * 1024.0f) << "MB" << std::endl;
+	}
 	
 //debug
 #ifdef DEBUG
@@ -98,9 +105,30 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 	}
 #endif
 
+
+	int prevKernelSize = 3;
+	for (int i = 1; i < numLevels(); i++) {
+		int kn = prevKernelSize;
+		
+		kn = std::max({ kn, INTERP_SIZE, kn + INTERP_SIZE - 1 });
+		kn = std::max({ kn, RESTR_SIZE, kn + RESTR_SIZE - 1 });		
+
+
+		//Kernel size
+		//assert(kn == 3 + 5 * i);
+		kn = 3 + 4 * i;
+		//int kn = 3 + 5 * i;
+		size_t rowsize = kn*kn*kn * sizeof(double);
+		std::cout << "i " << i << ", kn: " << kn << ", per row:" << kn*kn*kn <<  ", n: " << _levels[i].N() << ", row: " << rowsize << "B" << ", total: " << (_levels[i].N() * rowsize) / (1024.0f * 1024.0f) << "MB" << std::endl;
+		_levels[i].A.allocDevice(_levels[i].N(), rowsize);
+
+		prevKernelSize = kn;
+	}
+	
+
 	
 	//Levle one mid
-	MGGPU_RestrictKernel restrKernelMid  = MGGPU_GetRestrictionKernel(
+	/*MGGPU_RestrictKernel restrKernelMid  = MGGPU_GetRestrictionKernel(
 		make_uint3(mask.dim().x / 4, mask.dim().y / 4, mask.dim().z / 4),
 		make_uint3(mask.dim().x / 2, mask.dim().y / 2, mask.dim().z / 2) ,
 		getDirIndex(sysp.dir)
@@ -110,7 +138,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		make_uint3(mask.dim().x / 4, 0, mask.dim().z / 4),
 		make_uint3(mask.dim().x / 2, mask.dim().y / 2, mask.dim().z / 2),
 		getDirIndex(sysp.dir)
-	);
+	);*/
 
 	/*MGGPU_RestrictKernel restrKernelX0 = MGGPU_GetRestrictionKernel(
 		make_uint3(mask.dim().x / 4, 0, mask.dim().z / 4),
@@ -126,6 +154,8 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 
 
 	cudaDeviceSynchronize();
+
+	cudaPrintMemInfo(0);
 
 	return true;
 
@@ -212,7 +242,7 @@ bool MGGPU<T>::alloc()
 
 
 
-	cudaPrintMemInfo(0);
+	
 	/*const auto origDim = _mask->dim();
 	const size_t origTotal = origDim.x * origDim.y * origDim.z;
 

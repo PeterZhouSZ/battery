@@ -40,9 +40,13 @@ struct MY_ALIGN(16) MGGPU_SystemTopKernel {
 	double v[7];
 };
 
-using MGGPU_InterpKernel = MGGPU_Kernel3D<3>;
-using MGGPU_RestrictKernel = MGGPU_Kernel3D<4>;
-using MGGPU_DomainRestrictKernel = MGGPU_Kernel3D<2>;
+#define INTERP_SIZE 3
+#define RESTR_SIZE 4
+#define DOMAIN_RESTR_SIZE 2
+
+using MGGPU_InterpKernel = MGGPU_Kernel3D<INTERP_SIZE>;
+using MGGPU_RestrictKernel = MGGPU_Kernel3D<RESTR_SIZE>;
+using MGGPU_DomainRestrictKernel = MGGPU_Kernel3D<DOMAIN_RESTR_SIZE>;
 using MGGPU_KernelPtr = double *;
 
 
@@ -150,7 +154,7 @@ inline __device__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 
 
 	//Create 3^3 kernel
-	memset(kernel.v, 0, 3 * 3 * 3 * sizeof(double));
+	memset(kernel.v, 0, INTERP_SIZE*INTERP_SIZE*INTERP_SIZE * sizeof(double));
 	for (auto i = 0; i < 8; i++) {
 		int3 kpos = make_int3(1, 1, 1) + offsets[i];
 		kernel.v[kpos.x][kpos.y][kpos.z] = w[i];		
@@ -283,17 +287,37 @@ inline __device__ __host__ MGGPU_RestrictKernel MGGPU_GetRestrictionKernel(
 		}
 	}
 	
-	memcpy(&kernel, w, 4 * 4 * 4 * sizeof(double));
+	memcpy(&kernel, w, RESTR_SIZE * RESTR_SIZE * RESTR_SIZE * sizeof(double));
 	return kernel;
 }
 
+
+inline __device__ __host__ int MGGPU_KernelProductSize(int an, int bn) {
+	return an + bn - 1;
+}
+
+inline __device__ __host__ void MGGPU_A0(MGGPU_RestrictKernel & R, MGGPU_SystemTopKernel & A, MGGPU_InterpKernel & I) {
+	
+	//R*A
+
+
+}
 
 inline __device__ __host__ void MGGPU_CombineKernels(
 	MGGPU_KernelPtr * a, int an,
 	MGGPU_KernelPtr * b, int bn,
 	MGGPU_KernelPtr * c
 ) {
-	int cn = (an + bn - 1);		
+	int cn = MGGPU_KernelProductSize(an, bn);
+		
+
+	/*
+	a0 needs to be transformed from [7] -> 3x3x3
+	a1 = r * a0 * i
+	= 4^3 * 3^3 * 3^3
+	c .. a1
+	*/
+
 }
 
 /*

@@ -1706,6 +1706,22 @@ bool MultigridSolver<T>::prepare(
 			
 		}
 
+		{
+			int level = i;
+			char buf[24]; itoa(level, buf, 10);
+			std::ofstream f("A_" + std::string(buf) + ".dat");
+
+			for (auto i = 0; i < _A[level].rows(); i++) {
+				for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[level], i); it; ++it) {
+					auto  j = it.col();
+					f << i + 1 << " " << j + 1 << " " << it.value() << "\n";
+				}
+
+				if (_A[level].rows() < 100 || i % (_A[level].rows() / 100))
+					f.flush();
+			}
+		}
+
 		
 
 		/*sprintf(buf, "_A%d.txt", i);
