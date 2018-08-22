@@ -40,98 +40,123 @@ struct MY_ALIGN(16) MGGPU_SystemTopKernel {
 	double v[7];
 };
 
-using MGGPU_InterpKernel = MGGPU_Kernel3D<2>;
+using MGGPU_InterpKernel = MGGPU_Kernel3D<3>;
 using MGGPU_RestrictKernel = MGGPU_Kernel3D<4>;
 using MGGPU_DomainRestrictKernel = MGGPU_Kernel3D<2>;
 using MGGPU_KernelPtr = double *;
 
 
+
+
 inline __device__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
-	const MGGPU_Volume & domain,
-	const uint3 & vox,
+	const MGGPU_Volume & domain,	
+	const uint3 & vox, //vox in destination
+	const uint3 & destRes, //should be double (if power of 2) of domain.res
 	int dirIndex
 ) {
+
+	/*
+		Two spaces:
+			source : n/2 (domain, domain.res)
+			dest: n (vox, destRes)
+	*/
+
 	MGGPU_InterpKernel kernel;
 
+	const int3 r = make_int3(vox.x % 2, vox.y % 2, vox.z % 2) * 2 - 1;
+	const int3 voxi = make_int3(vox);
+	const int3 voxSrc = make_int3(vox.x / 2, vox.y / 2, vox.z / 2);
+	
+
+	//Different offset for each subcell
+	const int3 offsets[8] = {
+		make_int3(0,0,0),
+		make_int3(r.x,0,0),
+		make_int3(0,r.y,0),
+		make_int3(r.x,r.y,0),
+		make_int3(0,0,r.z),
+		make_int3(r.x,0,r.z),
+		make_int3(0,r.y,r.z),
+		make_int3(r.x,r.y,r.z)
+	};
+
+	//Initial weights
 	double P[8] = {
 		27, 9, 9, 3, 9, 3, 3, 1
 	};
-
-	const uint3 offsets[8] = {
-		{
-			{ 0,0,0 },
-			{ 1,0,0 },
-			{ 0,1,0 },
-			{ 1,1,0 },
-			{ 0,0,1 },
-			{ 1,0,1 },
-			{ 0,1,1 },
-			{ 1,1,1 }
-		}
-	};
-
-	if ((dirIndex != 0 && (vox.x == domain.res.x - 1 || vox.x == 0))) {
+	
+	if ((dirIndex != 0 && (vox.x == destRes.x - 1 || vox.x == 0))) {
 		P[0] += P[1]; P[1] = 0;
 		P[2] += P[3]; P[3] = 0;
 		P[4] += P[5]; P[5] = 0;
 		P[6] += P[7]; P[7] = 0;
 	}
 
-	if ((dirIndex != 1 && (vox.y == domain.res.y - 1 || vox.y == 0))) {
+	if ((dirIndex != 1 && (vox.y == destRes.y - 1 || vox.y == 0))) {
 		P[0] += P[2]; P[2] = 0;
 		P[1] += P[3]; P[3] = 0;
 		P[4] += P[6]; P[6] = 0;
 		P[5] += P[7]; P[7] = 0;
 	}
 
-	if ((dirIndex != 2 && (vox.z == domain.res.z - 1 || vox.z == 0))) {
+	if ((dirIndex != 2 && (vox.z == destRes.z - 1 || vox.z == 0))) {
 		P[0] += P[4]; P[4] = 0;
 		P[1] += P[5]; P[5] = 0;
 		P[2] += P[6]; P[6] = 0;
 		P[3] += P[7]; P[7] = 0;
 	}
 
-	/*double w[8];
+	double w[8];
 	double W = 0.0;
 	for (int i = 0; i < 8; i++) {
 		if (P[i] == 0) continue;
 		w[i] = P[i];
 
-		vec3 srcPos = iposSrc + r * offsets[i];
-
-		if (isValidPos(srcDim, srcPos)) {
-			w[i] *= srcWeights[srcI + idot(offsets[i], srcStride)];
-		}
+		
+		int3 voxSrcNew = voxSrc + offsets[i];
+		if (_isValidPos(domain.res, voxSrcNew)) {
+			w[i] *= read<double>(domain.surf, make_uint3(voxSrcNew)); //redundant conversion to uint, TODO better
+		}	
+		//Source voxel is outside of domain
+		//P[i] > 0 then implies it's on dirichlet boundary
+		//Therefore a nearest value has to be used
 		else {
-			//outside of domain, dirichlet (since P[i] > 0)
-			ivec3 offset = offsets[i];
-			offset[dirIndex] -= 1;
-			if (!isValidPos(srcDim, iposSrc + r * offset)) {
-				offset[(dirIndex + 1) % 3] -= 1;
-			}
-			if (!isValidPos(srcDim, iposSrc + r * offset)) {
-				offset[(dirIndex + 2) % 3] -= 1;
+			
+			//Change offset to nearest valid voxel from source
+			int3 offset = offsets[i];			
+			_at<int, int3>(offset, dirIndex) -= 1;			
+			if (!_isValidPos(domain.res, voxSrcNew + r * offset)) {
+				_at<int, int3>(offset, (dirIndex + 1) % 3) -= 1;				
 			}
 
-			w[i] *= srcWeights[srcI + idot(offset, srcStride)];
+			if (!_isValidPos(domain.res, voxSrcNew + r * offset)) {
+				_at<int, int3>(offset, (dirIndex + 2) % 3) -= 1;				
+			}
+
+			//Update src vox with new offset
+			voxSrcNew = voxSrc + offset;
+
+			//Read weight from source domain
+			w[i] *= read<double>(domain.surf, make_uint3(voxSrcNew));			
 		}
-
 
 		W += w[i];
 	}
+
+	//Normalize weights
 	for (auto i = 0; i < 8; i++) {
 		w[i] /= W;
-	}*/
+	}
 
 
-	kernel.v[0][0][0] = v;
-	kernel.v[0][0][1] = v;
-	kernel.v[0][1][0] = v;
-	kernel.v[0][1][1] = v;
-	kernel.v[1][0][0] = v;
-	kernel.v[1][0][1] = v;
-	kernel.v[1][1][0] = v;
-	kernel.v[1][1][1] = v;
+	//Create 3^3 kernel
+	memset(kernel.v, 0, 3 * 3 * 3 * sizeof(double));
+	for (auto i = 0; i < 8; i++) {
+		int3 kpos = make_int3(1, 1, 1) + offsets[i];
+		kernel.v[kpos.x][kpos.y][kpos.z] = w[i];		
+	}
+	
+
 
 	return kernel;
 }

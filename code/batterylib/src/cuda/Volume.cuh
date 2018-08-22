@@ -82,6 +82,15 @@ inline __device__ size_t _linearIndex(const uint3 & dim, const uint3 & pos) {
 	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
 }
 
+inline __device__ bool _isValidPos(const uint3 & dim, const uint3 & pos) {
+	return pos.x < dim.x && pos.y < dim.y && pos.z < dim.z;
+}
+
+inline __device__ bool _isValidPos(const uint3 & dim, const int3 & pos) {
+	return	pos.x >= 0 && pos.y >= 0 && pos.z >= 0 &&
+		pos.x < dim.x && pos.y < dim.y && pos.z < dim.z;
+}
+
 
 
 inline __device__ int _getDirSgn(Dir dir) {

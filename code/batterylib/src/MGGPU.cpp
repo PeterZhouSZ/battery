@@ -112,6 +112,12 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		getDirIndex(sysp.dir)
 	);
 
+	/*MGGPU_RestrictKernel restrKernelX0 = MGGPU_GetRestrictionKernel(
+		make_uint3(mask.dim().x / 4, 0, mask.dim().z / 4),
+		make_uint3(mask.dim().x / 2, mask.dim().y / 2, mask.dim().z / 2),
+		getDirIndex(sysp.dir)
+	);*/
+
 	/*MGGPU_RestrictKernel restrKernelX1 = MGGPU_GetRestrictionKernel(
 		make_uint3(1, mask.dim().y / 2, mask.dim().z / 2),
 		make_uint3(mask.dim().x, mask.dim().y, mask.dim().z),
