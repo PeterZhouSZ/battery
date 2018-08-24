@@ -306,6 +306,7 @@ inline __device__ __host__ void MGGPU_A0(MGGPU_RestrictKernel & R, MGGPU_SystemT
 inline __device__ __host__ void MGGPU_CombineKernels(
 	MGGPU_KernelPtr * a, int an,
 	MGGPU_KernelPtr * b, int bn,
+	int stride,
 	MGGPU_KernelPtr * c
 ) {
 	int cn = MGGPU_KernelProductSize(an, bn);

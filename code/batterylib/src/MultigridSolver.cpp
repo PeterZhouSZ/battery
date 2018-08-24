@@ -409,6 +409,7 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 					}
 				}
 
+				int zeroCount = 0;
 				//Apply weights
 				T W = 0.0;
 				for (auto i = 0; i < 4; i++) {
@@ -439,9 +440,14 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> restrictionMatrix(ivec3 srcDim, T * srcW
 							}*/
 
 							W += w[i][j][k];
+							if (w[i][j][k] == 0.0) {
+								zeroCount++;
+							}
 						}
 					}
 				}
+
+				int nonzero = 64 - zeroCount;
 
 				//Normalize
 				for (auto i = 0; i < 4; i++) {
@@ -1711,13 +1717,13 @@ bool MultigridSolver<T>::prepare(
 			char buf[24]; itoa(level, buf, 10);
 			std::ofstream f("A_" + std::string(buf) + ".dat");
 
-			for (auto i = 0; i < _A[level].rows(); i++) {
-				for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[level], i); it; ++it) {
+			for (auto k = 0; k < _A[level].rows(); k++) {
+				for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[level], k); it; ++it) {
 					auto  j = it.col();
-					f << i + 1 << " " << j + 1 << " " << it.value() << "\n";
+					f << k + 1 << " " << j + 1 << " " << it.value() << "\n";
 				}
 
-				if (_A[level].rows() < 100 || i % (_A[level].rows() / 100))
+				if (_A[level].rows() < 100 || k % (_A[level].rows() / 100))
 					f.flush();
 			}
 		}
