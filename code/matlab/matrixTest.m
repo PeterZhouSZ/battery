@@ -7,6 +7,8 @@ load ('../build/R_2.dat')
 load ('../build/A_0.dat')
 load ('../build/A_1.dat')
 load ('../build/A_2.dat')
+
+load ('../build/AI_1.dat') %A0*I0
 %load A_3.dat
 %load A_4.dat
 
@@ -22,6 +24,8 @@ R_2 = (spconvert(R_2));
 A_0 = (spconvert(A_0));
 A_1 = (spconvert(A_1));
 A_2 = (spconvert(A_2));
+
+AI_1 = (spconvert(AI_1));
 %A_3 = (spconvert(A_3));
 %A_4 = (spconvert(A_4));
 %R_0 = 8 * R_0;

@@ -86,10 +86,22 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 	
 	
 	MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f);
-	
 	{
 		std::cout << "i " << 0 << ", kn: " << "N/A" << ", per row:" << 7 << ", n: " << _levels[0].N() << ", row: " << sizeof(MGGPU_SystemTopKernel) << "B" << ", total: " << (_levels[0].N() * sizeof(MGGPU_SystemTopKernel)) / (1024.0f * 1024.0f) << "MB" << std::endl;
 	}
+
+
+
+	auto & sys1 = _levels[1].A;
+	sys1.allocDevice(_levels[1].N(), sizeof(MGGPU_Kernel3D<5>));
+
+	//MGGPU_GenerateAI0(_levels[1].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, (MGGPU_Kernel3D<5>*)sys1.gpu);
+
+	DataPtr I0Kernels;
+	I0Kernels.allocDevice(_levels[0].N(), sizeof(MGGPU_InterpKernel));
+	MGGPU_GenerateSystemInterpKernels(make_uint3(_levels[0].dim.x, _levels[0].dim.y, _levels[0].dim.z), _levels[1].domain, (MGGPU_InterpKernel *) I0Kernels.gpu);
+
+	
 	
 //debug
 #ifdef DEBUG
@@ -103,8 +115,27 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		char b;
 		b = 0;
 	}
+
+	{
+		I0Kernels.retrieve();
+
+		MGGPU_InterpKernel * ikern = (MGGPU_InterpKernel *)I0Kernels.cpu;
+
+		char b;
+		b = 0;
+	}
+
+	{
+		sys1.retrieve();	
+
+
+		char b;
+		b = 0;
+	}
 #endif
 
+
+	return true;
 
 	int prevKernelSize = 3;
 	for (int i = 1; i < numLevels(); i++) {

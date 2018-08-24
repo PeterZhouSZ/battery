@@ -3,7 +3,7 @@ local glew = os.getenv("GLEW_PATH") -- glew-2.0.0
 local glm = os.getenv("GLM_PATH") --glm 0.9.8
 local eigen = os.getenv("EIGEN_PATH") --eigen 3.3.4
 
-cuda_version = "9.0"
+cuda_version = "9.2"
 include("premake-cuda/cuda.lua")
 
 --local blib = "../../batterylib" 

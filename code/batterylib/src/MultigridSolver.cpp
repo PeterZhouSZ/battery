@@ -1729,6 +1729,26 @@ bool MultigridSolver<T>::prepare(
 		}
 
 		
+		
+		if(i > 0){
+
+			SparseMat AI = _A[i - 1] * _I[i - 1];
+			int level = i;
+			char buf[24]; itoa(level, buf, 10);
+			std::ofstream f("AI_" + std::string(buf) + ".dat");
+
+			for (auto k = 0; k < AI.rows(); k++) {
+				for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(AI, k); it; ++it) {
+					auto  j = it.col();
+					f << k + 1 << " " << j + 1 << " " << it.value() << "\n";
+				}
+
+				if (AI.rows() < 100 || k % (AI.rows() / 100))
+					f.flush();
+			}
+		}
+
+		
 
 		/*sprintf(buf, "_A%d.txt", i);
 		std::ofstream fa(buf);
