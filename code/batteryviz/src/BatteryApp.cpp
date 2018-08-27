@@ -806,10 +806,9 @@ void BatteryApp::reset()
 		MGGPU<double>::Params p;
 		p.levels = 5;
 		p.dir = X_NEG;
-		p.d0 = 0.0001;
-		p.d1 = 1.0;
-		//p.cellDim = { 0, }
-
+		p.d0 = _options["Diffusion"].get<float>("D_zero");
+		p.d1 = _options["Diffusion"].get<float>("D_one");
+		
 		auto & c = _volume->getChannel(CHANNEL_BATTERY);
 		auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
 		auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));

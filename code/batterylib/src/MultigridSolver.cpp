@@ -778,7 +778,8 @@ Eigen::SparseMatrix<T, Eigen::RowMajor> interpolationMatrix(ivec3 srcDim, T * sr
 
 					T w[8];
 					T W = 0.0;
-					for (auto i = 0; i < 8; i++) {											
+					for (auto i = 0; i < 8; i++) {	
+						w[i] = 0.0;
 						if (P[i] == 0) continue;
 						w[i] = P[i];
 

@@ -76,3 +76,24 @@ load A_0.dat
 AGPU = full(spconvert(A_GPU_0));
 ACPU = full(spconvert(A_0));
 
+%%
+%MGGPU vs cpu
+
+load ('../build/A_0.dat')
+load ('../build/I_0.dat')
+load ('../build/MGGPU_AI_0.dat')
+I0CPU = spconvert(I_0);
+A0CPU = spconvert(A_0);
+AI0CPU = full(A0CPU * I0CPU);
+AI0GPU = full(spconvert(MGGPU_AI_0));
+
+%%
+r = 1 + 3 + 3*8 + 3*64  
+avec = A0CPU(r,:)
+ivec = I0CPU(:,r / 2)
+ai0_00 = full(avec) * full(ivec)
+AI0CPU(r,r / 2)
+
+
+
+

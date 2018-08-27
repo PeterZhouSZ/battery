@@ -63,7 +63,7 @@ namespace blib {
 		const VolumeChannel * _mask;
 		Volume * _volume;
 
-		using SparseMat = int; //Todo cusparse mat
+		//using SparseMat = int; //Todo cusparse mat
 		using Vector = int; //Todo cusparse vec
 
 		struct Level {			
