@@ -97,7 +97,7 @@ SparseMat kernelToSparse(MGGPU_Kernel3D<KN> * kernels, ivec3 dim0, ivec3 dim1) {
 
 					ivec3 offset = { x,y,z };
 					if (KN % 2 == 0) {
-						offset = ivec3( KN / 2 + 1);
+						offset -= ivec3( KN / 2 - 1);
 					}
 					else {
 						offset -= ivec3(KN / 2);
@@ -206,6 +206,24 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		return false;
 	}	
 
+
+	DataPtr IT0Kernels;
+	IT0Kernels.allocDevice(_levels[1].N(), sizeof(MGGPU_Kernel3D<4>));
+	IT0Kernels.memsetDevice(0);
+
+
+	//cudaMemset()
+	//memset(output, 0, totalOut * sizeof(MGGPU_Kernel3D<4>));
+
+	
+	MGGPU_GenerateTranposeInterpKernels(
+		make_uint3(_levels[0].dim.x, _levels[0].dim.y, _levels[0].dim.z),
+		make_uint3(_levels[1].dim.x, _levels[1].dim.y, _levels[1].dim.z),
+		_levels[1].domain,
+		(MGGPU_Kernel3D<4> *)IT0Kernels.gpu
+	);
+		
+
 	auto & sysTop = _levels[0].A;	
 	sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));
 	
@@ -218,10 +236,15 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 
 
 
-	auto & sys1 = _levels[1].A;
+	
+
+	
+
+
+	/*auto & sys1 = _levels[1].A;
 	sys1.allocDevice(_levels[0].N(), sizeof(MGGPU_Kernel3D<5>));
 
-	MGGPU_GenerateAI0(_levels[1].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, (MGGPU_Kernel3D<5>*)sys1.gpu);
+	MGGPU_GenerateAI0(_levels[1].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, (MGGPU_Kernel3D<5>*)sys1.gpu);*/
 
 	/*DataPtr I0Kernels;
 	I0Kernels.allocDevice(_levels[0].N(), sizeof(MGGPU_InterpKernel));
@@ -260,7 +283,21 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 	}
 
 	{
-		sys1.retrieve();
+		IT0Kernels.retrieve();
+		MGGPU_Kernel3D<4> * ikern = (MGGPU_Kernel3D<4> *)IT0Kernels.cpu;
+		SparseMat IT0 = kernelToSparse<4>(
+			(MGGPU_Kernel3D<4>*)ikern,
+			_levels[1].dim,
+			_levels[0].dim
+		);
+		saveSparse(IT0, "MGGPU_IT", 0);
+
+		char b;
+		b = 0;
+	}
+
+	{
+		/*sys1.retrieve();
 
 		
 		
@@ -273,7 +310,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		
 
 		char b;
-		b = 0;
+		b = 0;*/
 	}
 #endif
 

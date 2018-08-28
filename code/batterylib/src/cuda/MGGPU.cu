@@ -525,3 +525,76 @@ void MGGPU_GenerateSystemInterpKernels(
 		I
 		);
 }
+
+
+
+__global__ void ___genITranpose(
+	const uint3 Nres,
+	const uint3 Nhalfres,
+	const MGGPU_Volume domainHalf,
+	MGGPU_Kernel3D<4> * output
+){
+
+		 
+	VOLUME_VOX_GUARD(Nres);	
+	int3 ivox = make_int3(vox);
+	int3 ivoxhalf = make_int3(vox.x / 2, vox.y / 2, vox.z / 2);
+
+	//Get kernel interpolating to ivox from Nhalfres
+	MGGPU_InterpKernel kernel = MGGPU_GetInterpolationKernel(domainHalf, ivox, Nres, const_sys_params.dirPrimary);
+
+	//Scatter kernel
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			for (int k = 0; k < 3; k++) {
+				double val = kernel.v[i][j][k];
+
+				int3 targetHalf = ivoxhalf + make_int3(i - 1, j - 1, k - 1);
+				size_t debugLinPosHalf = _linearIndex(Nhalfres, targetHalf);
+
+
+				if (_isValidPos(Nhalfres, targetHalf)){
+					//output index
+					size_t index = _linearIndex(Nhalfres, targetHalf);
+
+					//inoutput index
+					int3 inOutputIndex = ivox - (targetHalf * 2 - 1);
+					
+					if (!_isValidPos(make_uint3(4), inOutputIndex)) {
+						continue;
+					}
+
+					if (index == 0) {
+						//printf("(%d, (%d, %d, %d) / (%d %d %d))\t %f\n", index, inOutputIndex.x, inOutputIndex.y, inOutputIndex.z, ivox.x, ivox.y, ivox.z, val);
+					}
+					output[index].v[inOutputIndex.x][inOutputIndex.y][inOutputIndex.z] = val;
+				}
+				
+			}
+		}
+	}
+
+
+
+}
+
+
+
+void MGGPU_GenerateTranposeInterpKernels(
+	const uint3 & Nres,
+	const uint3 & Nhalfres,
+	const MGGPU_Volume & domainHalf,
+	MGGPU_Kernel3D<4> * output
+) {
+
+	const uint totalOut = Nhalfres.x * Nhalfres.y * Nhalfres.z;
+	
+
+	BLOCKS3D(2, Nres);
+	___genITranpose << < numBlocks, block >> > (
+		Nres, Nhalfres,
+		domainHalf,
+		output
+		);
+
+}

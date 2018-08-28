@@ -27,6 +27,7 @@ namespace blib {
 
 		BLIB_EXPORT size_t byteSize() const { return num*stride; }
 
+		BLIB_EXPORT bool memsetDevice(int value = 0);
 		
 		//Commit to device (offset in bytes)
 		BLIB_EXPORT bool commit(size_t offset, size_t size);

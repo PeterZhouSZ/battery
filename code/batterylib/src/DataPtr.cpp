@@ -112,6 +112,11 @@ bool blib::DataPtr::alloc(size_t num, size_t stride)
 
 
 
+bool blib::DataPtr::memsetDevice(int value)
+{	
+	return _CUDA(cudaMemset(gpu, value, byteSize()));
+}
+
 bool blib::DataPtr::commit(size_t offset, size_t size) {
 
 	assert(cpu != nullptr);

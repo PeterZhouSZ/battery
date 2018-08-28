@@ -248,3 +248,11 @@ void MGGPU_GenerateSystemInterpKernels(
 	const MGGPU_Volume & domain,	
 	MGGPU_InterpKernel * I
 );
+
+
+void MGGPU_GenerateTranposeInterpKernels(
+	const uint3 & Nres,
+	const uint3 & Nhalfres,
+	const MGGPU_Volume & domainHalf,
+	MGGPU_Kernel3D<4> * output
+);

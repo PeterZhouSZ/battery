@@ -94,6 +94,16 @@ ivec = I0CPU(:,r / 2)
 ai0_00 = full(avec) * full(ivec)
 AI0CPU(r,r / 2)
 
+%%
+load ('../build/I_0.dat')
+load ('../build/MGGPU_I_0.dat')
+load ('../build/MGGPU_IT_0.dat')
+
+I0TCPU = spconvert(I_0)';
+I0TGPU = spconvert(MGGPU_IT_0);
+
+I0TGPUF = full(I0TGPU);
+I0TCPUF = full(I0TCPU);
 
 
 
