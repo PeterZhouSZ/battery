@@ -587,13 +587,127 @@ void MGGPU_GenerateTranposeInterpKernels(
 	MGGPU_Kernel3D<4> * output
 ) {
 
-	const uint totalOut = Nhalfres.x * Nhalfres.y * Nhalfres.z;
 	
-
 	BLOCKS3D(2, Nres);
 	___genITranpose << < numBlocks, block >> > (
 		Nres, Nhalfres,
 		domainHalf,
+		output
+		);
+
+}
+
+__global__ void ___convolve_A0_IT0_Direct(
+	const uint3 Nres,
+	const uint3 Nhalfres,
+	const MGGPU_SystemTopKernel * A0,
+	const MGGPU_Kernel3D<4> * IT0,
+	MGGPU_Kernel3D<3> * output
+){
+
+	VOLUME_VOX_GUARD(Nres);
+
+	size_t iN = _linearIndex(Nres, vox);
+	size_t iNHalf = _linearIndex(Nhalfres, vox);
+
+
+	int3 voxi = make_int3(vox);
+	int3 voxiHalf = make_int3(voxi.x /2, voxi.y / 2, voxi.z / 2);
+
+	const int N_A = 3;	
+	const int N_I = 4;
+	const int STRIDE = 2;
+	const int N_AI = (N_A + N_I - 1) / STRIDE; //3	
+
+
+	//Read packed a0 kernel
+	size_t i = _linearIndex(Nres, vox);
+	MGGPU_Kernel3D<N_AI> & AI = output[i];
+
+	const MGGPU_SystemTopKernel & a7 = A0[i];
+
+	//Scatter to 3x3x3 kernel
+	MGGPU_Kernel3D<3> a;
+	{
+		memset(&a, 0, sizeof(MGGPU_Kernel3D<3>));
+		a.v[1][1][1] = a7.v[DIR_NONE];
+		a.v[0][1][1] = a7.v[X_NEG];
+		a.v[2][1][1] = a7.v[X_POS];
+		a.v[1][0][1] = a7.v[Y_NEG];
+		a.v[1][2][1] = a7.v[Y_POS];
+		a.v[1][1][0] = a7.v[Z_NEG];
+		a.v[1][1][2] = a7.v[Z_POS];
+	}
+	
+
+	for (int x_ai = 0; x_ai < N_AI; x_ai++) {
+		for (int y_ai = 0; y_ai < N_AI; y_ai++) {
+			for (int z_ai = 0; z_ai < N_AI; z_ai++) {
+
+				int3 offsetAICenter = make_int3(-N_AI / 2) + make_int3(x_ai, y_ai, z_ai);
+				int3 interpPos = voxiHalf + offsetAICenter;
+				
+				if (!_isValidPos(Nhalfres, interpPos)) {
+					AI.v[x_ai][y_ai][z_ai] = 0.0;
+					continue;
+				}
+
+				size_t interpIndex = _linearIndex(Nhalfres, voxiHalf + offsetAICenter);
+
+				const MGGPU_Kernel3D<N_I> & I = IT0[interpIndex];
+
+				double sum = 0.0;
+				//dot with offseted a
+				for (int x_i = 0; x_i < N_I; x_i++) {
+					for (int y_i = 0; y_i < N_I; y_i++) {
+						for (int z_i = 0; z_i < N_I; z_i++) {
+
+						
+
+
+							int3 offsetICenter = make_int3(x_i, y_i, z_i) - make_int3(N_I / 2 - 1);
+							int3 voxI = 2*(interpPos) + offsetICenter;
+							
+							
+							int3 apos = voxI - voxi + make_int3(1,1,1);
+
+							
+							int x_a = apos.x;
+							int y_a = apos.y;
+							int z_a = apos.z;
+
+							if (!_isValidPos(make_uint3(N_A), make_int3(x_a, y_a, z_a)))
+								continue;
+							
+							sum += I.v[x_i][y_i][z_i] * a.v[x_a][y_a][z_a];
+						}
+					}
+				}
+
+				AI.v[x_ai][y_ai][z_ai] = sum;
+			}
+		}
+	}
+
+
+}
+
+
+
+void MGGPU_GenerateAI0(
+	const uint3 & Nres,
+	const uint3 & Nhalfres,
+	const MGGPU_SystemTopKernel * A0,
+	const MGGPU_Kernel3D<4> * IT0,
+	MGGPU_Kernel3D<3> * output
+) {
+	
+	BLOCKS3D(2, Nres);
+	___convolve_A0_IT0_Direct << < numBlocks, block >> > (
+		Nres,
+		Nhalfres,
+		A0,
+		IT0,
 		output
 		);
 

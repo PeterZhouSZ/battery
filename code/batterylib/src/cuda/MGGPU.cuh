@@ -236,11 +236,7 @@ void MGGPU_GenerateSystemTopKernel(
 	MGGPU_Volume & f //rhs of lin sys
 );
 
-void MGGPU_GenerateAI0(
-	const MGGPU_Volume & domain,
-	const MGGPU_SystemTopKernel * A0,
-	MGGPU_Kernel3D<5> * AI
-);
+
 
 
 void MGGPU_GenerateSystemInterpKernels(
@@ -255,4 +251,12 @@ void MGGPU_GenerateTranposeInterpKernels(
 	const uint3 & Nhalfres,
 	const MGGPU_Volume & domainHalf,
 	MGGPU_Kernel3D<4> * output
+);
+
+void MGGPU_GenerateAI0(
+	const uint3 & Nres,
+	const uint3 & Nhalfres,	
+	const MGGPU_SystemTopKernel * A0,
+	const MGGPU_Kernel3D<4> * IT0,
+	MGGPU_Kernel3D<3> * output
 );

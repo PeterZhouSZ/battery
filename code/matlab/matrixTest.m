@@ -84,8 +84,24 @@ load ('../build/I_0.dat')
 load ('../build/MGGPU_AI_0.dat')
 I0CPU = spconvert(I_0);
 A0CPU = spconvert(A_0);
-AI0CPU = full(A0CPU * I0CPU);
+
+AI0CPU = (A0CPU * I0CPU);
+
+AI0GPU = (spconvert(MGGPU_AI_0));
 AI0GPU = full(spconvert(MGGPU_AI_0));
+AI0CPU = full(A0CPU * I0CPU);
+
+% Need to see: for 1,1
+% -0.3125 * 0.75 + 
+% 0.0625 * 0.75 + 
+% 0.0625 * 0.5625 + 
+% 0.0625 * 0.5625
+
+% Need to see: for 1,2 (+1x)
+% -0.3125 * 00000 + 
+% 0.0625 * 0.25 + 
+% 0.0625 * 0 + 
+% 0.0625 * 0
 
 %%
 r = 1 + 3 + 3*8 + 3*64  
@@ -105,5 +121,13 @@ I0TGPU = spconvert(MGGPU_IT_0);
 I0TGPUF = full(I0TGPU);
 I0TCPUF = full(I0TCPU);
 
+%%
+load ('../build/AI_1.dat');
+load ('../build/AI_2.dat');
+AI_1 = spconvert(AI_1);
+AI_2 = spconvert(AI_2);
+
+max(sum(AI_1 ~= 0, 2))
+max(sum(AI_2 ~= 0, 2))
 
 
