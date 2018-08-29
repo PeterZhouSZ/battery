@@ -78,30 +78,34 @@ inline __device__ uint _getDirIndex(Dir dir) {
 	return uint(-1);
 }
 
-inline __device__ size_t _linearIndex(const uint3 & dim, const uint3 & pos) {
+inline __device__ __host__ size_t _linearIndex(const uint3 & dim, const uint3 & pos) {
 	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
 }
 
-inline __device__ size_t _linearIndex(const uint3 & dim, const int3 & pos) {
+inline __device__ __host__ size_t _linearIndex(const uint3 & dim, const int3 & pos) {
 	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
 }
 
-inline __device__ bool _isValidPos(const uint3 & dim, const uint3 & pos) {
+inline __device__ __host__ size_t _linearIndexXFirst(const uint3 & dim, const int3 & pos) {
+	return pos.z + dim.z * pos.y + dim.z * dim.y * pos.x;
+}
+
+inline __device__ __host__ bool _isValidPos(const uint3 & dim, const uint3 & pos) {
 	return pos.x < dim.x && pos.y < dim.y && pos.z < dim.z;
 }
 
-inline __device__ bool _isValidPos(const uint3 & dim, const int3 & pos) {
+inline __device__ __host__ bool _isValidPos(const uint3 & dim, const int3 & pos) {
 	return	pos.x >= 0 && pos.y >= 0 && pos.z >= 0 &&
 		pos.x < dim.x && pos.y < dim.y && pos.z < dim.z;
 }
 
 
 
-inline __device__ int _getDirSgn(Dir dir) {
+inline __device__ __host__ int _getDirSgn(Dir dir) {
 	return -((dir % 2) * 2 - 1);
 }
 
-inline __device__ Dir _getDir(int index, int sgn) {
+inline __device__ __host__ Dir _getDir(int index, int sgn) {
 	sgn = (sgn + 1) / 2; // 0 neg, 1 pos
 	sgn = 1 - sgn; // 1 neg, 0 pos
 	return Dir(index * 2 + sgn);

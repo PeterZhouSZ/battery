@@ -802,7 +802,7 @@ void BatteryApp::reset()
 	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");
 
 	
-	{
+	if(true){
 		MGGPU<double>::Params p;
 		p.levels = 5;
 		p.dir = X_NEG;

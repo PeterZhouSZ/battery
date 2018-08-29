@@ -260,3 +260,15 @@ void MGGPU_GenerateAI0(
 	const MGGPU_Kernel3D<4> * IT0,
 	MGGPU_Kernel3D<3> * output
 );
+
+bool MGGPU_CombineKernels(
+	const uint3 resArow,
+	const uint3 resAcol,
+	const uint3 resBrow,
+	const uint3 resBcol,
+	const MGGPU_KernelPtr A,
+	const int Adim,
+	const MGGPU_KernelPtr B,
+	const int Bdim,
+	MGGPU_KernelPtr C
+);

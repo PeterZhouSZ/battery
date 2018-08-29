@@ -17,7 +17,7 @@ template class MultigridSolver<double>;
 #include<Eigen/SparseCholesky>	
 #include <Eigen/Eigen>	
 
-#define MG_LINSYS_TO_FILE
+//#define MG_LINSYS_TO_FILE
 
 #include <fstream>
 
@@ -27,12 +27,14 @@ template class MultigridSolver<double>;
 
 //#define HALF_VOLUME_IR
 
+#include <chrono>
 
-
+//#define DEBUG_CHANNEL_ENABLE
 
 template <typename T = double>
 void addDebugChannel(Volume & vol, const Eigen::Matrix<T, Eigen::Dynamic, 1> & v, ivec3 dim, const std::string & name, int levnum = -1, bool normalize = false, float mult = 1.0f) {
 		
+#ifdef DEBUG_CHANNEL_ENABLE
 	auto & c = vol.getChannel(vol.addChannel(dim, TYPE_FLOAT));
 	
 
@@ -67,11 +69,13 @@ void addDebugChannel(Volume & vol, const Eigen::Matrix<T, Eigen::Dynamic, 1> & v
 	char buf[24]; itoa(levnum, buf, 10);
 	c.setName(name + buf);
 
-
+#endif
 }
 
 template <typename T = double>
 void addDebugChannel(Volume & vol, const std::vector<T> & vec, ivec3 dim, const std::string & name, int levnum = -1, bool normalize = false) {
+
+#ifdef DEBUG_CHANNEL_ENABLE
 	//using V = Eigen::Matrix<float, Eigen::Dynamic, 1>;
 	Eigen::Matrix<float, Eigen::Dynamic, 1> evec;	
 	evec.resize(vec.size());
@@ -81,6 +85,7 @@ void addDebugChannel(Volume & vol, const std::vector<T> & vec, ivec3 dim, const 
 	
 //	memcpy(evec.data(), vec.data(), sizeof(T) * vec.size());*/
 	addDebugChannel(vol, evec, dim, name, levnum, normalize);
+#endif
 
 }
 
@@ -1554,7 +1559,15 @@ bool MultigridSolver<T>::prepare(
 			}
 		}*/
 
+		auto ta0= std::chrono::system_clock::now();
+
+		
+
 		res &= prepareAtLevelFVM(_D[0].data(), _dims[0], dir, 0);
+		auto ta1 = std::chrono::system_clock::now();
+
+		std::chrono::duration<double> atime = ta1 - ta0;
+		std::cout << "CPU A0 time: " << atime.count() << "s" << std::endl;
 
 
 		//Dlevels_interp[0].resize(origTotal, 0.0f);
@@ -1662,12 +1675,26 @@ bool MultigridSolver<T>::prepare(
 
 		_R[i] = restrictionMatrix<T>(_dims[i],_D[i].data(),dir);
 		//_I[i] = _R[i].transpose() * 8;
-		
+
+		auto ti0 = std::chrono::system_clock::now();
 		_I[i] = interpolationMatrix<T>(_dims[i] / 2, _D[i + 1].data(), dir);		
+		auto ti1 = std::chrono::system_clock::now();
+
+		
+		auto tai0 = std::chrono::system_clock::now();
+		Eigen::SparseMatrix<T, Eigen::RowMajor> temp = _A[i] * _I[i];
+		auto tai1 = std::chrono::system_clock::now();
+
+		std::chrono::duration<double> itime = (ti1 - ti0);
+		std::chrono::duration<double> aitime = (tai1 - tai0);
+		std::cout << "CPU I time: " << i << ", " << itime.count() << "s" << std::endl;
+		std::cout << "CPU AI time: " << i << ", " << aitime.count() << "s" << std::endl;
+		
+
 		//_R[i] = _I[i].transpose();// *pow(0.5, 3);
 
 
-
+		#ifdef MG_LINSYS_TO_FILE
 		{
 			char buf[24]; itoa(i, buf, 10);
 			std::ofstream f("I_" + std::string(buf) + ".dat");
@@ -1691,6 +1718,7 @@ bool MultigridSolver<T>::prepare(
 				}
 			}
 		}
+#endif
 		
 		
 		/*char buf[256];
@@ -1713,6 +1741,7 @@ bool MultigridSolver<T>::prepare(
 			
 		}
 
+#ifdef MG_LINSYS_TO_FILE
 		{
 			int level = i;
 			char buf[24]; itoa(level, buf, 10);
@@ -1749,7 +1778,7 @@ bool MultigridSolver<T>::prepare(
 			}
 		}
 
-		
+#endif
 
 		/*sprintf(buf, "_A%d.txt", i);
 		std::ofstream fa(buf);

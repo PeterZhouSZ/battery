@@ -9,7 +9,7 @@
 #include <chrono>
 
 
-#define SAVE_TO_FILE
+//#define SAVE_TO_FILE
 
 
 
@@ -238,78 +238,34 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 	}	
 
 	{
-		auto & sysTop = _levels[0].A;
+
 		sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));		
 		MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f);
 		sysTop.retrieve();
 
-		//std::vector<MGGPU_Kernel3D<3>> A0cpu;
-		DataPtr A0;
-		A0.alloc(_levels[0].N(), sizeof(MGGPU_Kernel3D<3>));
-		for (int i = 0; i < _levels[0].N(); i++) {
-			MGGPU_SystemTopKernel & k = ((MGGPU_SystemTopKernel *)sysTop.cpu)[i];
-			MGGPU_Kernel3D<3> & a = ((MGGPU_Kernel3D<3> * )A0.cpu)[i];
-			{
-				memset(&a, 0, sizeof(MGGPU_Kernel3D<3>));
-				a.v[1][1][1] = k.v[DIR_NONE];
-				a.v[0][1][1] = k.v[X_NEG];
-				a.v[2][1][1] = k.v[X_POS];
-				a.v[1][0][1] = k.v[Y_NEG];
-				a.v[1][2][1] = k.v[Y_POS];
-				a.v[1][1][0] = k.v[Z_NEG];
-				a.v[1][1][2] = k.v[Z_POS];
-			}
+		std::vector<MGGPU_Kernel3D<3>> A0cpu;
+		A0cpu.resize(_levels[0].N());		
+		for (int i = 0; i < A0cpu.size(); i++) {
+			MGGPU_SystemTopKernel * k = sysTop.cpu[]
 		}
-		A0.commit();
-
-		DataPtr I0Kernels;
-		I0Kernels.allocDevice(_levels[0].N(), sizeof(MGGPU_Kernel3D<3>));
-		I0Kernels.memsetDevice(0);
-
-		MGGPU_GenerateSystemInterpKernels(			
-			make_uint3(_levels[0].dim.x, _levels[0].dim.y, _levels[0].dim.z),
-			_levels[1].domain,
-			(MGGPU_Kernel3D<3> *)I0Kernels.gpu
-		);
-		
-		//I0Kernels.retrieve();
 
 
-		DataPtr AI0;
-		AI0.allocDevice(_levels[0].N(), sizeof(MGGPU_Kernel3D<4>));
-		AI0.memsetDevice(0);
-		//AI0.retrieve();
 
 
 		auto Nres = make_uint3(_levels[0].dim.x, _levels[0].dim.y, _levels[0].dim.z);
 		auto Nhalfres = make_uint3(_levels[1].dim.x, _levels[1].dim.y, _levels[1].dim.z);
 		//AI0
-
-		CUDATimer tAI0(true);
 		MGGPU_CombineKernels(
 			Nres,
 			Nres,
 			Nres,
 			Nhalfres,
-			(MGGPU_KernelPtr)A0.gpu, //A0
+			nullptr, //A0
 			3,
-			(MGGPU_KernelPtr)I0Kernels.gpu, //I0
+			nullptr, //I0
 			3,
-			(MGGPU_KernelPtr)AI0.gpu
+			nullptr//AI0
 		);
-		std::cout << "GPU AI0 combine: " << tAI0.time() << std::endl;
-		
-#ifdef SAVE_TO_FILE
-			AI0.retrieve();
-			MGGPU_Kernel3D<4> * ptr = (MGGPU_Kernel3D<4> *)AI0.cpu;
-			SparseMat mat = kernelToSparse<4>(
-				(MGGPU_Kernel3D<4>*)ptr,
-				_levels[0].dim,
-				_levels[1].dim
-				);
-			saveSparse(mat, "MGGPU_AI", 0);
-#endif
-
 
 		//RA0
 		/*MGGPU_CombineKernels(
@@ -325,7 +281,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		);*/
 
 		// R0 (AI0)
-		/*MGGPU_CombineKernels(
+		MGGPU_CombineKernels(
 			Nhalfres,
 			Nres,
 			Nres,
@@ -335,7 +291,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			nullptr, //A0
 			3,
 			nullptr//RA0
-		);*/
+		);
 
 	}
 	return true;

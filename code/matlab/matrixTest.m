@@ -90,6 +90,8 @@ AI0CPU = (A0CPU * I0CPU);
 AI0GPU = (spconvert(MGGPU_AI_0));
 AI0GPU = full(spconvert(MGGPU_AI_0));
 AI0CPU = full(A0CPU * I0CPU);
+I0CPU = full(I0CPU);
+A0CPU = full(A0CPU);
 
 % Need to see: for 1,1
 % -0.3125 * 0.75 + 

@@ -712,3 +712,229 @@ void MGGPU_GenerateAI0(
 		);
 
 }
+
+
+__global__ void __genA1(
+	const uint3 Nres,
+	const uint3 Nhalfres,
+	const MGGPU_Kernel3D<4> * IT0,
+	MGGPU_Kernel3D<5> * output
+) {
+	VOLUME_VOX_GUARD(Nhalfres);
+
+
+	/*int3 ivox = make_int3(vox);
+	//int3 ivoxHalf = make_int3(vox.x / 2, vox.y / 2, vox.z / 2);
+
+	size_t i = _linearIndex(Nhalfres, ivox);
+
+	MGGPU_RestrictKernel R = MGGPU_GetRestrictionKernel(vox, Nhalfres, const_sys_params.dirPrimary);
+
+	for (auto x_r = 0; x_r < RESTR_SIZE; x_r++) {
+		for (auto y_r = 0; y_r < RESTR_SIZE; y_r++) {
+			for (auto z_r = 0; z_r < RESTR_SIZE; z_r++) {
+				
+				int3 kVox = 2*ivox + make_int3(x_r, y_r, z_r) - make_int3(RESTR_SIZE / 2 - 1);
+				if (!_isValidPos(Nres, kVox))
+					continue;
+				
+				size_t ki = _linearIndex(kVox, Nres);
+
+			}
+		}
+	}
+
+	*/
+
+
+}
+
+
+void MGGPU_GenerateA1(
+	const uint3 & Nres,
+	const uint3 & Nhalfres,	
+	const MGGPU_Kernel3D<4> * IT0,
+	MGGPU_Kernel3D<5> * output
+) {
+
+	BLOCKS3D(2, Nhalfres);
+	__genA1 << < numBlocks, block >> > (
+		Nres,
+		Nhalfres,		
+		IT0,
+		output
+		);
+
+}
+
+
+
+//////////////////////////////////////////////
+
+
+__global__ void __combineKernels(
+	const uint3 resArow,
+	const uint3 resAcol,
+	const uint3 resBrow,
+	const uint3 resBcol,
+	const MGGPU_KernelPtr A,
+	const int Adim,
+	const MGGPU_KernelPtr B,
+	const int Bdim, // in resBcol
+	MGGPU_KernelPtr C)
+{
+
+	
+
+	//to const mem
+	const uint3 resCrow = resArow;
+	const uint3 resCcol = resBcol;
+
+	VOLUME_VOX_GUARD(resCrow);
+
+	int Bratio = resBrow.x / resBcol.x;
+	int BdimTranspose = Bdim * Bratio;
+
+	int Cdim = (Adim + BdimTranspose - 1) / Bratio;
+	int CdimHalf = (Cdim % 2 == 0) ? Cdim / 2 - 1 : Cdim / 2;
+	int Cratio = resCrow.x / resCcol.x;
+
+	int BdimHalf = (Bdim % 2 == 0) ? Bdim / 2 - 1 : Bdim / 2;
+	int AdimHalf = (Adim % 2 == 0) ? Adim / 2 - 1 : Adim / 2;
+	//
+
+
+	int3 ivox = make_int3(vox);
+
+	//i in matrix multiply
+	size_t Crow = _linearIndex(resCrow, ivox); // in resCrow == resArow space
+	const size_t Arow = Crow; // in resCrow == resArow space
+
+	const MGGPU_KernelPtr kernelA = A + (Adim*Adim*Adim) * Arow;
+
+	const MGGPU_KernelPtr kernelC = C + (Cdim*Cdim*Cdim) * Crow;
+
+	//Columns of C				
+	for (int ck = -CdimHalf; ck < Cdim - CdimHalf; ck++) {
+		for (int cj = -CdimHalf; cj < Cdim - CdimHalf; cj++) {
+			for (int ci = -CdimHalf; ci < Cdim - CdimHalf; ci++) {
+
+				//j in matrix multipy (only nonzero result cols)
+				/*Get voxel pos in Crow space
+				-> project ivox to Crow space, then apply kernel delta
+				*/
+
+
+				int3 ivoxCcol = make_int3(ivox.x / Cratio, ivox.y / Cratio, ivox.z / Cratio) + make_int3(ci, cj, ck);
+				int3 ivoxBcol = ivoxCcol;
+
+				if (!_isValidPos(resCcol, ivoxCcol)) {
+					continue;
+				}
+
+				size_t Bcol = _linearIndex(resBcol, ivoxBcol);
+
+				//multiply / dot product
+				//Arow=Crow * Bcol=Ccol
+				double sum = 0.0;
+				for (int ak = -AdimHalf; ak < Adim - AdimHalf; ak++) {
+					for (int aj = -AdimHalf; aj < Adim - AdimHalf; aj++) {
+						for (int ai = -AdimHalf; ai < Adim - AdimHalf; ai++) {
+
+							int3 ivoxDot = ivox + make_int3(ai, aj, ak); //TODO may need to reproject if is not NxN?
+							if (!_isValidPos(resArow, ivoxDot)) {
+								continue;
+							}
+
+							size_t iDot = _linearIndex(resBrow, ivoxDot);
+
+
+							double valA = kernelA[
+								_linearIndexXFirst(make_uint3(Adim), make_int3(ai + AdimHalf, aj + AdimHalf, ak + AdimHalf))
+							];
+
+							if (valA == 0.0) {
+								continue;
+							}
+
+							MGGPU_KernelPtr kernelB = B + Bdim*Bdim*Bdim * iDot;
+
+							int3 BkernelOffset = ivoxBcol - make_int3(ivoxDot.x / Bratio, ivoxDot.y / Bratio, ivoxDot.z / Bratio);
+							int bi = BkernelOffset.x + BdimHalf;
+							int bj = BkernelOffset.y + BdimHalf;
+							int bk = BkernelOffset.z + BdimHalf;
+
+							if (!_isValidPos(make_uint3(Bdim), make_int3(bi, bj, bk))) {
+								continue;
+							}
+
+							double valB = kernelB[
+								_linearIndexXFirst(make_uint3(Bdim), make_int3(bi, bj, bk))
+							];
+
+							double val = valA*valB;
+							sum += val;
+
+						}
+					}
+				}
+
+				if (sum != 0.0) {
+					kernelC[
+						_linearIndexXFirst(make_uint3(Cdim), make_int3(ci + CdimHalf, cj + CdimHalf, ck + CdimHalf))
+					] = sum;
+				}
+
+			}
+		}
+	}
+
+
+}
+
+bool MGGPU_CombineKernels(
+	const uint3 resArow,
+	const uint3 resAcol,	
+	const uint3 resBrow,
+	const uint3 resBcol,	
+	const MGGPU_KernelPtr A,
+	const int Adim,
+	const MGGPU_KernelPtr B,
+	const int Bdim, // in resBcol
+	MGGPU_KernelPtr C
+) {
+	
+	if (resAcol.x != resBrow.x ||
+		resAcol.y != resBrow.y ||
+		resAcol.z != resBrow.z) {
+		//Mismatched dimensions
+		return false;
+	}
+
+
+	BLOCKS3D(2, resArow);
+	__combineKernels << < numBlocks, block >> > (resArow, resAcol, resBrow, resBcol, A, Adim, B, Bdim, C	);
+	
+
+	/*int3 ivox = make_int3(0, 0, 0);
+
+
+	//{Simulate kernel launch}
+	//Row of C
+	for (ivox.z = 0; ivox.z < resCrow.z; ivox.z++) {		
+		for (ivox.y = 0; ivox.y < resCrow.y; ivox.y++) {
+			for (ivox.x = 0; ivox.x < resCrow.x; ivox.x++) {
+				
+				
+			}
+		}
+	}*/
+	
+
+	
+
+
+
+
+	return true;
+}
