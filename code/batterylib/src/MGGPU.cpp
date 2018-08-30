@@ -9,7 +9,9 @@
 #include <chrono>
 
 
-//#define SAVE_TO_FILE
+#ifdef DEBUG
+#define SAVE_TO_FILE
+#endif
 
 
 
@@ -287,7 +289,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 
 
 		CUDATimer tAI0(true);
-		MGGPU_CombineKernels(
+		/*MGGPU_CombineKernelsGeneric(
 			Nres,
 			Nres,
 			Nres,
@@ -297,7 +299,24 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			(MGGPU_KernelPtr)I0Kernels.gpu, //I0
 			3,
 			(MGGPU_KernelPtr)AI0.gpu
+		);*/
+		
+		//A0.retrieve();
+		//I0Kernels.retrieve();
+		//AI0.retrieve();
+
+		MGGPU_CombineKernelsTopLevel(
+			Nres,			
+			Nres,
+			Nhalfres,
+			(MGGPU_KernelPtr)sysTop.gpu, //A0			
+			(MGGPU_KernelPtr)I0Kernels.gpu, //I0
+			3,
+			(MGGPU_KernelPtr)AI0.gpu
 		);
+
+		//AI0.commit();
+
 		tAI0.stop();
 		std::cout << "GPU AI0 combine: " << tAI0.time() << std::endl;
 
@@ -310,6 +329,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 
 		DataPtr R0;
 		{
+			CUDATimer tr0(true);
 			R0.alloc(_levels[1].N(), sizeof(MGGPU_RestrictKernel));
 			R0.memsetDevice(0);
 			for (int z = 0; z < Nhalfres.z; z++) {
@@ -323,6 +343,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 				}
 			}
 			R0.commit();		
+			std::cout << "R0 cpu->gpu: " << tr0.time() << std::endl;
 			
 		}
 
@@ -333,18 +354,19 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 
 
 		CUDATimer tA1(true);
-		MGGPU_CombineKernels(
+		//MGGPU_CombineKernelsGeneric(
+		//AI0.retrieve();
+		//A1.retrieve();
+		MGGPU_CombineKernelsRestrict(
 			Nhalfres,
 			Nres,
 			Nres,
-			Nhalfres,
-			(MGGPU_KernelPtr)R0.gpu, //A0
-			4,
+			Nhalfres,			
 			(MGGPU_KernelPtr)AI0.gpu, //I0
 			4,
-			(MGGPU_KernelPtr)A1.gpu,
-			true
+			(MGGPU_KernelPtr)A1.gpu			
 		);
+		//A1.commit();
 		tA1.stop();
 
 		std::cout << "GPU A1 combine: " << tA1.time() << std::endl;

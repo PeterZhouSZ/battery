@@ -67,6 +67,137 @@ inline __device__ __host__ MGGPU_DomainRestrictKernel MGGPU_GetDomainRestriction
 	return kernel;
 }
 
+//Inplace version
+inline __device__ __host__ void MGGPU_GetRestrictionKernel(
+	const uint3 & vox,
+	const uint3 & targetRes,
+	int dirIndex,
+	double * out
+) {
+
+	MGGPU_RestrictKernel & kern = *((MGGPU_RestrictKernel*)out);
+
+	#pragma unroll
+	for (int i = 0; i < 4; i += 3) {
+		kern.v[i][0][0] = 1;
+		kern.v[i][0][1] = 3;
+		kern.v[i][0][2] = 3;
+		kern.v[i][0][3] = 1;
+
+		kern.v[i][1][0] = 3;
+		kern.v[i][1][1] = 9;
+		kern.v[i][1][2] = 9;
+		kern.v[i][1][3] = 3;
+
+		kern.v[i][2][0] = 3;
+		kern.v[i][2][1] = 9;
+		kern.v[i][2][2] = 9;
+		kern.v[i][2][3] = 3;
+
+		kern.v[i][3][0] = 1;
+		kern.v[i][3][1] = 3;
+		kern.v[i][3][2] = 3;
+		kern.v[i][3][3] = 1;
+	}
+
+	#pragma unroll
+	for (int i = 1; i<=2 ; i += 1) {
+		kern.v[i][0][0] = 3;
+		kern.v[i][0][1] = 9;
+		kern.v[i][0][2] = 9;
+		kern.v[i][0][3] = 3;
+
+		kern.v[i][1][0] = 9;
+		kern.v[i][1][1] = 27;
+		kern.v[i][1][2] = 27;
+		kern.v[i][1][3] = 9;
+
+		kern.v[i][2][0] = 9;
+		kern.v[i][2][1] = 27;
+		kern.v[i][2][2] = 27;
+		kern.v[i][2][3] = 9;
+
+		kern.v[i][3][0] = 3;
+		kern.v[i][3][1] = 9;
+		kern.v[i][3][2] = 9;
+		kern.v[i][3][3] = 3;
+	}
+
+
+	if (vox.x == 0 && dirIndex != 0) {
+		for (auto j = 0; j < 4; j++) {
+			for (auto k = 0; k < 4; k++) {
+				kern.v[1][j][k] += kern.v[0][j][k];
+				kern.v[0][j][k] = 0;
+			}
+		}
+	}
+
+	if (vox.x == targetRes.x - 1 && dirIndex != 0) {
+		for (auto j = 0; j < 4; j++) {
+			for (auto k = 0; k < 4; k++) {
+				kern.v[2][j][k] += kern.v[3][j][k];
+				kern.v[3][j][k] = 0;
+			}
+		}
+	}
+
+	if (vox.y == 0 && dirIndex != 1) {
+		for (auto i = 0; i < 4; i++) {
+			for (auto k = 0; k < 4; k++) {
+				kern.v[i][1][k] += kern.v[i][0][k];
+				kern.v[i][0][k] = 0;
+			}
+		}
+	}
+
+	if (vox.y == targetRes.y - 1 && dirIndex != 1) {
+		for (auto i = 0; i < 4; i++) {
+			for (auto k = 0; k < 4; k++) {
+				kern.v[i][2][k] += kern.v[i][3][k];
+				kern.v[i][3][k] = 0;
+			}
+		}
+	}
+
+
+	if (vox.z == 0 && dirIndex != 2) {
+		for (auto i = 0; i < 4; i++) {
+			for (auto j = 0; j < 4; j++) {
+				kern.v[i][j][1] += kern.v[i][j][0];
+				kern.v[i][j][0] = 0;
+			}
+		}
+	}
+
+	if (vox.z == targetRes.z - 1 && dirIndex != 2) {
+		for (auto i = 0; i < 4; i++) {
+			for (auto j = 0; j < 4; j++) {
+				kern.v[i][j][2] += kern.v[i][j][3];
+				kern.v[i][j][3] = 0;
+			}
+		}
+	}
+
+	double W = 0.0;
+	for (auto i = 0; i < 4; i++) {
+		for (auto j = 0; j < 4; j++) {
+			for (auto k = 0; k < 4; k++) {
+				W += kern.v[i][j][k];
+			}
+		}
+	}
+
+	for (auto i = 0; i < 4; i++) {
+		for (auto j = 0; j < 4; j++) {
+			for (auto k = 0; k < 4; k++) {
+				kern.v[i][j][k] /= W;
+			}
+		}
+	}	
+}
+
+
 inline __device__ __host__ MGGPU_RestrictKernel MGGPU_GetRestrictionKernel(
 	const uint3 & vox, 
 	const uint3 & targetRes,
@@ -261,13 +392,36 @@ void MGGPU_GenerateAI0(
 	MGGPU_Kernel3D<3> * output
 );
 
-bool MGGPU_CombineKernels(
+bool MGGPU_CombineKernelsGeneric(
 	const uint3 resArow,
 	const uint3 resAcol,
 	const uint3 resBrow,
 	const uint3 resBcol,
 	const MGGPU_KernelPtr A,
 	const int Adim,
+	const MGGPU_KernelPtr B,
+	const int Bdim,
+	MGGPU_KernelPtr C,
+	bool onDevice = true
+);
+
+
+bool MGGPU_CombineKernelsTopLevel(
+	const uint3 resA,
+	const uint3 resBrow,
+	const uint3 resBcol,
+	const MGGPU_KernelPtr A,
+	const MGGPU_KernelPtr B,
+	const int Bdim,
+	MGGPU_KernelPtr C,
+	bool onDevice = true
+);
+
+bool MGGPU_CombineKernelsRestrict(
+	const uint3 resArow,
+	const uint3 resAcol,
+	const uint3 resBrow,
+	const uint3 resBcol,	
 	const MGGPU_KernelPtr B,
 	const int Bdim,
 	MGGPU_KernelPtr C,

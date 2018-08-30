@@ -802,6 +802,22 @@ void MGGPU_GenerateA1(
 
 //////////////////////////////////////////////
 
+enum CombineType {
+	A_IS_GENERIC,
+	A_IS_TOPLEVEL,
+	A_IS_RESTRICTION
+};
+
+
+//combineKernelsAt<A_IS_GENERIC,5*5*5>
+//combineKernelsAt<A_IS_TOP_LEVEL,7>
+//combineKernelsAt<A_IS_RESTRICTION,4*4*4>
+
+__device__ __host__ void combineKernelDotInner() {
+
+}
+
+template<CombineType combineType, size_t AKernelAllocSize = 5*5*5>
 __device__ __host__ void combineKernelsAt(
 	int3 ivox, 
 	const KernelCombineParams & p
@@ -818,8 +834,20 @@ __device__ __host__ void combineKernelsAt(
 	size_t Crow = _linearIndex(p.resCrow, ivox); // in resCrow == resArow space
 	const size_t Arow = Crow; // in resCrow == resArow space
 
-	const MGGPU_KernelPtr kernelA = p.A + Asize * Arow;
+	
+	
+	double kernelAStore[AKernelAllocSize];
+	if (combineType == A_IS_GENERIC) {
+		memcpy(kernelAStore, p.A + Asize * Arow, Asize * sizeof(double));
+	}
+	else if (combineType == A_IS_TOPLEVEL) {
+		memcpy(kernelAStore, ((char*)p.A) + sizeof(MGGPU_SystemTopKernel) * Arow, sizeof(MGGPU_SystemTopKernel));
+	}
+	else if (combineType == A_IS_RESTRICTION) {		
+		MGGPU_GetRestrictionKernel(make_uint3(ivox), p.resArow, const_sys_params.dirPrimary, kernelAStore);
+	}
 
+	const MGGPU_KernelPtr kernelA = kernelAStore;
 	const MGGPU_KernelPtr kernelC = p.C + Csize * Crow;
 
 	//Columns of C				
@@ -844,46 +872,74 @@ __device__ __host__ void combineKernelsAt(
 
 				//multiply / dot product
 				//Arow=Crow * Bcol=Ccol
+
 				double sum = 0.0;
-				for (int ak = -p.AdimHalf; ak < p.Adim - p.AdimHalf; ak++) {
-					for (int aj = -p.AdimHalf; aj < p.Adim - p.AdimHalf; aj++) {
-						for (int ai = -p.AdimHalf; ai < p.Adim - p.AdimHalf; ai++) {
 
-							int3 ivoxDot = ivox * p.Aratio + make_int3(ai, aj, ak); 
-							if (!_isValidPos(p.resAcol, ivoxDot)) {
-								continue;
+				if (combineType != A_IS_TOPLEVEL) {					
+					for (int ak = -p.AdimHalf; ak < p.Adim - p.AdimHalf; ak++) {
+						for (int aj = -p.AdimHalf; aj < p.Adim - p.AdimHalf; aj++) {
+							for (int ai = -p.AdimHalf; ai < p.Adim - p.AdimHalf; ai++) {
+
+								int3 ivoxDot = ivox * p.Aratio + make_int3(ai, aj, ak);
+								if (!_isValidPos(p.resAcol, ivoxDot)) {
+									continue;
+								}
+
+								size_t iDot = _linearIndex(p.resBrow, ivoxDot);
+
+								double valA = 0.0;
+								valA = kernelA[
+									_linearIndexXFirst(make_uint3(p.Adim), make_int3(ai + p.AdimHalf, aj + p.AdimHalf, ak + p.AdimHalf))
+								];
+
+
+								MGGPU_KernelPtr kernelB = p.B + Bsize * iDot;
+								int3 BkernelOffset = ivoxBcol - make_int3(ivoxDot.x / p.Bratio, ivoxDot.y / p.Bratio, ivoxDot.z / p.Bratio);
+								int bi = BkernelOffset.x + p.BdimHalf;
+								int bj = BkernelOffset.y + p.BdimHalf;
+								int bk = BkernelOffset.z + p.BdimHalf;
+
+								if (!_isValidPos(make_uint3(p.Bdim), make_int3(bi, bj, bk))) {
+									continue;
+								}
+
+								double valB = kernelB[
+									_linearIndexXFirst(make_uint3(p.Bdim), make_int3(bi, bj, bk))
+								];
+								sum += valA*valB;
+
 							}
-
-							size_t iDot = _linearIndex(p.resBrow, ivoxDot);
-
-
-							double valA = kernelA[
-								_linearIndexXFirst(make_uint3(p.Adim), make_int3(ai + p.AdimHalf, aj + p.AdimHalf, ak + p.AdimHalf))
-							];
-
-							/*if (valA == 0.0) {
-								continue;
-							}*/
-
-							MGGPU_KernelPtr kernelB = p.B + Bsize * iDot;
-
-							int3 BkernelOffset = ivoxBcol - make_int3(ivoxDot.x / p.Bratio, ivoxDot.y / p.Bratio, ivoxDot.z / p.Bratio);
-							int bi = BkernelOffset.x + p.BdimHalf;
-							int bj = BkernelOffset.y + p.BdimHalf;
-							int bk = BkernelOffset.z + p.BdimHalf;
-
-							if (!_isValidPos(make_uint3(p.Bdim), make_int3(bi, bj, bk))) {
-								continue;
-							}
-
-							double valB = kernelB[
-								_linearIndexXFirst(make_uint3(p.Bdim), make_int3(bi, bj, bk))
-							];
-
-							double val = valA*valB;
-							sum += val;
-
 						}
+					}
+				}
+				else {
+					for (int dir = 0; dir <= DIR_NONE; dir++) {
+
+						int3 ivoxDot = ivox * p.Aratio + dirVec(Dir(dir)); //make_int3(ai, aj, ak);
+						if (!_isValidPos(p.resAcol, ivoxDot)) {
+							continue;
+						}
+
+						size_t iDot = _linearIndex(p.resBrow, ivoxDot);
+
+						double valA = 0.0;
+						valA = kernelA[dir];
+
+						MGGPU_KernelPtr kernelB = p.B + Bsize * iDot;
+						int3 BkernelOffset = ivoxBcol - make_int3(ivoxDot.x / p.Bratio, ivoxDot.y / p.Bratio, ivoxDot.z / p.Bratio);
+						int bi = BkernelOffset.x + p.BdimHalf;
+						int bj = BkernelOffset.y + p.BdimHalf;
+						int bk = BkernelOffset.z + p.BdimHalf;
+
+						if (!_isValidPos(make_uint3(p.Bdim), make_int3(bi, bj, bk))) {
+							continue;
+						}
+
+						double valB = kernelB[
+							_linearIndexXFirst(make_uint3(p.Bdim), make_int3(bi, bj, bk))
+						];
+						sum += valA*valB;
+
 					}
 				}
 
@@ -897,9 +953,12 @@ __device__ __host__ void combineKernelsAt(
 		}
 	}
 
+	
+
 
 }
 
+template<CombineType combineType, size_t AKernelAllocSize = 5 * 5 * 5>
 __global__ void __combineKernels()
 {
 	//Get voxel position
@@ -907,11 +966,149 @@ __global__ void __combineKernels()
 	int3 ivox = make_int3(vox);
 	KernelCombineParams p = const_kernel_combine_params;
 	//Combine kernels at ivox position
-	combineKernelsAt(ivox, p);		
+	combineKernelsAt<combineType, AKernelAllocSize>(ivox, p);		
 
 }
 
-bool MGGPU_CombineKernels(
+
+bool MGGPU_CombineKernelsTopLevel(
+	const uint3 resA,
+	const uint3 resBrow,
+	const uint3 resBcol,
+	const MGGPU_KernelPtr A,
+	const MGGPU_KernelPtr B,
+	const int Bdim, 
+	MGGPU_KernelPtr C,
+	bool onDevice
+){
+
+	if (resA.x != resBrow.x ||
+		resA.y != resBrow.y ||
+		resA.z != resBrow.z) {
+		return false;
+	}
+
+	KernelCombineParams p;
+	p.resArow = resA;
+	p.resAcol = resA;
+	p.resBrow = resBrow;
+	p.resBcol = resBcol;
+
+	p.resCrow = resA;
+	p.resCcol = resBcol;
+
+	p.A = A;
+	p.B = B;
+	p.C = C;
+
+	p.Bratio = p.resBrow.x / p.resBcol.x;
+	p.Aratio = p.resAcol.x / p.resArow.x;
+	p.Cratio = p.resCrow.x / p.resCcol.x;
+
+	p.Adim = 3;
+	p.Bdim = Bdim;
+	int BdimTranspose = p.Bdim * p.Bratio;
+	p.Cdim = (p.Adim + BdimTranspose - 1) / p.Bratio;
+
+	p.CdimHalf = (p.Cdim % 2 == 0) ? p.Cdim / 2 - 1 : p.Cdim / 2;
+	p.BdimHalf = (p.Bdim % 2 == 0) ? p.Bdim / 2 - 1 : p.Bdim / 2;
+	p.AdimHalf = (p.Adim % 2 == 0) ? p.Adim / 2 - 1 : p.Adim / 2;
+
+
+	const CombineType combineType = A_IS_TOPLEVEL;
+	const size_t allocA = sizeof(MGGPU_SystemTopKernel) / sizeof(double);
+
+	if (onDevice) {
+		commitKernelCombineParams(p);
+		BLOCKS3D(2, p.resCrow);
+		__combineKernels<combineType, allocA> << < numBlocks, block >> > ();
+	}
+	else {
+		int3 ivox;
+		for (ivox.z = 0; ivox.z < p.resCrow.z; ivox.z++) {
+			for (ivox.y = 0; ivox.y < p.resCrow.y; ivox.y++) {
+				for (ivox.x = 0; ivox.x < p.resCrow.x; ivox.x++) {
+					combineKernelsAt<combineType, allocA>(ivox, p);
+				}
+			}
+		}
+	}
+
+
+}
+
+
+bool MGGPU_CombineKernelsRestrict(
+	const uint3 resArow,
+	const uint3 resAcol,
+	const uint3 resBrow,
+	const uint3 resBcol,	
+	const MGGPU_KernelPtr B,
+	const int Bdim,
+	MGGPU_KernelPtr C,
+	bool onDevice
+) {
+
+
+	if (resAcol.x != resBrow.x ||
+		resAcol.y != resBrow.y ||
+		resAcol.z != resBrow.z) {
+		return false;
+	}
+
+	KernelCombineParams p;
+	p.resArow = resArow;
+	p.resAcol = resAcol;
+	p.resBrow = resBrow;
+	p.resBcol = resBcol;
+
+	p.resCrow = resArow;
+	p.resCcol = resBcol;
+
+	p.A = nullptr;
+	p.B = B;
+	p.C = C;
+
+	p.Bratio = p.resBrow.x / p.resBcol.x;
+	p.Aratio = p.resAcol.x / p.resArow.x;
+	p.Cratio = p.resCrow.x / p.resCcol.x;
+
+	p.Adim = RESTR_SIZE;
+	p.Bdim = Bdim;
+	int BdimTranspose = p.Bdim * p.Bratio;
+	p.Cdim = (p.Adim + BdimTranspose - 1) / p.Bratio;
+
+	p.CdimHalf = (p.Cdim % 2 == 0) ? p.Cdim / 2 - 1 : p.Cdim / 2;
+	p.BdimHalf = (p.Bdim % 2 == 0) ? p.Bdim / 2 - 1 : p.Bdim / 2;
+	p.AdimHalf = (p.Adim % 2 == 0) ? p.Adim / 2 - 1 : p.Adim / 2;
+
+	const CombineType combineType = A_IS_RESTRICTION;
+	const size_t allocA = RESTR_SIZE*RESTR_SIZE*RESTR_SIZE;
+
+
+	if (onDevice) {
+		commitKernelCombineParams(p);
+		BLOCKS3D(2, p.resCrow);
+		__combineKernels<combineType, allocA> << < numBlocks, block >> > ();
+	}
+	else {
+		int3 ivox;
+		for (ivox.z = 0; ivox.z < p.resCrow.z; ivox.z++) {
+			for (ivox.y = 0; ivox.y < p.resCrow.y; ivox.y++) {
+				for (ivox.x = 0; ivox.x < p.resCrow.x; ivox.x++) {
+					combineKernelsAt<combineType, allocA>(ivox, p);
+				}
+			}
+		}
+	}
+
+	return true;
+
+
+}
+
+
+bool MGGPU_CombineKernelsGeneric(
 	const uint3 resArow,
 	const uint3 resAcol,	
 	const uint3 resBrow,
@@ -927,7 +1124,6 @@ bool MGGPU_CombineKernels(
 	if (resAcol.x != resBrow.x ||
 		resAcol.y != resBrow.y ||
 		resAcol.z != resBrow.z) {
-		//Mismatched dimensions
 		return false;
 	}
 
@@ -957,38 +1153,26 @@ bool MGGPU_CombineKernels(
 	p.BdimHalf = (p.Bdim % 2 == 0) ? p.Bdim / 2 - 1 : p.Bdim / 2;
 	p.AdimHalf = (p.Adim % 2 == 0) ? p.Adim / 2 - 1 : p.Adim / 2;
 
+	const CombineType combineType = A_IS_GENERIC;
+	const size_t allocA = 5*5*5;
 
 
 	if (onDevice) {
 		commitKernelCombineParams(p);
-		BLOCKS3D(2, resArow);
-		__combineKernels << < numBlocks, block >> > ();
+		BLOCKS3D(2, p.resCrow);
+		__combineKernels<combineType, allocA> << < numBlocks, block >> > ();
 	}
 	else {
 		int3 ivox;
-		for (ivox.z = 0; ivox.z < resArow.z; ivox.z++) {
-			for (ivox.y = 0; ivox.y < resArow.y; ivox.y++) {
-				for (ivox.x = 0; ivox.x < resArow.x; ivox.x++) {
-					combineKernelsAt(ivox, p);
+		for (ivox.z = 0; ivox.z < p.resCrow.z; ivox.z++) {
+			for (ivox.y = 0; ivox.y < p.resCrow.y; ivox.y++) {
+				for (ivox.x = 0; ivox.x < p.resCrow.x; ivox.x++) {
+					combineKernelsAt<combineType, allocA>(ivox, p);
 				}
 			}
 		}	
 	}
-
 	
-
-	/*int3 ivox = make_int3(0, 0, 0);
-
-
-	//{Simulate kernel launch}
-	//Row of C
-	*/
-	
-
-	
-
-
-
 
 	return true;
 }
