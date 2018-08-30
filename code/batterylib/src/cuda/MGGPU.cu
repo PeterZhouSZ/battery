@@ -2,16 +2,47 @@
 #include <stdio.h>
 
 #define MAX_CONST_KERNEL_DIM 7
+
+struct KernelCombineParams {
+	uint3 resArow;
+	uint3 resAcol;
+	uint3 resBrow;
+	uint3 resBcol;
+	uint3 resCrow;
+	uint3 resCcol;
+	MGGPU_KernelPtr A,B,C;	
+	int Adim, Bdim, Cdim;	
+	int Aratio, Bratio, Cratio;
+	int AdimHalf, BdimHalf, CdimHalf;
+};
+
+
 __device__ __constant__ double const_kernel[MAX_CONST_KERNEL_DIM * MAX_CONST_KERNEL_DIM * MAX_CONST_KERNEL_DIM];
 __device__ __constant__ int const_kernel_dim;
 
 __device__ __constant__ MGGPU_SysParams const_sys_params;
+
+__device__ __constant__ KernelCombineParams const_kernel_combine_params;
+
+
+
 
 bool commitSysParams(const MGGPU_SysParams & sysparams) {
 	cudaError_t res = cudaMemcpyToSymbol(
 		const_sys_params, 
 		&sysparams, 
 		sizeof(MGGPU_SysParams),
+		0,
+		cudaMemcpyHostToDevice
+	);
+	return res == cudaSuccess;
+}
+
+bool commitKernelCombineParams(const KernelCombineParams & p) {
+	cudaError_t res = cudaMemcpyToSymbol(
+		const_kernel_combine_params,
+		&p,
+		sizeof(KernelCombineParams),
 		0,
 		cudaMemcpyHostToDevice
 	);
@@ -772,50 +803,29 @@ void MGGPU_GenerateA1(
 //////////////////////////////////////////////
 
 __device__ __host__ void combineKernelsAt(
-	const int3 ivox,
-	const uint3 resArow,
-	const uint3 resAcol,
-	const uint3 resBrow,
-	const uint3 resBcol,
-	const MGGPU_KernelPtr A,
-	const int Adim,
-	const MGGPU_KernelPtr B,
-	const int Bdim,
-	MGGPU_KernelPtr C
+	int3 ivox, 
+	const KernelCombineParams & p
 ) {
 
-	//to const mem
-	const uint3 resCrow = resArow;
-	const uint3 resCcol = resBcol;
 
-
-	//Todo for each dim?
-	int Bratio = resBrow.x / resBcol.x;
-	int Aratio = resAcol.x / resArow.x;
-	int Cratio = resCrow.x / resCcol.x;
-
-	int BdimTranspose = Bdim * Bratio;
-
-	int Cdim = (Adim + BdimTranspose - 1) / Bratio;
-	int CdimHalf = (Cdim % 2 == 0) ? Cdim / 2 - 1 : Cdim / 2;
+	const int Asize = p.Adim*p.Adim*p.Adim;
+	const int Bsize= p.Bdim*p.Bdim*p.Bdim;
+	const int Csize= p.Cdim*p.Cdim*p.Cdim;
 	
-
-	int BdimHalf = (Bdim % 2 == 0) ? Bdim / 2 - 1 : Bdim / 2;
-	int AdimHalf = (Adim % 2 == 0) ? Adim / 2 - 1 : Adim / 2;
 	//
 
 	//i in matrix multiply
-	size_t Crow = _linearIndex(resCrow, ivox); // in resCrow == resArow space
+	size_t Crow = _linearIndex(p.resCrow, ivox); // in resCrow == resArow space
 	const size_t Arow = Crow; // in resCrow == resArow space
 
-	const MGGPU_KernelPtr kernelA = A + (Adim*Adim*Adim) * Arow;
+	const MGGPU_KernelPtr kernelA = p.A + Asize * Arow;
 
-	const MGGPU_KernelPtr kernelC = C + (Cdim*Cdim*Cdim) * Crow;
+	const MGGPU_KernelPtr kernelC = p.C + Csize * Crow;
 
 	//Columns of C				
-	for (int ck = -CdimHalf; ck < Cdim - CdimHalf; ck++) {
-		for (int cj = -CdimHalf; cj < Cdim - CdimHalf; cj++) {
-			for (int ci = -CdimHalf; ci < Cdim - CdimHalf; ci++) {
+	for (int ck = -p.CdimHalf; ck < p.Cdim - p.CdimHalf; ck++) {
+		for (int cj = -p.CdimHalf; cj < p.Cdim - p.CdimHalf; cj++) {
+			for (int ci = -p.CdimHalf; ci < p.Cdim - p.CdimHalf; ci++) {
 
 				//j in matrix multipy (only nonzero result cols)
 				/*Get voxel pos in Crow space
@@ -823,51 +833,51 @@ __device__ __host__ void combineKernelsAt(
 				*/
 
 
-				int3 ivoxCcol = make_int3(ivox.x / Cratio, ivox.y / Cratio, ivox.z / Cratio) + make_int3(ci, cj, ck);
+				int3 ivoxCcol = make_int3(ivox.x / p.Cratio, ivox.y / p.Cratio, ivox.z / p.Cratio) + make_int3(ci, cj, ck);
 				int3 ivoxBcol = ivoxCcol;
 
-				if (!_isValidPos(resCcol, ivoxCcol)) {
+				if (!_isValidPos(p.resCcol, ivoxCcol)) {
 					continue;
 				}
 
-				size_t Bcol = _linearIndex(resBcol, ivoxBcol);
+				size_t Bcol = _linearIndex(p.resBcol, ivoxBcol);
 
 				//multiply / dot product
 				//Arow=Crow * Bcol=Ccol
 				double sum = 0.0;
-				for (int ak = -AdimHalf; ak < Adim - AdimHalf; ak++) {
-					for (int aj = -AdimHalf; aj < Adim - AdimHalf; aj++) {
-						for (int ai = -AdimHalf; ai < Adim - AdimHalf; ai++) {
+				for (int ak = -p.AdimHalf; ak < p.Adim - p.AdimHalf; ak++) {
+					for (int aj = -p.AdimHalf; aj < p.Adim - p.AdimHalf; aj++) {
+						for (int ai = -p.AdimHalf; ai < p.Adim - p.AdimHalf; ai++) {
 
-							int3 ivoxDot = ivox * Aratio + make_int3(ai, aj, ak); //TODO may need to reproject if is not NxN?
-							if (!_isValidPos(resAcol, ivoxDot)) {
+							int3 ivoxDot = ivox * p.Aratio + make_int3(ai, aj, ak); 
+							if (!_isValidPos(p.resAcol, ivoxDot)) {
 								continue;
 							}
 
-							size_t iDot = _linearIndex(resBrow, ivoxDot);
+							size_t iDot = _linearIndex(p.resBrow, ivoxDot);
 
 
 							double valA = kernelA[
-								_linearIndexXFirst(make_uint3(Adim), make_int3(ai + AdimHalf, aj + AdimHalf, ak + AdimHalf))
+								_linearIndexXFirst(make_uint3(p.Adim), make_int3(ai + p.AdimHalf, aj + p.AdimHalf, ak + p.AdimHalf))
 							];
 
-							if (valA == 0.0) {
+							/*if (valA == 0.0) {
 								continue;
-							}
+							}*/
 
-							MGGPU_KernelPtr kernelB = B + Bdim*Bdim*Bdim * iDot;
+							MGGPU_KernelPtr kernelB = p.B + Bsize * iDot;
 
-							int3 BkernelOffset = ivoxBcol - make_int3(ivoxDot.x / Bratio, ivoxDot.y / Bratio, ivoxDot.z / Bratio);
-							int bi = BkernelOffset.x + BdimHalf;
-							int bj = BkernelOffset.y + BdimHalf;
-							int bk = BkernelOffset.z + BdimHalf;
+							int3 BkernelOffset = ivoxBcol - make_int3(ivoxDot.x / p.Bratio, ivoxDot.y / p.Bratio, ivoxDot.z / p.Bratio);
+							int bi = BkernelOffset.x + p.BdimHalf;
+							int bj = BkernelOffset.y + p.BdimHalf;
+							int bk = BkernelOffset.z + p.BdimHalf;
 
-							if (!_isValidPos(make_uint3(Bdim), make_int3(bi, bj, bk))) {
+							if (!_isValidPos(make_uint3(p.Bdim), make_int3(bi, bj, bk))) {
 								continue;
 							}
 
 							double valB = kernelB[
-								_linearIndexXFirst(make_uint3(Bdim), make_int3(bi, bj, bk))
+								_linearIndexXFirst(make_uint3(p.Bdim), make_int3(bi, bj, bk))
 							];
 
 							double val = valA*valB;
@@ -879,7 +889,7 @@ __device__ __host__ void combineKernelsAt(
 
 				if (sum != 0.0) {
 					kernelC[
-						_linearIndexXFirst(make_uint3(Cdim), make_int3(ci + CdimHalf, cj + CdimHalf, ck + CdimHalf))
+						_linearIndexXFirst(make_uint3(p.Cdim), make_int3(ci + p.CdimHalf, cj + p.CdimHalf, ck + p.CdimHalf))
 					] = sum;
 				}
 
@@ -890,36 +900,14 @@ __device__ __host__ void combineKernelsAt(
 
 }
 
-__global__ void __combineKernels(
-	const uint3 resArow,
-	const uint3 resAcol,
-	const uint3 resBrow,
-	const uint3 resBcol,
-	const MGGPU_KernelPtr A,
-	const int Adim,
-	const MGGPU_KernelPtr B,
-	const int Bdim, // in resBcol
-	MGGPU_KernelPtr C
-)
+__global__ void __combineKernels()
 {
-
-	VOLUME_VOX_GUARD(resArow);
-
+	//Get voxel position
+	VOLUME_VOX_GUARD(const_kernel_combine_params.resArow);
 	int3 ivox = make_int3(vox);
-	combineKernelsAt(ivox,
-		resArow, 
-		resAcol, 
-		resBrow, 
-		resBcol, 
-		A, 
-		Adim, 
-		B, 
-		Bdim, 
-		C
-);
-
-	
-
+	KernelCombineParams p = const_kernel_combine_params;
+	//Combine kernels at ivox position
+	combineKernelsAt(ivox, p);		
 
 }
 
@@ -943,18 +931,45 @@ bool MGGPU_CombineKernels(
 		return false;
 	}
 
+	KernelCombineParams p;
+	p.resArow = resArow;
+	p.resAcol = resAcol;
+	p.resBrow = resBrow;
+	p.resBcol = resBcol;
+
+	p.resCrow = resArow;
+	p.resCcol = resBcol;
+
+	p.A = A;
+	p.B = B;
+	p.C = C;
+		
+	p.Bratio = p.resBrow.x / p.resBcol.x;
+	p.Aratio = p.resAcol.x / p.resArow.x;
+	p.Cratio = p.resCrow.x / p.resCcol.x;
+
+	p.Adim = Adim;
+	p.Bdim = Bdim;
+	int BdimTranspose = p.Bdim * p.Bratio;
+	p.Cdim = (p.Adim + BdimTranspose - 1) / p.Bratio;
+
+	p.CdimHalf = (p.Cdim % 2 == 0) ? p.Cdim / 2 - 1 : p.Cdim / 2;
+	p.BdimHalf = (p.Bdim % 2 == 0) ? p.Bdim / 2 - 1 : p.Bdim / 2;
+	p.AdimHalf = (p.Adim % 2 == 0) ? p.Adim / 2 - 1 : p.Adim / 2;
+
+
 
 	if (onDevice) {
+		commitKernelCombineParams(p);
 		BLOCKS3D(2, resArow);
-		__combineKernels << < numBlocks, block >> > (resArow, resAcol, resBrow, resBcol, A, Adim, B, Bdim, C);
+		__combineKernels << < numBlocks, block >> > ();
 	}
 	else {
 		int3 ivox;
 		for (ivox.z = 0; ivox.z < resArow.z; ivox.z++) {
 			for (ivox.y = 0; ivox.y < resArow.y; ivox.y++) {
 				for (ivox.x = 0; ivox.x < resArow.x; ivox.x++) {
-					combineKernelsAt(ivox, resArow, resAcol, resBrow, resBcol, A, Adim, B, Bdim, C);
-
+					combineKernelsAt(ivox, p);
 				}
 			}
 		}	

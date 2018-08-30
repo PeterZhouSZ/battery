@@ -1737,7 +1737,17 @@ bool MultigridSolver<T>::prepare(
 			
 
 			//Galerkin
+			{
+				auto ta0 = std::chrono::system_clock::now();
+				Eigen::SparseMatrix<T, Eigen::RowMajor> temp = _R[i - 1] * _A[i - 1] * _I[i - 1];
+				auto ta1 = std::chrono::system_clock::now();
+				std::chrono::duration<double> t = (ta1 - ta0);
+				std::cout << "CPU RAI : " << i << ", " << t.count() << "s" << std::endl;
+			}
+
 			_A[i] =   _R[i - 1] * _A[i - 1] * _I[i - 1];
+			
+			
 			
 		}
 

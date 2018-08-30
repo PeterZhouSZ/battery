@@ -9,7 +9,7 @@
 #include <chrono>
 
 
-#define SAVE_TO_FILE
+//#define SAVE_TO_FILE
 
 
 
@@ -298,6 +298,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			3,
 			(MGGPU_KernelPtr)AI0.gpu
 		);
+		tAI0.stop();
 		std::cout << "GPU AI0 combine: " << tAI0.time() << std::endl;
 
 
@@ -326,9 +327,9 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		}
 
 
-		R0.retrieve();
+		/*R0.retrieve();
 		AI0.retrieve();
-		A1.retrieve();
+		A1.retrieve();*/
 
 
 		CUDATimer tA1(true);
@@ -337,17 +338,18 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			Nres,
 			Nres,
 			Nhalfres,
-			(MGGPU_KernelPtr)R0.cpu, //A0
+			(MGGPU_KernelPtr)R0.gpu, //A0
 			4,
-			(MGGPU_KernelPtr)AI0.cpu, //I0
+			(MGGPU_KernelPtr)AI0.gpu, //I0
 			4,
-			(MGGPU_KernelPtr)A1.cpu,
-			false
+			(MGGPU_KernelPtr)A1.gpu,
+			true
 		);
-
-		A1.commit();
+		tA1.stop();
 
 		std::cout << "GPU A1 combine: " << tA1.time() << std::endl;
+
+		std::cout << "==== GPU A1: " << tAI0.time() + tA1.time() << std::endl;
 		
 		
 #ifdef SAVE_TO_FILE
