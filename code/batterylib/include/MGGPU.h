@@ -76,6 +76,7 @@ namespace blib {
 			MGGPU_Volume f;
 
 			DataPtr A;
+			DataPtr I;
 
 			size_t N() const { return dim.x*dim.y*dim.z; }
 			/*SparseMat A;

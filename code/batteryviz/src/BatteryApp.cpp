@@ -715,6 +715,11 @@ void BatteryApp::reset()
 			_options["Input"].get<int>("GenResolution") = res;
 		}				
 		ivec3 d = ivec3(res, res, res);
+
+		std::cout << "Resolution: " << d.x << " x " << d.y << " x " << d.z <<
+			" = " << d.x*d.y*d.z << " voxels (" << (d.x*d.y*d.z) / (1024 * 1024.0f) << "M)" << std::endl;
+
+
 		//ivec3 d = ivec3(16, 16, 15);
 		//ivec3 d = ivec3(179, 163, 157);
 		auto batteryID = _volume->addChannel(d, TYPE_UCHAR);
@@ -825,6 +830,11 @@ void BatteryApp::reset()
 
 		std::chrono::duration<double> prepTime = t1 - t0;
 		std::cout << "Prep time: " << prepTime.count() << "s" << std::endl;
+
+
+		/////
+		//exit(0);
+		/////
 
 	}
 

@@ -49,7 +49,14 @@ using MGGPU_RestrictKernel = MGGPU_Kernel3D<RESTR_SIZE>;
 using MGGPU_DomainRestrictKernel = MGGPU_Kernel3D<DOMAIN_RESTR_SIZE>;
 using MGGPU_KernelPtr = double *;
 
-
+inline  __device__ __host__ int MGGPU_outputKernelSize(
+	int Adim,
+	int Bdim,
+	int Bratio
+) {
+	int BdimTranpose = Bdim * Bratio;
+	return (Adim + BdimTranpose - 1) / Bratio;
+}
 
 
 
@@ -392,6 +399,9 @@ void MGGPU_GenerateAI0(
 	MGGPU_Kernel3D<3> * output
 );
 
+
+
+
 bool MGGPU_CombineKernelsGeneric(
 	const uint3 resArow,
 	const uint3 resAcol,
@@ -414,6 +424,7 @@ bool MGGPU_CombineKernelsTopLevel(
 	const MGGPU_KernelPtr B,
 	const int Bdim,
 	MGGPU_KernelPtr C,
+	MGGPU_Volume interpDomain,
 	bool onDevice = true
 );
 

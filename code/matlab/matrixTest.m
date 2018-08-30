@@ -79,6 +79,8 @@ ACPU = full(spconvert(A_0));
 %%
 %MGGPU vs cpu
 
+clear
+
 %cpu
 load ('../build/A_0.dat')
 load ('../build/I_0.dat')
@@ -115,7 +117,11 @@ spy(A1CPU)
 subplot(1,2,2)
 spy(A1GPU)
 
-A1DIFF = full(sum(sum(A1CPU-A1GPU)))
+A1DIFF = full(sum(sum(abs(A1CPU-A1GPU))))
+
+if(A1DIFF > 0.0001)
+    error('A0 mismatch')
+end
 
 % convert to full
 A1GPU = full(A1GPU);

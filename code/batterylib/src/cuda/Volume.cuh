@@ -30,8 +30,24 @@ uint3 vox = make_uint3(			\
 	if (vox.x >= res.x || vox.y >= res.y || vox.z >= res.z)	\
 	return;		
 
-#define BLOCKS3D(perBlockDim, res)				\
+#define BLOCKS3D(perBlockDim, res)					\
+	if(perBlockDim*perBlockDim*perBlockDim > 1024){	\
+		printf("Block too big %d > %d", perBlockDim*perBlockDim*perBlockDim, 1024);	\
+		exit(1);								\
+	}											\
 	uint3 block = make_uint3(perBlockDim);		\
+	uint3 numBlocks = make_uint3(				\
+		((res.x + (block.x-1)) / block.x),		\
+		((res.y + (block.y-1)) / block.y),		\
+		((res.z + (block.z-1)) / block.z)		\
+	);											\
+
+#define BLOCKS3D_INT3(a,b,c, res)					\
+	if(a*b*c > 1024){	\
+		printf("Block too big %d > %d", a*b*c, 1024);	\
+		exit(1);								\
+	}											\
+	uint3 block = make_uint3(a,b,c);		\
 	uint3 numBlocks = make_uint3(				\
 		((res.x + (block.x-1)) / block.x),		\
 		((res.y + (block.y-1)) / block.y),		\

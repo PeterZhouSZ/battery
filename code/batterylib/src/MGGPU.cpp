@@ -10,8 +10,10 @@
 
 
 #ifdef DEBUG
-#define SAVE_TO_FILE
+//#define SAVE_TO_FILE
 #endif
+
+//#define SAVE_TO_FILE
 
 
 
@@ -185,35 +187,43 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 
 	alloc();
 
-	
-
-	//Generate continous domain at first level
-	MGGPU_Volume MGmask = toMGGPUVolume(mask, 0);
-	
-	CUDATimer tGenDomain(true);
-	MGGPU_GenerateDomain(MGmask, _params.d0, _params.d1, _levels[0].domain);	
-	std::cout << "gen domain " << tGenDomain.time() << "s" << std::endl;
-	
-#ifdef SAVE_TO_FILE
-	auto & D0ptr = volume.getChannel(_levels[0].domain.volID).getCurrentPtr();
-	D0ptr.retrieve();
-	saveVector<double>(D0ptr.getCPU(), _levels[0].N(), "MGGPU_D", 0);
-#endif
-
-	//Restrict domain to further levels
-	
-	MGGPU_KernelPtr domainRestrKernel = (double *)MGGPU_GetDomainRestrictionKernel().v;
-	CUDATimer tConvolveDomain(true);
-	for (int i = 1; i < _levels.size(); i++) {
-		MGGPU_Convolve(_levels[i - 1].domain, domainRestrKernel, 2, _levels[i].domain); 
 		
+	/*
+		Generate continous domain at first level
+	*/
+	{		
+		MGGPU_Volume MGmask = toMGGPUVolume(mask, 0);
+		CUDATimer tGenDomain(true); 		
+		MGGPU_GenerateDomain(MGmask, _params.d0, _params.d1, _levels[0].domain);		
+		std::cout << "Gen domain " << tGenDomain.time() << "s" << std::endl;
+
 #ifdef SAVE_TO_FILE
-		auto & ptr = volume.getChannel(_levels[i].domain.volID).getCurrentPtr();
-		ptr.retrieve();
-		saveVector<double>(ptr.getCPU(), _levels[i].N(), "MGGPU_D", i);
+		auto & D0ptr = volume.getChannel(_levels[0].domain.volID).getCurrentPtr();
+		D0ptr.retrieve();
+		saveVector<double>(D0ptr.getCPU(), _levels[0].N(), "MGGPU_D", 0);
 #endif
 	}
-	std::cout << "convolve domain " << tConvolveDomain.time() << "s" << std::endl;
+	
+
+
+	/*
+		Restrict domain to further levels
+	*/
+	{
+		MGGPU_KernelPtr domainRestrKernel = (double *)MGGPU_GetDomainRestrictionKernel().v;
+		CUDATimer tConvolveDomain(true);
+		for (int i = 1; i < _levels.size(); i++) {
+			MGGPU_Convolve(_levels[i - 1].domain, domainRestrKernel, 2, _levels[i].domain);
+
+#ifdef SAVE_TO_FILE
+			auto & ptr = volume.getChannel(_levels[i].domain.volID).getCurrentPtr();
+			ptr.retrieve();
+			saveVector<double>(ptr.getCPU(), _levels[i].N(), "MGGPU_D", i);
+#endif
+		}
+
+		std::cout << "Convolve domain " << tConvolveDomain.time() << "s" << std::endl;
+	}
 	
 
 	//Send system params to gpu
@@ -239,36 +249,147 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		return false;
 	}	
 
+
+	/*
+		Generate A0 - top level kernels
+	*/
 	{
 		auto & sysTop = _levels[0].A;
-		sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));		
-		MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f);
-		sysTop.retrieve();
+		sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));
+		MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f);		
+	}
 
-		//std::vector<MGGPU_Kernel3D<3>> A0cpu;
-		DataPtr A0;
-		A0.alloc(_levels[0].N(), sizeof(MGGPU_Kernel3D<3>));
-		for (int i = 0; i < _levels[0].N(); i++) {
-			MGGPU_SystemTopKernel & k = ((MGGPU_SystemTopKernel *)sysTop.cpu)[i];
-			MGGPU_Kernel3D<3> & a = ((MGGPU_Kernel3D<3> * )A0.cpu)[i];
-			{
-				memset(&a, 0, sizeof(MGGPU_Kernel3D<3>));
-				a.v[1][1][1] = k.v[DIR_NONE];
-				a.v[0][1][1] = k.v[X_NEG];
-				a.v[2][1][1] = k.v[X_POS];
-				a.v[1][0][1] = k.v[Y_NEG];
-				a.v[1][2][1] = k.v[Y_POS];
-				a.v[1][1][0] = k.v[Z_NEG];
-				a.v[1][1][2] = k.v[Z_POS];
-			}
+	/*
+		Generate Ai, using Galerkin Ri-1 * Ai-1 * Ii-1
+	*/
+
+	CUDATimer tGenI(true);
+	for (auto level = 1; level < _levels.size(); level++) {
+
+		const int kI = 3;
+		const int kAprev = (level == 1) ? 3 : 5;
+		const int kA = 5;
+		const int kR = 4;
+		const int kAI = MGGPU_outputKernelSize(kAprev, kI, 2);
+
+
+		DataPtr & A = _levels[level].A;
+		DataPtr & Aprev = _levels[level - 1].A;
+
+		std::cout << "Level " << level << std::endl;
+		cudaPrintMemInfo();
+		
+		std::cout << "AI alloc & gen" << level << std::endl;
+		//Free when out of scope
+		DataPtr AI;		
+		AI.allocDevice(_levels[level - 1].N(), sizeof(double)*kAI*kAI*kAI);
+		AI.memsetDevice(0);
+
+		cudaPrintMemInfo();
+
+		auto Nres = make_uint3(_levels[level-1].dim.x, _levels[level - 1].dim.y, _levels[level - 1].dim.z);
+		auto Nhalfres = make_uint3(_levels[level].dim.x, _levels[level].dim.y, _levels[level].dim.z);
+
+		
+		if (level == 1) {
+
+			CUDATimer tA(true);
+			MGGPU_CombineKernelsTopLevel(
+				Nres,
+				Nres,
+				Nhalfres,
+				(MGGPU_KernelPtr)Aprev.gpu, 				
+				nullptr, 
+				kI,
+				(MGGPU_KernelPtr)AI.gpu,
+				_levels[level].domain
+			);
+			std::cout << "########## MGGPU_CombineKernelsTopLevel" << level << " time: " << tA.time() << std::endl;
+			_CUDA(cudaPeekAtLastError());	
+
+			/*{
+				AI.retrieve();
+				MGGPU_Kernel3D<4> * ptr = (MGGPU_Kernel3D<4> *)AI.cpu;
+				SparseMat mat = kernelToSparse<4>(
+					(MGGPU_Kernel3D<4>*)ptr,
+					_levels[0].dim,
+					_levels[1].dim
+					);
+				saveSparse(mat, "MGGPU_AI", level - 1);
+			}*/
+
 		}
-		A0.commit();
+		else {
+			std::cout << "I alloc & gen" << level << std::endl;
+			DataPtr & I = _levels[level - 1].I;
+			I.allocDevice(_levels[level - 1].N(), sizeof(MGGPU_Kernel3D<3>));
+			//std::cout << "I^3: " << (_levels[level - 1].N() * sizeof(MGGPU_Kernel3D<3>)) / (1024.0f * 1024.0f) << "MB" << std::endl;
+			//std::cout << "I^2: " << (_levels[level - 1].N() * sizeof(MGGPU_Kernel3D<2>)) / (1024.0f * 1024.0f) << "MB" << std::endl;
+
+			//cudaPrintMemInfo();
+
+			MGGPU_GenerateSystemInterpKernels(
+				make_uint3(_levels[level - 1].dim.x, _levels[level - 1].dim.y, _levels[level - 1].dim.z),
+				_levels[level].domain,
+				(MGGPU_Kernel3D<3> *)I.gpu
+			);
+
+
+			MGGPU_CombineKernelsGeneric(
+				Nres,
+				Nres,
+				Nres,
+				Nhalfres,
+				(MGGPU_KernelPtr)Aprev.gpu, 
+				kAprev,
+				(MGGPU_KernelPtr)I.gpu,
+				kI,
+				(MGGPU_KernelPtr)AI.gpu
+			);
+		}
+
+		
+
+		std::cout << "A alloc & gen" << level << std::endl;
+
+		A.allocDevice(_levels[level].N(), sizeof(double)*kA*kA*kA);
+
+
+		MGGPU_CombineKernelsRestrict(
+			Nhalfres,
+			Nres,
+			Nres,
+			Nhalfres,
+			(MGGPU_KernelPtr)AI.gpu, //I0
+			kAI,
+			(MGGPU_KernelPtr)A.gpu
+		);
+		_CUDA(cudaPeekAtLastError());
+
+		
+
+		
+
+
+
+		
+	}
+	std::cout << "Generate Ii " << tGenI.time() << "s" << std::endl;
+
+	return true;
+
+
+
+
+
+	{
+				
 
 		DataPtr I0Kernels;
 		I0Kernels.allocDevice(_levels[0].N(), sizeof(MGGPU_Kernel3D<3>));
 		I0Kernels.memsetDevice(0);
 
-		MGGPU_GenerateSystemInterpKernels(			
+		MGGPU_GenerateSystemInterpKernels(
 			make_uint3(_levels[0].dim.x, _levels[0].dim.y, _levels[0].dim.z),
 			_levels[1].domain,
 			(MGGPU_Kernel3D<3> *)I0Kernels.gpu
@@ -304,6 +425,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		//A0.retrieve();
 		//I0Kernels.retrieve();
 		//AI0.retrieve();
+		DataPtr sysTop; //////////////////////////////////////////////
 
 		MGGPU_CombineKernelsTopLevel(
 			Nres,			
@@ -312,9 +434,10 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			(MGGPU_KernelPtr)sysTop.gpu, //A0			
 			(MGGPU_KernelPtr)I0Kernels.gpu, //I0
 			3,
-			(MGGPU_KernelPtr)AI0.gpu
+			(MGGPU_KernelPtr)AI0.gpu,
+			_levels[1].domain
 		);
-
+		_CUDA(cudaPeekAtLastError());
 		//AI0.commit();
 
 		tAI0.stop();
@@ -366,6 +489,9 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			4,
 			(MGGPU_KernelPtr)A1.gpu			
 		);
+		
+		_CUDA(cudaPeekAtLastError());
+		//_CUDA(cudaDeviceSynchronize());
 		//A1.commit();
 		tA1.stop();
 
@@ -387,6 +513,17 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		}
 
 		{
+			R0.retrieve();
+			MGGPU_Kernel3D<4> * ptr = (MGGPU_Kernel3D<4> *)R0.cpu;
+			SparseMat mat = kernelToSparse<4>(
+				(MGGPU_Kernel3D<4>*)ptr,
+				_levels[1].dim,
+				_levels[0].dim
+				);
+			saveSparse(mat, "MGGPU_R", 0);
+		}
+
+		{
 			A1.retrieve();
 			MGGPU_Kernel3D<5> * ptr = (MGGPU_Kernel3D<5> *)A1.cpu;
 			SparseMat mat = kernelToSparse<5>(
@@ -397,16 +534,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			saveSparse(mat, "MGGPU_A", 1);
 		}
 
-		{
-			R0.retrieve();
-			MGGPU_Kernel3D<4> * ptr = (MGGPU_Kernel3D<4> *)R0.cpu;
-			SparseMat mat = kernelToSparse<4>(
-				(MGGPU_Kernel3D<4>*)ptr,
-				_levels[1].dim,
-				_levels[0].dim
-				);
-			saveSparse(mat, "MGGPU_R", 0);
-		}
+		
 #endif
 
 

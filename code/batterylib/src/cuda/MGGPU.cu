@@ -14,6 +14,8 @@ struct KernelCombineParams {
 	int Adim, Bdim, Cdim;	
 	int Aratio, Bratio, Cratio;
 	int AdimHalf, BdimHalf, CdimHalf;
+
+	MGGPU_Volume domain;
 };
 
 
@@ -230,20 +232,24 @@ __device__ void MGGPU_GetSystemTopKernel(
 
 
 
-__device__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
+
+
+__device__ __host__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 	const MGGPU_Volume & domainSrc,
 	const int3 & vox, //vox in destination
 	const uint3 & destRes, //should be exactly double (if power of 2) of domain.res
 	int dirIndex
 ) {
 
+	MGGPU_InterpKernel kernel;
+#ifdef __CUDA_ARCH__
 	/*
 	Two spaces:
 	source : n/2 (domain, domain.res)
 	dest: n (vox, destRes)
 	*/
 
-	MGGPU_InterpKernel kernel;
+	
 	
 	memset(&kernel, 0, sizeof(MGGPU_InterpKernel));
 
@@ -369,7 +375,7 @@ __device__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 	}
 
 
-
+#endif
 	return kernel;
 }
 
@@ -920,12 +926,17 @@ __device__ __host__ void combineKernelsAt(
 							continue;
 						}
 
-						size_t iDot = _linearIndex(p.resBrow, ivoxDot);
+						
 
-						double valA = 0.0;
-						valA = kernelA[dir];
+						
 
-						MGGPU_KernelPtr kernelB = p.B + Bsize * iDot;
+						double valA = kernelA[dir];						
+
+						MGGPU_InterpKernel kernelInterp = MGGPU_GetInterpolationKernel(p.domain, ivoxDot, p.resBrow, const_sys_params.dirPrimary);
+						MGGPU_KernelPtr kernelB = MGGPU_KernelPtr(&kernelInterp);
+
+						
+
 						int3 BkernelOffset = ivoxBcol - make_int3(ivoxDot.x / p.Bratio, ivoxDot.y / p.Bratio, ivoxDot.z / p.Bratio);
 						int bi = BkernelOffset.x + p.BdimHalf;
 						int bj = BkernelOffset.y + p.BdimHalf;
@@ -935,9 +946,26 @@ __device__ __host__ void combineKernelsAt(
 							continue;
 						}
 
+
 						double valB = kernelB[
 							_linearIndexXFirst(make_uint3(p.Bdim), make_int3(bi, bj, bk))
 						];
+
+						/*{
+							size_t iDot = _linearIndex(p.resBrow, ivoxDot);
+							MGGPU_KernelPtr kernelB0 = p.B + Bsize * iDot;
+							double valB0 = kernelB0[
+								_linearIndexXFirst(make_uint3(p.Bdim), make_int3(bi, bj, bk))
+							];
+
+							double diff = valB0 - valB;
+							if (diff > 0.0) {
+								printf("%f\n", diff);
+							}
+						}*/
+
+						
+
 						sum += valA*valB;
 
 					}
@@ -964,7 +992,7 @@ __global__ void __combineKernels()
 	//Get voxel position
 	VOLUME_VOX_GUARD(const_kernel_combine_params.resArow);
 	int3 ivox = make_int3(vox);
-	KernelCombineParams p = const_kernel_combine_params;
+	KernelCombineParams & p = const_kernel_combine_params;
 	//Combine kernels at ivox position
 	combineKernelsAt<combineType, AKernelAllocSize>(ivox, p);		
 
@@ -979,6 +1007,7 @@ bool MGGPU_CombineKernelsTopLevel(
 	const MGGPU_KernelPtr B,
 	const int Bdim, 
 	MGGPU_KernelPtr C,
+	MGGPU_Volume interpDomain,
 	bool onDevice
 ){
 
@@ -1007,13 +1036,13 @@ bool MGGPU_CombineKernelsTopLevel(
 
 	p.Adim = 3;
 	p.Bdim = Bdim;
-	int BdimTranspose = p.Bdim * p.Bratio;
-	p.Cdim = (p.Adim + BdimTranspose - 1) / p.Bratio;
+	p.Cdim = MGGPU_outputKernelSize(p.Adim, p.Bdim, p.Bratio);
 
 	p.CdimHalf = (p.Cdim % 2 == 0) ? p.Cdim / 2 - 1 : p.Cdim / 2;
 	p.BdimHalf = (p.Bdim % 2 == 0) ? p.Bdim / 2 - 1 : p.Bdim / 2;
 	p.AdimHalf = (p.Adim % 2 == 0) ? p.Adim / 2 - 1 : p.Adim / 2;
-
+	
+	p.domain = interpDomain;
 
 	const CombineType combineType = A_IS_TOPLEVEL;
 	const size_t allocA = sizeof(MGGPU_SystemTopKernel) / sizeof(double);
@@ -1049,6 +1078,7 @@ bool MGGPU_CombineKernelsRestrict(
 	bool onDevice
 ) {
 
+	
 
 	if (resAcol.x != resBrow.x ||
 		resAcol.y != resBrow.y ||
@@ -1074,9 +1104,8 @@ bool MGGPU_CombineKernelsRestrict(
 	p.Cratio = p.resCrow.x / p.resCcol.x;
 
 	p.Adim = RESTR_SIZE;
-	p.Bdim = Bdim;
-	int BdimTranspose = p.Bdim * p.Bratio;
-	p.Cdim = (p.Adim + BdimTranspose - 1) / p.Bratio;
+	p.Bdim = Bdim;	
+	p.Cdim = MGGPU_outputKernelSize(p.Adim, p.Bdim, p.Bratio);
 
 	p.CdimHalf = (p.Cdim % 2 == 0) ? p.Cdim / 2 - 1 : p.Cdim / 2;
 	p.BdimHalf = (p.Bdim % 2 == 0) ? p.Bdim / 2 - 1 : p.Bdim / 2;
@@ -1088,7 +1117,7 @@ bool MGGPU_CombineKernelsRestrict(
 
 	if (onDevice) {
 		commitKernelCombineParams(p);
-		BLOCKS3D(2, p.resCrow);
+		BLOCKS3D(4, p.resCrow);
 		__combineKernels<combineType, allocA> << < numBlocks, block >> > ();
 	}
 	else {
@@ -1146,8 +1175,7 @@ bool MGGPU_CombineKernelsGeneric(
 
 	p.Adim = Adim;
 	p.Bdim = Bdim;
-	int BdimTranspose = p.Bdim * p.Bratio;
-	p.Cdim = (p.Adim + BdimTranspose - 1) / p.Bratio;
+	p.Cdim = MGGPU_outputKernelSize(p.Adim, p.Bdim, p.Bratio);
 
 	p.CdimHalf = (p.Cdim % 2 == 0) ? p.Cdim / 2 - 1 : p.Cdim / 2;
 	p.BdimHalf = (p.Bdim % 2 == 0) ? p.Bdim / 2 - 1 : p.Bdim / 2;
@@ -1159,7 +1187,7 @@ bool MGGPU_CombineKernelsGeneric(
 
 	if (onDevice) {
 		commitKernelCombineParams(p);
-		BLOCKS3D(2, p.resCrow);
+		BLOCKS3D(4, p.resCrow);
 		__combineKernels<combineType, allocA> << < numBlocks, block >> > ();
 	}
 	else {
