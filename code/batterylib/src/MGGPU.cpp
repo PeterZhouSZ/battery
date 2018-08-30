@@ -280,10 +280,11 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		AI0.memsetDevice(0);
 		//AI0.retrieve();
 
-
 		auto Nres = make_uint3(_levels[0].dim.x, _levels[0].dim.y, _levels[0].dim.z);
 		auto Nhalfres = make_uint3(_levels[1].dim.x, _levels[1].dim.y, _levels[1].dim.z);
 		//AI0
+
+
 
 		CUDATimer tAI0(true);
 		MGGPU_CombineKernels(
@@ -298,8 +299,59 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			(MGGPU_KernelPtr)AI0.gpu
 		);
 		std::cout << "GPU AI0 combine: " << tAI0.time() << std::endl;
+
+
+		///////////
+
+		DataPtr A1;
+		A1.allocDevice(_levels[1].N(), sizeof(MGGPU_Kernel3D<5>));
+		A1.memsetDevice(0);
+
+		DataPtr R0;
+		{
+			R0.alloc(_levels[1].N(), sizeof(MGGPU_RestrictKernel));
+			R0.memsetDevice(0);
+			for (int z = 0; z < Nhalfres.z; z++) {
+				for (int y = 0; y < Nhalfres.y; y++) {					
+					for (int x = 0; x < Nhalfres.x; x++) {		
+						size_t i = linearIndex(_levels[1].dim, { x,y,z }); // kernel in n/2
+						MGGPU_RestrictKernel & k = ((MGGPU_RestrictKernel *)R0.cpu)[i];
+						k = MGGPU_GetRestrictionKernel(make_uint3( x,y,z ), Nhalfres, sysp.dirPrimary);
+
+					}
+				}
+			}
+			R0.commit();		
+			
+		}
+
+
+		R0.retrieve();
+		AI0.retrieve();
+		A1.retrieve();
+
+
+		CUDATimer tA1(true);
+		MGGPU_CombineKernels(
+			Nhalfres,
+			Nres,
+			Nres,
+			Nhalfres,
+			(MGGPU_KernelPtr)R0.cpu, //A0
+			4,
+			(MGGPU_KernelPtr)AI0.cpu, //I0
+			4,
+			(MGGPU_KernelPtr)A1.cpu,
+			false
+		);
+
+		A1.commit();
+
+		std::cout << "GPU A1 combine: " << tA1.time() << std::endl;
+		
 		
 #ifdef SAVE_TO_FILE
+		{
 			AI0.retrieve();
 			MGGPU_Kernel3D<4> * ptr = (MGGPU_Kernel3D<4> *)AI0.cpu;
 			SparseMat mat = kernelToSparse<4>(
@@ -308,6 +360,29 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 				_levels[1].dim
 				);
 			saveSparse(mat, "MGGPU_AI", 0);
+		}
+
+		{
+			A1.retrieve();
+			MGGPU_Kernel3D<5> * ptr = (MGGPU_Kernel3D<5> *)A1.cpu;
+			SparseMat mat = kernelToSparse<5>(
+				(MGGPU_Kernel3D<5>*)ptr,
+				_levels[1].dim,
+				_levels[1].dim
+				);
+			saveSparse(mat, "MGGPU_A", 1);
+		}
+
+		{
+			R0.retrieve();
+			MGGPU_Kernel3D<4> * ptr = (MGGPU_Kernel3D<4> *)R0.cpu;
+			SparseMat mat = kernelToSparse<4>(
+				(MGGPU_Kernel3D<4>*)ptr,
+				_levels[1].dim,
+				_levels[0].dim
+				);
+			saveSparse(mat, "MGGPU_R", 0);
+		}
 #endif
 
 

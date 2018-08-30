@@ -270,5 +270,6 @@ bool MGGPU_CombineKernels(
 	const int Adim,
 	const MGGPU_KernelPtr B,
 	const int Bdim,
-	MGGPU_KernelPtr C
+	MGGPU_KernelPtr C,
+	bool onDevice = true
 );

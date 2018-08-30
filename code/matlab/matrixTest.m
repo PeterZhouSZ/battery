@@ -79,19 +79,57 @@ ACPU = full(spconvert(A_0));
 %%
 %MGGPU vs cpu
 
+%cpu
 load ('../build/A_0.dat')
 load ('../build/I_0.dat')
-load ('../build/MGGPU_AI_0.dat')
+load ('../build/R_0.dat')
+load ('../build/A_1.dat')
+
 I0CPU = spconvert(I_0);
 A0CPU = spconvert(A_0);
-
+R0CPU = spconvert(R_0);
 AI0CPU = (A0CPU * I0CPU);
+A1CPU = spconvert(A_1);
 
-AI0GPU = (spconvert(MGGPU_AI_0));
-AI0GPU = full(spconvert(MGGPU_AI_0));
-AI0CPU = full(A0CPU * I0CPU);
-I0CPU = full(I0CPU);
-A0CPU = full(A0CPU);
+%gpu
+load ('../build/MGGPU_AI_0.dat')
+load ('../build/MGGPU_A_1.dat')
+load ('../build/MGGPU_R_0.dat')
+AI0GPU = spconvert(MGGPU_AI_0);
+A1GPU = spconvert(MGGPU_A_1);
+R0GPU = spconvert(MGGPU_R_0);
+
+
+RDIFF = full(sum(sum(R0CPU-R0CPU)))
+AI0DIFF = full(sum(sum(AI0CPU-AI0GPU)))
+if(RDIFF > 0.0001)
+    error('R0 mismatch')
+end
+if(AI0DIFF > 0.0001)
+    error('AI0 mismatch')
+end
+
+% plot spy
+subplot(1,2,1)
+spy(A1CPU)
+subplot(1,2,2)
+spy(A1GPU)
+
+A1DIFF = full(sum(sum(A1CPU-A1GPU)))
+
+% convert to full
+A1GPU = full(A1GPU);
+A1CPU = full(A1CPU);
+
+
+
+
+
+
+%AI0GPU = full(spconvert(MGGPU_AI_0));
+%AI0CPU = full(A0CPU * I0CPU);
+%I0CPU = full(I0CPU);
+%A0CPU = full(A0CPU);
 
 % Need to see: for 1,1
 % -0.3125 * 0.75 + 

@@ -771,8 +771,8 @@ void MGGPU_GenerateA1(
 
 //////////////////////////////////////////////
 
-
-__global__ void __combineKernels(
+__device__ __host__ void combineKernelsAt(
+	const int3 ivox,
 	const uint3 resArow,
 	const uint3 resAcol,
 	const uint3 resBrow,
@@ -780,31 +780,29 @@ __global__ void __combineKernels(
 	const MGGPU_KernelPtr A,
 	const int Adim,
 	const MGGPU_KernelPtr B,
-	const int Bdim, // in resBcol
-	MGGPU_KernelPtr C)
-{
-
-	
+	const int Bdim,
+	MGGPU_KernelPtr C
+) {
 
 	//to const mem
 	const uint3 resCrow = resArow;
 	const uint3 resCcol = resBcol;
 
-	VOLUME_VOX_GUARD(resCrow);
 
+	//Todo for each dim?
 	int Bratio = resBrow.x / resBcol.x;
+	int Aratio = resAcol.x / resArow.x;
+	int Cratio = resCrow.x / resCcol.x;
+
 	int BdimTranspose = Bdim * Bratio;
 
 	int Cdim = (Adim + BdimTranspose - 1) / Bratio;
 	int CdimHalf = (Cdim % 2 == 0) ? Cdim / 2 - 1 : Cdim / 2;
-	int Cratio = resCrow.x / resCcol.x;
+	
 
 	int BdimHalf = (Bdim % 2 == 0) ? Bdim / 2 - 1 : Bdim / 2;
 	int AdimHalf = (Adim % 2 == 0) ? Adim / 2 - 1 : Adim / 2;
 	//
-
-
-	int3 ivox = make_int3(vox);
 
 	//i in matrix multiply
 	size_t Crow = _linearIndex(resCrow, ivox); // in resCrow == resArow space
@@ -841,8 +839,8 @@ __global__ void __combineKernels(
 					for (int aj = -AdimHalf; aj < Adim - AdimHalf; aj++) {
 						for (int ai = -AdimHalf; ai < Adim - AdimHalf; ai++) {
 
-							int3 ivoxDot = ivox + make_int3(ai, aj, ak); //TODO may need to reproject if is not NxN?
-							if (!_isValidPos(resArow, ivoxDot)) {
+							int3 ivoxDot = ivox * Aratio + make_int3(ai, aj, ak); //TODO may need to reproject if is not NxN?
+							if (!_isValidPos(resAcol, ivoxDot)) {
 								continue;
 							}
 
@@ -892,6 +890,39 @@ __global__ void __combineKernels(
 
 }
 
+__global__ void __combineKernels(
+	const uint3 resArow,
+	const uint3 resAcol,
+	const uint3 resBrow,
+	const uint3 resBcol,
+	const MGGPU_KernelPtr A,
+	const int Adim,
+	const MGGPU_KernelPtr B,
+	const int Bdim, // in resBcol
+	MGGPU_KernelPtr C
+)
+{
+
+	VOLUME_VOX_GUARD(resArow);
+
+	int3 ivox = make_int3(vox);
+	combineKernelsAt(ivox,
+		resArow, 
+		resAcol, 
+		resBrow, 
+		resBcol, 
+		A, 
+		Adim, 
+		B, 
+		Bdim, 
+		C
+);
+
+	
+
+
+}
+
 bool MGGPU_CombineKernels(
 	const uint3 resArow,
 	const uint3 resAcol,	
@@ -901,7 +932,8 @@ bool MGGPU_CombineKernels(
 	const int Adim,
 	const MGGPU_KernelPtr B,
 	const int Bdim, // in resBcol
-	MGGPU_KernelPtr C
+	MGGPU_KernelPtr C,
+	bool onDevice
 ) {
 	
 	if (resAcol.x != resBrow.x ||
@@ -912,8 +944,22 @@ bool MGGPU_CombineKernels(
 	}
 
 
-	BLOCKS3D(2, resArow);
-	__combineKernels << < numBlocks, block >> > (resArow, resAcol, resBrow, resBcol, A, Adim, B, Bdim, C	);
+	if (onDevice) {
+		BLOCKS3D(2, resArow);
+		__combineKernels << < numBlocks, block >> > (resArow, resAcol, resBrow, resBcol, A, Adim, B, Bdim, C);
+	}
+	else {
+		int3 ivox;
+		for (ivox.z = 0; ivox.z < resArow.z; ivox.z++) {
+			for (ivox.y = 0; ivox.y < resArow.y; ivox.y++) {
+				for (ivox.x = 0; ivox.x < resArow.x; ivox.x++) {
+					combineKernelsAt(ivox, resArow, resAcol, resBrow, resBcol, A, Adim, B, Bdim, C);
+
+				}
+			}
+		}	
+	}
+
 	
 
 	/*int3 ivox = make_int3(0, 0, 0);
@@ -921,14 +967,7 @@ bool MGGPU_CombineKernels(
 
 	//{Simulate kernel launch}
 	//Row of C
-	for (ivox.z = 0; ivox.z < resCrow.z; ivox.z++) {		
-		for (ivox.y = 0; ivox.y < resCrow.y; ivox.y++) {
-			for (ivox.x = 0; ivox.x < resCrow.x; ivox.x++) {
-				
-				
-			}
-		}
-	}*/
+	*/
 	
 
 	
