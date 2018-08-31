@@ -29,11 +29,8 @@
 #include <numeric>
 
 
-//#define DATA_FOLDER "../../data/graphite/SL43_C5_1c5bar_Data/"
+
 #define DATA_FOLDER "../../data/graphiteSections/SL43_C5_1c5bar_Data/SL43_C5_1c5bar_section001/"
-//#define DATA_FOLDER "../../data/graphiteSections/dataset0/SL44_C4_4bar_section003/"
-//#define DATA_FOLDER "C:/!/battery/battery/code/python/vol"
-//#define DATA_FOLDER "../../data/graphite/Cropped/"
 
 
 using namespace std;
@@ -173,68 +170,7 @@ BatteryApp::BatteryApp()
 void BatteryApp::update(double dt)
 {
 	if (!_autoUpdate) return;
- 
-	
-	//_saEllipsoid.update(_options["Optim"].get<int>("stepsPerFrame"));
-	//_volumeRaycaster->updateVolume(_volume);	
 
-
-
-	if (_volume->hasChannel(CHANNEL_CONCETRATION)) {
-
-		
-
-		for (auto i = 0; i < _options["Optim"].get<int>("stepsPerFrame"); i++) {
-			/*_volume->heat(CHANNEL_CONCETRATION);			
-			_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();*/
-
-			float t0 = glfwGetTime();
-
-			auto dir = Dir(_options["Diffusion"].get<int>("direction"));
-
-			_volume->diffuse(
-				CHANNEL_BATTERY,
-				CHANNEL_CONCETRATION,				
-				_options["Diffusion"].get<float>("voxelSize"),
-				_options["Diffusion"].get<float>("D_zero"), //0.5f,
-				_options["Diffusion"].get<float>("D_one"), //0.0001f
-				_options["Diffusion"].get<float>("C_high"), 
-				_options["Diffusion"].get<float>("C_low"), 
-				dir
-			);
-
-			static int k = 0; k++;
-
-			//if (k % 256 == 0) {
-				auto dim = _volume->getChannel(CHANNEL_CONCETRATION).dim();
-				_residual = _volume->getChannel(CHANNEL_CONCETRATION).differenceSum();// / (dim.x*dim.y*dim.z);				
-				//_residual = 0.1;
-				if (abs(_residual) < 0.000001f && _convergenceTime < 0.0f) {
-					_convergenceTime = _simulationTime;
-				}
-			//}
-
-			_volume->getChannel(CHANNEL_CONCETRATION).swapBuffers();
-
-			float t1 = glfwGetTime();
-
-			_simulationTime += t1 - t0;
-
-			//_volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().retrieve();
-
-			//void * ptr = _volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().getCPU();
-
-			char b;
-			b = 0;
-
-		}
-
-		
-
-	}
-
-	
-	
 
 	return;
 }
@@ -335,9 +271,6 @@ void BatteryApp::render(double dt)
 	/*
 	Volume raycaster
 	*/
-
-
-
 	if (_options["Render"].get<bool>("volume")) {
 		
 		//update current channel to render
@@ -585,9 +518,6 @@ void BatteryApp::solveMultigridGPU()
 	vec3 cellDim = vec3(1.0 / maxDim);
 
 
-	//_multigridGPUSolver.setDebugVolume(_volume.get());
-
-
 	_multigridGPUSolver.prepare(
 		_volume->getChannel(CHANNEL_BATTERY),
 		_volume->getChannel(CHANNEL_CONCETRATION),
@@ -597,9 +527,7 @@ void BatteryApp::solveMultigridGPU()
 		levels,
 		cellDim
 	);
-
-//	return;
-
+	
 
 	auto t1 = std::chrono::system_clock::now();
 	std::chrono::duration<double> prepTime = t1 - t0;
@@ -619,6 +547,32 @@ void BatteryApp::solveMultigridGPU()
 		", iterations: " << _multigridGPUSolver.iterations() << std::endl;
 }
 
+void BatteryApp::solveMGGPU()
+{
+	MGGPU<double>::Params p;
+	p.levels = 5;
+	p.dir = X_NEG;
+	p.d0 = _options["Diffusion"].get<float>("D_zero");
+	p.d1 = _options["Diffusion"].get<float>("D_one");
+
+	auto & c = _volume->getChannel(CHANNEL_BATTERY);
+	auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
+	auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
+	auto exactSolveDim = 4;
+	p.cellDim = vec3(1.0 / maxDim);
+	p.levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
+	p.dir = Dir(_options["Diffusion"].get<int>("direction"));
+
+	std::cout << "Multigrid solver levels " << p.levels << std::endl;
+
+	auto t0 = std::chrono::system_clock::now();
+	_mggpu.prepare(_volume->getChannel(CHANNEL_BATTERY), p, *_volume);
+	auto t1 = std::chrono::system_clock::now();
+
+	std::chrono::duration<double> prepTime = t1 - t0;
+	std::cout << "Prep time: " << prepTime.count() << "s" << std::endl;
+}
+
 void BatteryApp::reset()
 {
 
@@ -628,18 +582,15 @@ void BatteryApp::reset()
 	_convergenceTime = -1.0f;
 
 	bool loadDefault = _options["Input"].get<bool>("Default");
-
 	
-	_volume = make_unique<blib::Volume>();
-
-	//loadDefault = false;
+	_volume = make_unique<blib::Volume>();	
 
 	if (loadDefault) {
 		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
 		assert(batteryID == CHANNEL_BATTERY);
 
 
-		//_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), 2*ivec3(32,32,16)  );
+		
 		ivec3 userSize = ivec3(_options["Input"].get<int>("GenResolution"));
 		ivec3 size = glm::min(_volume->getChannel(CHANNEL_BATTERY).dim(), userSize);
 
@@ -682,23 +633,11 @@ void BatteryApp::reset()
 						if (i <= border || i >= d[0] - border - 1) {
 							data[index] = 0;
 						}
-						/*else if (j <= border || j >= d[1] - border - 1) {
-							data[index] = 0;
-						}
-						else if (k <= border|| k >= d[2] - border - 1) {
-							data[index] = 0;
-						}*/
+						
 						else {
 							data[index] = 255;
 						}
-
-
-					/*	if (normPos.x < 0.1f  || normPos.x > 0.9f)
-							data[index] = 0;						
-						if (normPos.y < 0.1f || normPos.y > 0.9f)
-							data[index] = 0;
-						if (normPos.z < 0.1f || normPos.z > 0.9f)
-							data[index] = 0;*/
+										
 
 					}
 				}
@@ -718,10 +657,7 @@ void BatteryApp::reset()
 
 		std::cout << "Resolution: " << d.x << " x " << d.y << " x " << d.z <<
 			" = " << d.x*d.y*d.z << " voxels (" << (d.x*d.y*d.z) / (1024 * 1024.0f) << "M)" << std::endl;
-
-
-		//ivec3 d = ivec3(16, 16, 15);
-		//ivec3 d = ivec3(179, 163, 157);
+		
 		auto batteryID = _volume->addChannel(d, TYPE_UCHAR);
 
 		//Add concetration channel
@@ -752,19 +688,8 @@ void BatteryApp::reset()
 
 						vec3 normPos = { i / float(d[0] - 1),j / float(d[1] - 1), k / float(d[2] - 1), };
 
-						//if()
-
-						//data[index] = normPos.x + 0.;
-
-						/*/ *if (abs(normPos.x - 0.5f) < 0.25f)
-							data[index] = 255;
-						else
-							data[index] = 0;
-						* /*/
-
-						float distC = glm::length(normPos - vec3(0.5f));
-						//auto diff = glm::abs(normPos - vec3(0.5f));
-						//float distC = glm::max(glm::max(diff.x, diff.y),-1.0f);
+						
+						float distC = glm::length(normPos - vec3(0.5f));						
 						if (distC < 0.45f && distC > 0.35f)
 							data[index] = 255;
 						else
@@ -773,75 +698,21 @@ void BatteryApp::reset()
 				}
 			}
 
-			//generateSpheresVolume(*_volume, 128, 0.15f);
-
 			c.getCurrentPtr().commit();
 
 			
-		}
-		
-		//Test for fipy cmp
-		/*auto & c = _volume->getChannel(batteryID);
-		uchar* data = (uchar*)c.getCurrentPtr().getCPU();
-
-		/ *
-		x here is z in python
-		solving for -x here  (dir=1)
-		* /
-
-		/ *for (auto i = 0; i <d[0] - 0; i++) {
-			for (auto j = 0; j <d[1] - 1; j++) {
-				for (auto k = 0; k < d[2] - 0; k++) {
-
-					data[i + j*c.dim().x + k*c.dim().y*c.dim().x] = 255;
-				}
-			}
-		}* /
-		c.getCurrentPtr().commit();*/
-
-		
+		}		
 
 	}
 	
 	_volume->getChannel(CHANNEL_BATTERY).setName("Battery");
-	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");
-
-	
-	if(true){
-		MGGPU<double>::Params p;
-		p.levels = 5;
-		p.dir = X_NEG;
-		p.d0 = _options["Diffusion"].get<float>("D_zero");
-		p.d1 = _options["Diffusion"].get<float>("D_one");
-		
-		auto & c = _volume->getChannel(CHANNEL_BATTERY);
-		auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
-		auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
-		auto exactSolveDim = 4;		
-		p.cellDim = vec3(1.0 / maxDim);
-		p.levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
-		p.dir = Dir(_options["Diffusion"].get<int>("direction"));
-
-		std::cout << "Multigrid solver levels " << p.levels << std::endl;		
-
-		auto t0 = std::chrono::system_clock::now();		
-		_mggpu.prepare(_volume->getChannel(CHANNEL_BATTERY), p, *_volume);
-		auto t1 = std::chrono::system_clock::now();
-
-		std::chrono::duration<double> prepTime = t1 - t0;
-		std::cout << "Prep time: " << prepTime.count() << "s" << std::endl;
+	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");	
 
 
-		/////
-		//exit(0);
-		/////
-
-	}
-
-
+	//Startup tests
 	const bool multigridGPU = false;
 	const bool multigridTest = false;
-
+	const bool MGGPUTest = false;
 
 	if (multigridGPU){		
 		solveMultigridGPU();	
@@ -850,6 +721,11 @@ void BatteryApp::reset()
 	if(multigridTest){
 		solveMultigridCPU();
 	}
+
+	if (MGGPUTest) {
+		solveMGGPU();
+	}
+
 
 	_volumeRaycaster->setVolume(*_volume, 0);
 }

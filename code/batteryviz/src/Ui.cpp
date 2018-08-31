@@ -396,13 +396,13 @@ void Ui::update(double dt)
 	Dir dir = Dir(_app._options["Diffusion"].get<int>("direction"));
 	
 
-	if (ImGui::Button("GPU Solver")) {
-		_app.solveMultigridGPU();
+	if (ImGui::Button("MGGPU")) {
+		_app.solveMGGPU();
 	}
 
 	ImGui::SameLine();
 
-	if (ImGui::Button("CPU Solver")) {
+	if (ImGui::Button("Multigrid CPU")) {
 		_app.solveMultigridCPU();
 	}
 
@@ -413,7 +413,7 @@ void Ui::update(double dt)
 
 	
 		
-	if (ImGui::Button("Diffusion Solver")) {
+	if (ImGui::Button("Eigen Solver")) {
 		decltype(_app._diffSolver)::value_type tol = 
 			powf(10.0f, -_app._options["Diffusion"].get<int>("Tolerance"));
 

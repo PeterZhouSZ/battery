@@ -49,6 +49,7 @@ protected:
 
 	void solveMultigridCPU();
 	void solveMultigridGPU();
+	void solveMGGPU();
 
 	virtual void reset();
 
