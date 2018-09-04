@@ -60,6 +60,75 @@ inline  __device__ __host__ int MGGPU_outputKernelSize(
 	return (Adim + BdimTranpose - 1) / Bratio;
 }
 
+ 
+inline __device__ __host__ double MGGPU_GetTopLevelValue(const MGGPU_SystemTopKernel & k, const int3 & v) {
+
+
+	if (v.x == -1) {
+		if (v.y == 0 && v.z == 0)
+			return k.v[X_NEG];
+		return 0.0;
+	}
+
+	if (v.x == 0) {
+		if (v.y == -1) {
+			if (v.z == 0) return k.v[Y_NEG];
+			return 0.0;
+		}
+		if (v.z == -1) {
+			if (v.y == 0) return k.v[Z_NEG];
+			return 0.0;
+		}
+
+		if (v.y == 1) {
+			if (v.z == 0) return k.v[Y_POS];
+			return 0.0;
+		}
+
+		if (v.z == 1) {
+			if (v.y == 0) return k.v[Z_POS];
+			return 0.0;
+		}
+
+		if (v.y == 0 && v.z == 0) {
+			return k.v[DIR_NONE];
+		}
+
+		return 0.0;
+	}
+
+
+	if (v.x == 1) {
+		if (v.y == 0 && v.z == 0)
+			return k.v[X_POS];		
+	}
+
+	return 0.0;
+
+	/*int sum = v.x + v.y + v.z;	
+	if (sum < -1) return 0.0;
+	if (sum > 1) return 0.0;
+
+	if (sum == -1) {
+		if (v.x == -1) return k.v[X_NEG];
+		if (v.y == -1) return k.v[Y_NEG];
+		return k.v[Z_NEG];
+	}
+
+	if (sum == 0)
+		return k.v[DIR_NONE];
+
+	if (sum == 1) {
+		if (v.x == 1) return k.v[X_POS];
+		if (v.y == 1) return k.v[Y_POS];
+		return k.v[Z_POS];
+	}
+
+	return 0.0;*/
+
+	
+
+}
 
 
 inline __device__ __host__ MGGPU_DomainRestrictKernel MGGPU_GetDomainRestrictionKernel(){
@@ -414,6 +483,7 @@ bool MGGPU_CombineKernelsGeneric(
 	const MGGPU_KernelPtr B,
 	const int Bdim,
 	MGGPU_KernelPtr C,
+	const int Cdim,
 	bool onDevice = true
 );
 
@@ -426,6 +496,7 @@ bool MGGPU_CombineKernelsTopLevel(
 	const MGGPU_KernelPtr B,
 	const int Bdim,
 	MGGPU_KernelPtr C,
+	const int Cdim,
 	MGGPU_Volume interpDomain,
 	bool onDevice = true
 );
@@ -439,4 +510,13 @@ bool MGGPU_CombineKernelsRestrict(
 	const int Bdim,
 	MGGPU_KernelPtr C,
 	bool onDevice = true
+);
+
+
+bool MGGPU_BuildA1(
+	const uint3 resA,
+	const MGGPU_SystemTopKernel * A0,
+	const MGGPU_InterpKernel * I,
+	MGGPU_KernelPtr A1,
+	bool onDevice
 );

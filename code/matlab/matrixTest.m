@@ -25,7 +25,13 @@ A_0 = (spconvert(A_0));
 A_1 = (spconvert(A_1));
 A_2 = (spconvert(A_2));
 
-AI_1 = (spconvert(AI_1));
+%AI_1 = (spconvert(AI_1));
+AI_0 = A_0 * I_0;
+AI_1 = A_1 * I_1;
+AI_2 = A_2 * I_2;
+RA_0 = R_0 * A_0;
+RA_1 = R_1 * A_1;
+AA_2 = R_2 * A_2;
 %A_3 = (spconvert(A_3));
 %A_4 = (spconvert(A_4));
 %R_0 = 8 * R_0;
@@ -111,6 +117,78 @@ if(AI0DIFF > 0.0001)
     error('AI0 mismatch')
 end
 
+
+%%
+
+clear
+load ('../build/A_1.dat')
+load ('../build/A_2.dat')
+A1CPU = spconvert(A_1);
+A2CPU = spconvert(A_2);
+
+load ('../build/MGGPU_A_1.dat')
+load ('../build/MGGPU_A_2.dat')
+A1GPU = spconvert(MGGPU_A_1);
+A2GPU = spconvert(MGGPU_A_2);
+
+A1DIFF = full(sum(sum(abs(A1CPU-A1GPU))))
+A2DIFF = full(sum(sum(abs(A2CPU-A2GPU))))
+
+
+%%
+%cusparse sizes
+
+n = 256
+lvs = log2(n) - 2;
+DBL = 8;
+INT = 4;
+lvs = 3;
+
+curMem = 0;
+
+for i=0:lvs
+    ni = n / (2^i);
+    ni3 = ni^3;
+    nihalf3 = (ni /2)^3;
+    
+    if i==0
+        aval = 7;
+    elseif i==1
+        aval = 81;
+    elseif i==2
+        aval = 64;
+    else
+        aval = 125;
+    end
+    
+    if i==0
+        aival = 20;
+    elseif i==1
+        aival = 54;
+    elseif i==2
+        aival = 64;
+    else
+        aival = 64;
+    end
+    
+    
+    ival = 8;    
+    rval = 64;    
+    
+    a = aval * ni3 * DBL + ni3 * INT + ni3 * INT * aval;
+    I = ival * ni3 * DBL + ni3 * INT + ni3 * INT * ival;
+    R = rval * nihalf3 * DBL + nihalf3 * INT + nihalf3 * INT * rval;
+    
+    ai = aival * ni3 * DBL + ni3 * INT + ni3 * INT * aival;
+    
+    totalLevel = (a + I + R + ai) / (1024.0 * 1024.0);
+    fprintf('Level %d: %f MB\n',i,totalLevel)
+    
+end
+
+
+
+
 %%
 % plot spy
 subplot(1,2,1)
@@ -177,4 +255,10 @@ AI_2 = spconvert(AI_2);
 max(sum(AI_1 ~= 0, 2))
 max(sum(AI_2 ~= 0, 2))
 
+%%
 
+x = linspace(1,65356,1000); 
+plot(x,x.^3 * 20); 
+hold on; 
+plot(x,(x/2).^3 * 160); 
+hold off;

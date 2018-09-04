@@ -23,6 +23,7 @@ __device__ __constant__ double const_kernel[MAX_CONST_KERNEL_DIM * MAX_CONST_KER
 __device__ __constant__ int const_kernel_dim;
 
 __device__ __constant__ MGGPU_SysParams const_sys_params;
+MGGPU_SysParams const_sys_params_cpu;
 
 __device__ __constant__ KernelCombineParams const_kernel_combine_params;
 
@@ -37,6 +38,9 @@ bool commitSysParams(const MGGPU_SysParams & sysparams) {
 		0,
 		cudaMemcpyHostToDevice
 	);
+
+	const_sys_params_cpu = sysparams;
+
 	return res == cudaSuccess;
 }
 
@@ -1018,6 +1022,7 @@ bool MGGPU_CombineKernelsTopLevel(
 	const MGGPU_KernelPtr B,
 	const int Bdim, 
 	MGGPU_KernelPtr C,
+	const int Cdim,
 	MGGPU_Volume interpDomain,
 	bool onDevice
 ){
@@ -1047,7 +1052,7 @@ bool MGGPU_CombineKernelsTopLevel(
 
 	p.Adim = 3;
 	p.Bdim = Bdim;
-	p.Cdim = MGGPU_outputKernelSize(p.Adim, p.Bdim, p.Bratio);
+	p.Cdim = Cdim;//MGGPU_outputKernelSize(p.Adim, p.Bdim, p.Bratio);
 
 	p.CdimHalf = (p.Cdim % 2 == 0) ? p.Cdim / 2 - 1 : p.Cdim / 2;
 	p.BdimHalf = (p.Bdim % 2 == 0) ? p.Bdim / 2 - 1 : p.Bdim / 2;
@@ -1158,6 +1163,7 @@ bool MGGPU_CombineKernelsGeneric(
 	const MGGPU_KernelPtr B,
 	const int Bdim, // in resBcol
 	MGGPU_KernelPtr C,
+	const int Cdim,
 	bool onDevice
 ) {
 	
@@ -1214,4 +1220,174 @@ bool MGGPU_CombineKernelsGeneric(
 	
 
 	return true;
+}
+
+
+#define RA0_SIZE (RESTR_SIZE + 2)
+#define RA0_HALF (2)
+
+#define RESTR_HALF (1)
+
+#define A1_SIZE (5)
+#define A1_HALF (2)
+
+void buildA1At(
+	int3 & ivox,
+	const uint3 & resA0,
+	const uint3 & resA1,
+	const MGGPU_SystemTopKernel * A0,
+	const MGGPU_InterpKernel * I,
+	MGGPU_KernelPtr A1	
+) {
+
+	const int3 NspaceIvox = ivox * 2;
+
+	MGGPU_RestrictKernel R;
+	MGGPU_GetRestrictionKernel(make_uint3(ivox), resA1, const_sys_params_cpu.dirPrimary, (double*)&R);
+
+
+	//Temporary result of R*A at row(ivox)
+	MGGPU_Kernel3D<RA0_SIZE> RA;
+	
+
+	for (auto raz = 0; raz < RA0_SIZE; raz++) {
+		for (auto ray = 0; ray < RA0_SIZE; ray++) {
+			for (auto rax = 0; rax < RA0_SIZE; rax++) {
+
+				int3 voxRA = NspaceIvox + make_int3(rax - RA0_HALF, ray - RA0_HALF, raz - RA0_HALF);
+				if (!_isValidPos(resA0, voxRA)) {
+					RA.v[rax][ray][raz] = 0.0;
+					continue;
+				}
+
+
+				//ivox + rx,y,z is in N space
+				double sum = 0.0;
+				for (auto rz = 0; rz < RESTR_SIZE; rz++) {
+					for (auto ry = 0; ry < RESTR_SIZE; ry++) {
+						for (auto rx = 0; rx < RESTR_SIZE; rx++) {							
+							double rval = R.v[rx][ry][rz];							
+							int3 rvox = NspaceIvox + make_int3(rx - RESTR_HALF, ry - RESTR_HALF, rz - RESTR_HALF);
+							if (!_isValidPos(resA0, rvox)) {
+								continue;
+							}
+
+							if (rval == 0.0) continue;							
+							
+							size_t NspaceIndex = _linearIndex(resA0, rvox);							
+
+							//Top level
+							{
+								const MGGPU_SystemTopKernel & A = A0[NspaceIndex];
+								int3 Aoffset = voxRA - rvox;								
+								double aval = MGGPU_GetTopLevelValue(A, Aoffset);							
+								sum += aval*rval;
+							}
+						}
+					}
+				}
+
+				
+				RA.v[rax][ray][raz] = sum;
+			}
+		}
+	}
+
+
+	MGGPU_Kernel3D<A1_SIZE> & a1 = ((MGGPU_Kernel3D<A1_SIZE> *)A1)[_linearIndex(resA1, ivox)];
+
+	//Iterate over target 
+	for (auto xa1 = 0; xa1 < A1_SIZE; xa1++) {
+		for (auto ya1 = 0; ya1 < A1_SIZE; ya1++) {
+			for (auto za1 = 0; za1 < A1_SIZE; za1++) {
+
+				int3 voxA1 = NspaceIvox + make_int3(xa1 - A1_HALF, ya1 - A1_HALF, za1 - A1_HALF);
+				if (!_isValidPos(resA1, voxA1)) {
+					a1.v[xa1][ya1][za1] = 0.0;
+					continue;
+				}
+
+
+				//Dot product between RA0 and I
+				double sum = 0.0;
+				for (auto raz = 0; raz < RA0_SIZE; raz++) {
+					for (auto ray = 0; ray < RA0_SIZE; ray++) {
+						for (auto rax = 0; rax < RA0_SIZE; rax++) {
+							double rval = RA.v[rax][ray][raz];
+
+							int3 ravox = NspaceIvox + make_int3(rax - RA0_HALF, ray - RA0_HALF, raz - RA0_HALF);
+							if (!_isValidPos(resA0, ravox)) {
+								continue;
+							}
+
+							if (rval == 0.0) continue;
+
+							size_t NspaceIndex = _linearIndex(resA0, ravox);
+
+							//Top level
+							{
+								const MGGPU_InterpKernel & Ikern = I[NspaceIndex];
+								int3 offset = voxA1 - make_int3(ravox.x / 2, ravox.y / 2, ravox.z / 2) + make_int3(INTERP_SIZE / 2);
+
+								if (!_isValidPos(make_uint3(INTERP_SIZE), offset)) {
+									continue;
+								}
+
+								double ival = Ikern.v[offset.x][offset.y][offset.z];
+
+								//double aval = MGGPU_GetTopLevelValue(A, Aoffset);
+								sum += ival*rval;
+							}
+						}
+					}
+				}
+
+				a1.v[xa1][ya1][za1] = sum;
+				
+			}
+		}
+	}
+
+
+
+
+	//printf("%f\n", R.v[2][2][2]);
+
+
+	return;
+
+
+
+}
+
+
+
+bool MGGPU_BuildA1(
+	const uint3 resA,
+	const MGGPU_SystemTopKernel * A0,
+	const MGGPU_InterpKernel * I,
+	MGGPU_KernelPtr A1,
+	bool onDevice
+) {
+
+	int3 ivox;
+	uint3 resA1 = make_uint3(resA.x / 2, resA.y / 2, resA.z / 2);
+
+	for (ivox.z = 0; ivox.z < resA1.x; ivox.z++) {
+		for (ivox.y = 0; ivox.y < resA1.y; ivox.y++) {
+			for (ivox.x = 0; ivox.x < resA1.z; ivox.x++) {
+				buildA1At(
+					ivox,
+					resA,
+					resA1,
+					A0,
+					I,
+					A1
+				);
+			}
+		}
+	}
+
+	return true;
+
 }

@@ -6,6 +6,9 @@
 #include <assert.h>
 #include <cuda_gl_interop.h>
 
+//#ifdef DEBUG
+	#include <iostream>
+//#endif
 
 blib::DataPtr::DataPtr()
 {
@@ -75,6 +78,14 @@ bool blib::DataPtr::allocHost()
 
 bool blib::DataPtr::allocDevice(size_t num, size_t stride)
 {	
+//#ifdef DEBUG
+	{
+		size_t bytes = num*stride;
+		float MB = bytes / (1024.0f*1024.0f);
+		std::cout << "|| DataPtr::allocDevice " << MB << "MB" << std::endl;
+	}
+//#endif
+
 	if (gpu) {
 		if (num == this->num && stride == this->stride) 
 			return true;

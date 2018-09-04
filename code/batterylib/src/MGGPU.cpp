@@ -9,9 +9,9 @@
 #include <chrono>
 
 
-#ifdef DEBUG
-#define SAVE_TO_FILE
-#endif
+//#ifdef DEBUG
+//#define SAVE_TO_FILE
+//#endif
 
 //#define SAVE_TO_FILE
 
@@ -263,14 +263,78 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 	}	
 
 
+
+	//////////////
+	//Sparse
+	/*for (auto level = 1; level < _levels.size(); level++) {
+		size_t N = _levels[level].N();
+		
+		
+	}*/
+	//////////////
+
+
 	/*
 		Generate A0 - top level kernels
 	*/
 	{
 		auto & sysTop = _levels[0].A;
 		sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));
+		CUDATimer t(true);
 		MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f);		
+		std::cout << "Gen A0: " << t.time() << "s" << std::endl;
 	}
+
+	/*
+		Generate A1	
+	*/
+	{
+
+		DataPtr & I = _levels[0].I;
+		I.allocDevice(_levels[0].N(), sizeof(MGGPU_Kernel3D<3>));		
+		CUDATimer tI(true);
+		MGGPU_GenerateSystemInterpKernels(
+			make_uint3(_levels[0].dim.x, _levels[0].dim.y, _levels[0].dim.z),
+			_levels[1].domain,
+			(MGGPU_Kernel3D<3> *)I.gpu
+		);
+		std::cout << "Gen I0: " << tI.time() << "s" << std::endl;		
+		
+		
+
+		DataPtr & A0 = _levels[0].A;
+
+
+		DataPtr & A1 = _levels[1].A;
+		int kA1 = 5;
+		A1.allocDevice(_levels[1].N(), sizeof(double)*kA1*kA1*kA1);
+
+
+		std::cout << "GPU -> CPU copy debug test ... ";
+		
+		I.retrieve();
+		A0.retrieve();
+		A1.retrieve();
+		std::cout << "DONE" << std::endl;
+
+		auto Nres = make_uint3(_levels[0].dim.x, _levels[0].dim.y, _levels[0].dim.z);
+
+		
+		MGGPU_BuildA1(
+			Nres,
+			(MGGPU_SystemTopKernel*)A0.cpu,
+			(MGGPU_InterpKernel*)I.cpu,
+			(MGGPU_KernelPtr)A1.cpu,
+			true
+		);		
+
+		
+		
+
+
+	}
+
+	return true;
 
 	/*
 		Generate Ai, using Galerkin Ri-1 * Ai-1 * Ii-1
@@ -279,11 +343,20 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 	CUDATimer tGenI(true);
 	for (auto level = 1; level < _levels.size(); level++) {
 
+
+
+		
+
 		const int kI = 3;
-		const int kAprev = (level == 1) ? 3 : 5;
-		const int kA = 5;
+		const int kAprev = (level == 1) ? 3 : 5;		
 		const int kR = 4;
+		//int kAI = (level == 1) ? 3 : MGGPU_outputKernelSize(kAprev, kI, 2);
+		//int kA = (level == 1) ? 5 : MGGPU_outputKernelSize(kR, kAI, 2);
 		const int kAI = MGGPU_outputKernelSize(kAprev, kI, 2);
+		const int kA = MGGPU_outputKernelSize(kR, kAI, 2);
+
+		/*if (level == 1)
+			kAI = 3;*/
 
 
 		DataPtr & A = _levels[level].A;
@@ -320,6 +393,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 					nullptr,
 					kI,
 					(MGGPU_KernelPtr)AI.cpu,
+					kAI,
 					_levels[level].domain,
 					false
 				);
@@ -335,6 +409,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 					nullptr,
 					kI,
 					(MGGPU_KernelPtr)AI.gpu,
+					kAI,
 					_levels[level].domain,
 					true
 				);
@@ -382,7 +457,8 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 				kAprev,
 				(MGGPU_KernelPtr)I.gpu,
 				kI,
-				(MGGPU_KernelPtr)AI.gpu
+				(MGGPU_KernelPtr)AI.gpu,
+				kAI
 			);
 		}
 
@@ -392,23 +468,44 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 
 		A.allocDevice(_levels[level].N(), sizeof(double)*kA*kA*kA);
 
+		//A.retrieve();
+		//AI.retrieve();		
 
 		MGGPU_CombineKernelsRestrict(
 			Nhalfres,
 			Nres,
 			Nres,
 			Nhalfres,
-			(MGGPU_KernelPtr)AI.gpu, //I0
+			(MGGPU_KernelPtr)AI.gpu, 
 			kAI,
-			(MGGPU_KernelPtr)A.gpu
+			(MGGPU_KernelPtr)A.gpu,
+			true
 		);
+
+		//A.commit();
+
+		{
+			DataPtr & A = _levels[level].A;
+			A.retrieve();
+			MGGPU_Kernel3D<5> * ptr = (MGGPU_Kernel3D<5> *)A.cpu;
+			SparseMat mat = kernelToSparse<5>(
+				(MGGPU_Kernel3D<5>*)ptr,
+				_levels[level].dim,
+				_levels[level].dim
+				);
+			saveSparse(mat, "MGGPU_A", level);
+		}
+
+		
 		_CUDA(cudaPeekAtLastError());
 
 		
 
 		
 	}
-	std::cout << "Generate Ii " << tGenI.time() << "s" << std::endl;
+	
+
+
 
 	return true;
 
@@ -469,6 +566,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			(MGGPU_KernelPtr)I0Kernels.gpu, //I0
 			3,
 			(MGGPU_KernelPtr)AI0.gpu,
+			4,
 			_levels[1].domain
 		);
 		_CUDA(cudaPeekAtLastError());
