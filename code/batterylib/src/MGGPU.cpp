@@ -10,7 +10,7 @@
 
 
 #ifdef DEBUG
-//#define SAVE_TO_FILE
+#define SAVE_TO_FILE
 #endif
 
 //#define SAVE_TO_FILE
@@ -157,6 +157,18 @@ SparseMat kernelToSparse(MGGPU_Kernel3D<KN> * kernels, ivec3 dim0, ivec3 dim1) {
 
 #endif
 
+MGGPU_Volume toMGGPUVolume(VolumeChannel & volchan, int id = -1) {
+	MGGPU_Volume mgvol;
+
+	mgvol.surf = volchan.getCurrentPtr().getSurface();
+	mgvol.res = make_uint3(volchan.dim().x, volchan.dim().y, volchan.dim().z);
+	mgvol.type = volchan.type();
+	mgvol.volID = id;
+	mgvol.cpu = volchan.getCurrentPtr().getCPU();
+
+	return mgvol;
+}
+
 MGGPU_Volume toMGGPUVolume(const VolumeChannel & volchan, int id = -1) {
 	MGGPU_Volume mgvol;
 
@@ -164,6 +176,7 @@ MGGPU_Volume toMGGPUVolume(const VolumeChannel & volchan, int id = -1) {
 	mgvol.res = make_uint3(volchan.dim().x, volchan.dim().y, volchan.dim().z);
 	mgvol.type = volchan.type();
 	mgvol.volID = id;
+	mgvol.cpu = nullptr;
 
 	return mgvol;
 }
@@ -290,22 +303,47 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		auto Nres = make_uint3(_levels[level-1].dim.x, _levels[level - 1].dim.y, _levels[level - 1].dim.z);
 		auto Nhalfres = make_uint3(_levels[level].dim.x, _levels[level].dim.y, _levels[level].dim.z);
 
-		
+		//A*I multiply
 		if (level == 1) {
 
-			CUDATimer tA(true);
-			MGGPU_CombineKernelsTopLevel(
-				Nres,
-				Nres,
-				Nhalfres,
-				(MGGPU_KernelPtr)Aprev.gpu, 				
-				nullptr, 
-				kI,
-				(MGGPU_KernelPtr)AI.gpu,
-				_levels[level].domain
-			);
+			CUDATimer tA(true);				
+			
+			if (false) {
+				Aprev.retrieve();
+				AI.retrieve();
+
+				MGGPU_CombineKernelsTopLevel(
+					Nres,
+					Nres,
+					Nhalfres,
+					(MGGPU_KernelPtr)Aprev.cpu,
+					nullptr,
+					kI,
+					(MGGPU_KernelPtr)AI.cpu,
+					_levels[level].domain,
+					false
+				);
+
+				AI.commit();
+			}
+			else {
+				MGGPU_CombineKernelsTopLevel(
+					Nres,
+					Nres,
+					Nhalfres,
+					(MGGPU_KernelPtr)Aprev.gpu,
+					nullptr,
+					kI,
+					(MGGPU_KernelPtr)AI.gpu,
+					_levels[level].domain,
+					true
+				);
+
+			}
+			_CUDA(cudaPeekAtLastError());
+
 			std::cout << "########## MGGPU_CombineKernelsTopLevel" << level << " time: " << tA.time() << std::endl;
-			_CUDA(cudaPeekAtLastError());	
+			
 
 			/*{
 				AI.retrieve();
@@ -367,10 +405,6 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		_CUDA(cudaPeekAtLastError());
 
 		
-
-		
-
-
 
 		
 	}
@@ -810,6 +844,9 @@ bool MGGPU<T>::alloc()
 		int r = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("r", i));
 		int f = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("f", i));
 		
+#ifdef DEBUG
+		_volume->getChannel(domain).getCurrentPtr().allocCPU();
+#endif
 		_levels[i].domain = toMGGPUVolume(_volume->getChannel(domain), domain);
 		_levels[i].x = toMGGPUVolume(_volume->getChannel(x), x);
 		_levels[i].tmpx = toMGGPUVolume(_volume->getChannel(tmpx), tmpx);

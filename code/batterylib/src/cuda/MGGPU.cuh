@@ -11,7 +11,9 @@ struct MGGPU_Volume{
 	uint3 res;	
 	PrimitiveType type;
 	cudaSurfaceObject_t surf;
+	void * cpu;
 	int volID;
+
 };
 
 

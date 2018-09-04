@@ -48,6 +48,10 @@ bool commitKernelCombineParams(const KernelCombineParams & p) {
 		0,
 		cudaMemcpyHostToDevice
 	);
+	if (res != cudaSuccess) {
+		printf("Failed to commit kernel combine params\n");
+		exit(1);
+	}
 	return res == cudaSuccess;
 }
 
@@ -242,7 +246,7 @@ __device__ __host__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 ) {
 
 	MGGPU_InterpKernel kernel;
-#ifdef __CUDA_ARCH__
+
 	/*
 	Two spaces:
 	source : n/2 (domain, domain.res)
@@ -322,7 +326,11 @@ __device__ __host__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 
 		int3 voxSrcNew = voxSrc + offsets[i];
 		if (_isValidPos(domainSrc.res, voxSrcNew)) {
+#ifdef __CUDA_ARCH__
 			w[i] *= read<double>(domainSrc.surf, make_uint3(voxSrcNew)); //redundant conversion to uint, TODO better
+#else
+			w[i] *= ((double*)domainSrc.cpu)[_linearIndex(domainSrc.res, voxSrcNew)];
+#endif
 		}
 		//Source voxel is outside of domain
 		//P[i] > 0 then implies it's on dirichlet boundary
@@ -351,7 +359,11 @@ __device__ __host__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 #endif
 
 			//Read weight from source domain
+#ifdef __CUDA_ARCH__
 			w[i] *= read<double>(domainSrc.surf, make_uint3(voxSrcNew));
+#else
+			w[i] *= ((double*)domainSrc.cpu)[_linearIndex(domainSrc.res, voxSrcNew)];
+#endif
 		}
 
 		W += w[i];
@@ -375,7 +387,6 @@ __device__ __host__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 	}
 
 
-#endif
 	return kernel;
 }
 

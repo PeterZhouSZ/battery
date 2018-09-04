@@ -128,11 +128,11 @@ inline __device__ __host__ Dir _getDir(int index, int sgn) {
 }
 
 template <typename T, typename VecType>
-inline __device__ T & _at(VecType & vec, int index) {
+inline __device__ __host__ T & _at(VecType & vec, int index) {
 	return ((T*)&vec)[index];
 }
 template <typename T, typename VecType>
-inline __device__ const T & _at(const VecType & vec, int index) {
+inline __device__ __host__ const T & _at(const VecType & vec, int index) {
 	return ((T*)&vec)[index];
 }
 

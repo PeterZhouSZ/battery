@@ -95,22 +95,23 @@ A1CPU = spconvert(A_1);
 
 %gpu
 load ('../build/MGGPU_AI_0.dat')
-load ('../build/MGGPU_A_1.dat')
-load ('../build/MGGPU_R_0.dat')
+%load ('../build/MGGPU_A_1.dat')
+%load ('../build/MGGPU_R_0.dat')
 AI0GPU = spconvert(MGGPU_AI_0);
-A1GPU = spconvert(MGGPU_A_1);
-R0GPU = spconvert(MGGPU_R_0);
+%A1GPU = spconvert(MGGPU_A_1);
+%R0GPU = spconvert(MGGPU_R_0);
 
 
-RDIFF = full(sum(sum(R0CPU-R0CPU)))
+%RDIFF = full(sum(sum(R0CPU-R0CPU)))
 AI0DIFF = full(sum(sum(AI0CPU-AI0GPU)))
-if(RDIFF > 0.0001)
-    error('R0 mismatch')
-end
+%if(RDIFF > 0.0001)
+%    error('R0 mismatch')
+%end
 if(AI0DIFF > 0.0001)
     error('AI0 mismatch')
 end
 
+%%
 % plot spy
 subplot(1,2,1)
 spy(A1CPU)
