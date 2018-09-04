@@ -13,7 +13,7 @@
 //#define SAVE_TO_FILE
 //#endif
 
-//#define SAVE_TO_FILE
+#define SAVE_TO_FILE
 
 
 
@@ -329,6 +329,19 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		);		
 
 		
+		{
+			
+			DataPtr & A = _levels[1].A;
+			A.commit();
+			A.retrieve();
+			MGGPU_Kernel3D<5> * ptr = (MGGPU_Kernel3D<5> *)A.cpu;
+			SparseMat mat = kernelToSparse<5>(
+				(MGGPU_Kernel3D<5>*)ptr,
+				_levels[1].dim,
+				_levels[1].dim
+				);
+			saveSparse(mat, "MGGPU_A", 1);
+		}
 		
 
 

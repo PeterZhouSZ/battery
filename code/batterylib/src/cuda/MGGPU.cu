@@ -1241,6 +1241,7 @@ void buildA1At(
 ) {
 
 	const int3 NspaceIvox = ivox * 2;
+	const size_t debugI = _linearIndex(resA1, ivox);
 
 	MGGPU_RestrictKernel R;
 	MGGPU_GetRestrictionKernel(make_uint3(ivox), resA1, const_sys_params_cpu.dirPrimary, (double*)&R);
@@ -1302,7 +1303,7 @@ void buildA1At(
 			for (auto za1 = 0; za1 < A1_SIZE; za1++) {
 
 				int3 voxA1 = NspaceIvox + make_int3(xa1 - A1_HALF, ya1 - A1_HALF, za1 - A1_HALF);
-				if (!_isValidPos(resA1, voxA1)) {
+				if (!_isValidPos(resA0, voxA1)) {
 					a1.v[xa1][ya1][za1] = 0.0;
 					continue;
 				}
@@ -1351,7 +1352,8 @@ void buildA1At(
 
 
 
-	//printf("%f\n", R.v[2][2][2]);
+	
+	//printf("%f", R.v[2][2][2]);
 
 
 	return;
