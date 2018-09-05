@@ -1231,24 +1231,27 @@ bool MGGPU_CombineKernelsGeneric(
 #define A1_SIZE (5)
 #define A1_HALF (2)
 
-void buildA1At(
+__device__ __host__ void buildA1At(
 	int3 & ivox,
 	const uint3 & resA0,
 	const uint3 & resA1,
 	const MGGPU_SystemTopKernel * A0,
 	const MGGPU_InterpKernel * I,
-	MGGPU_KernelPtr A1	
+	MGGPU_Kernel3D<5> * A1,
+	int dirPrimary
 ) {
 
 	const int3 NspaceIvox = ivox * 2;
 	const size_t debugI = _linearIndex(resA1, ivox);
 
 	MGGPU_RestrictKernel R;
-	MGGPU_GetRestrictionKernel(make_uint3(ivox), resA1, const_sys_params_cpu.dirPrimary, (double*)&R);
+	MGGPU_GetRestrictionKernel(make_uint3(ivox), resA1, dirPrimary, (double*)&R);
 
 
 	//Temporary result of R*A at row(ivox)
 	MGGPU_Kernel3D<RA0_SIZE> RA;
+	
+	
 	
 
 	for (auto raz = 0; raz < RA0_SIZE; raz++) {
@@ -1295,39 +1298,62 @@ void buildA1At(
 	}
 
 
-	MGGPU_Kernel3D<A1_SIZE> & a1 = ((MGGPU_Kernel3D<A1_SIZE> *)A1)[_linearIndex(resA1, ivox)];
+	
+	
+	size_t a1index = _linearIndex(resA1, ivox);
+	MGGPU_Kernel3D<A1_SIZE> & a1 = A1[a1index];
+	
+
+
+	//return;
 
 	//Iterate over target 
 	for (auto xa1 = 0; xa1 < A1_SIZE; xa1++) {
 		for (auto ya1 = 0; ya1 < A1_SIZE; ya1++) {
 			for (auto za1 = 0; za1 < A1_SIZE; za1++) {
 
-				int3 voxA1 = NspaceIvox + make_int3(xa1 - A1_HALF, ya1 - A1_HALF, za1 - A1_HALF);
+				int3 voxA1 = ivox + make_int3(xa1 - A1_HALF, ya1 - A1_HALF, za1 - A1_HALF);
+				
 				if (!_isValidPos(resA0, voxA1)) {
 					a1.v[xa1][ya1][za1] = 0.0;
 					continue;
 				}
 
+				
 
 				//Dot product between RA0 and I
 				double sum = 0.0;
 				for (auto raz = 0; raz < RA0_SIZE; raz++) {
 					for (auto ray = 0; ray < RA0_SIZE; ray++) {
 						for (auto rax = 0; rax < RA0_SIZE; rax++) {
-							double rval = RA.v[rax][ray][raz];
+							
+							
 
 							int3 ravox = NspaceIvox + make_int3(rax - RA0_HALF, ray - RA0_HALF, raz - RA0_HALF);
 							if (!_isValidPos(resA0, ravox)) {
 								continue;
 							}
 
+							double rval = RA.v[rax][ray][raz];
 							if (rval == 0.0) continue;
 
-							size_t NspaceIndex = _linearIndex(resA0, ravox);
+							
+
+							const uint3 & resI0row = resA0;							
+
+							size_t NspaceIndex = _linearIndex(resI0row, ravox);
 
 							//Top level
 							{
+#ifdef DEBUG
+								if (NspaceIndex >= resI0row.x * resI0row.y * resI0row.z) {
+									printf("out of bounds %d\n", NspaceIndex);
+								}
+#endif
+								
+
 								const MGGPU_InterpKernel & Ikern = I[NspaceIndex];
+								
 								int3 offset = voxA1 - make_int3(ravox.x / 2, ravox.y / 2, ravox.z / 2) + make_int3(INTERP_SIZE / 2);
 
 								if (!_isValidPos(make_uint3(INTERP_SIZE), offset)) {
@@ -1335,8 +1361,7 @@ void buildA1At(
 								}
 
 								double ival = Ikern.v[offset.x][offset.y][offset.z];
-
-								//double aval = MGGPU_GetTopLevelValue(A, Aoffset);
+								
 								sum += ival*rval;
 							}
 						}
@@ -1348,44 +1373,76 @@ void buildA1At(
 			}
 		}
 	}
-
-
-
-
 	
-	//printf("%f", R.v[2][2][2]);
-
 
 	return;
-
-
-
 }
 
 
+__global__ void __buildA1(
+	const uint3 resA0,
+	const uint3 resA1,
+	const MGGPU_SystemTopKernel * A0,
+	const MGGPU_InterpKernel * I,
+	MGGPU_Kernel3D<5> * A1)
+{
+
+	//Get voxel position
+	VOLUME_VOX_GUARD(resA1);
+	int3 ivox = make_int3(vox);
+	
+	
+	//Combine kernels at ivox position
+	//combineKernelsAt<combineType, AKernelAllocSize>(ivox, p);
+	buildA1At(
+		ivox,
+		resA0,
+		resA1,
+		A0,
+		I,
+		A1,
+		const_sys_params.dirPrimary
+	);
+
+	
+}
 
 bool MGGPU_BuildA1(
 	const uint3 resA,
 	const MGGPU_SystemTopKernel * A0,
 	const MGGPU_InterpKernel * I,
-	MGGPU_KernelPtr A1,
+	MGGPU_Kernel3D<5> * A1,
 	bool onDevice
 ) {
 
 	int3 ivox;
-	uint3 resA1 = make_uint3(resA.x / 2, resA.y / 2, resA.z / 2);
+	uint3 resA0 = resA;
+	uint3 resA1 = make_uint3(resA0.x / 2, resA0.y / 2, resA0.z / 2);
 
-	for (ivox.z = 0; ivox.z < resA1.x; ivox.z++) {
-		for (ivox.y = 0; ivox.y < resA1.y; ivox.y++) {
-			for (ivox.x = 0; ivox.x < resA1.z; ivox.x++) {
-				buildA1At(
-					ivox,
-					resA,
-					resA1,
-					A0,
-					I,
-					A1
-				);
+	if (onDevice) {		
+		BLOCKS3D(4, resA1); //TODO increase
+		__buildA1 <<< numBlocks, block >> >(			
+			resA0,
+			resA1,
+			A0,
+			I,
+			A1);
+	}
+	else {
+
+		for (ivox.z = 0; ivox.z < resA1.x; ivox.z++) {
+			for (ivox.y = 0; ivox.y < resA1.y; ivox.y++) {
+				for (ivox.x = 0; ivox.x < resA1.z; ivox.x++) {
+					buildA1At(
+						ivox,
+						resA,
+						resA1,
+						A0,
+						I,
+						A1,
+						const_sys_params_cpu.dirPrimary
+					);
+				}
 			}
 		}
 	}

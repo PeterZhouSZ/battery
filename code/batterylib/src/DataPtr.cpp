@@ -82,7 +82,10 @@ bool blib::DataPtr::allocDevice(size_t num, size_t stride)
 	{
 		size_t bytes = num*stride;
 		float MB = bytes / (1024.0f*1024.0f);
+		size_t total, occupied;		
+		cudaPrintMemInfo();
 		std::cout << "|| DataPtr::allocDevice " << MB << "MB" << std::endl;
+		
 	}
 //#endif
 

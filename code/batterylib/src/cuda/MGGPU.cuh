@@ -517,6 +517,6 @@ bool MGGPU_BuildA1(
 	const uint3 resA,
 	const MGGPU_SystemTopKernel * A0,
 	const MGGPU_InterpKernel * I,
-	MGGPU_KernelPtr A1,
+	MGGPU_Kernel3D<5> * A1,
 	bool onDevice
 );

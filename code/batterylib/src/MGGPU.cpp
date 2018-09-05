@@ -13,7 +13,7 @@
 //#define SAVE_TO_FILE
 //#endif
 
-#define SAVE_TO_FILE
+//#define SAVE_TO_FILE
 
 
 
@@ -191,12 +191,14 @@ MGGPU<T>::MGGPU()
 
 template <typename T>
 bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volume){
-
 	
+	
+
 	_params = params;
 	_mask = &mask;
 	_volume = &volume;
 
+	//cudaPrintProperties();
 
 	alloc();
 
@@ -279,6 +281,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 	*/
 	{
 		auto & sysTop = _levels[0].A;
+		std::cout << "Alloc A0" << std::endl;
 		sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));
 		CUDATimer t(true);
 		MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f);		
@@ -291,6 +294,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 	{
 
 		DataPtr & I = _levels[0].I;
+		std::cout << "Alloc I0" << std::endl;
 		I.allocDevice(_levels[0].N(), sizeof(MGGPU_Kernel3D<3>));		
 		CUDATimer tI(true);
 		MGGPU_GenerateSystemInterpKernels(
@@ -305,34 +309,60 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		DataPtr & A0 = _levels[0].A;
 
 
-		DataPtr & A1 = _levels[1].A;
-		int kA1 = 5;
-		A1.allocDevice(_levels[1].N(), sizeof(double)*kA1*kA1*kA1);
-
-
-		std::cout << "GPU -> CPU copy debug test ... ";
+		DataPtr & A1 = _levels[1].A;	
+		std::cout << "Alloc A1" << std::endl;
+		A1.allocDevice(_levels[1].N(), sizeof(MGGPU_Kernel3D<5>));
 		
-		I.retrieve();
-		A0.retrieve();
-		A1.retrieve();
-		std::cout << "DONE" << std::endl;
+		
 
 		auto Nres = make_uint3(_levels[0].dim.x, _levels[0].dim.y, _levels[0].dim.z);
 
+		bool CPUtest = false;
 		
-		MGGPU_BuildA1(
-			Nres,
-			(MGGPU_SystemTopKernel*)A0.cpu,
-			(MGGPU_InterpKernel*)I.cpu,
-			(MGGPU_KernelPtr)A1.cpu,
-			true
-		);		
+		if(CPUtest){
+			I.retrieve();
+			A0.retrieve();
+			A1.retrieve();
+						
+
+			auto t0 = std::chrono::system_clock::now();
+			MGGPU_BuildA1(
+				Nres,
+				(MGGPU_SystemTopKernel*)A0.cpu,
+				(MGGPU_InterpKernel*)I.cpu,
+				(MGGPU_Kernel3D<5>*)A1.cpu,
+				false
+			);
+			auto t1 = std::chrono::system_clock::now();
+			std::chrono::duration<double> prepTime = t1 - t0;
+			std::cout << "Build A1 CPU: " << prepTime.count() << "s" << std::endl;
+
+			A1.commit();
+		}
+
+		{
+			cudaPrintMemInfo();
+			CUDATimer t(true);
+			MGGPU_BuildA1(
+				Nres,
+				(MGGPU_SystemTopKernel*)A0.gpu,
+				(MGGPU_InterpKernel*)I.gpu,
+				(MGGPU_Kernel3D<5>*)A1.gpu,
+				true
+			);						
+			t.stop();
+			_CUDA(cudaPeekAtLastError());
+			std::cout << "Build A1 GPU: " << t.time() << "s" << std::endl;
+			cudaPrintMemInfo();
+			
+		
+		}
 
 		
-		{
-			
+#ifdef SAVE_TO_FILE
+		{			
 			DataPtr & A = _levels[1].A;
-			A.commit();
+			
 			A.retrieve();
 			MGGPU_Kernel3D<5> * ptr = (MGGPU_Kernel3D<5> *)A.cpu;
 			SparseMat mat = kernelToSparse<5>(
@@ -342,7 +372,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 				);
 			saveSparse(mat, "MGGPU_A", 1);
 		}
-		
+#endif		
 
 
 	}
@@ -955,9 +985,7 @@ bool MGGPU<T>::alloc()
 		int r = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("r", i));
 		int f = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("f", i));
 		
-#ifdef DEBUG
-		_volume->getChannel(domain).getCurrentPtr().allocCPU();
-#endif
+
 		_levels[i].domain = toMGGPUVolume(_volume->getChannel(domain), domain);
 		_levels[i].x = toMGGPUVolume(_volume->getChannel(x), x);
 		_levels[i].tmpx = toMGGPUVolume(_volume->getChannel(tmpx), tmpx);

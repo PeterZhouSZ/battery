@@ -86,6 +86,8 @@ namespace blib{
 		BLIB_EXPORT const VolumeChannel & getChannel(uint index) const;
 		BLIB_EXPORT bool hasChannel(uint index) const;
 		BLIB_EXPORT uint numChannels() const;
+
+		BLIB_EXPORT bool removeChannel(uint index);		
 		
 		BLIB_EXPORT void erode(uint channel);
 		BLIB_EXPORT void heat(uint channel);

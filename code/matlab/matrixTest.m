@@ -122,17 +122,19 @@ end
 
 clear
 load ('../build/A_1.dat')
-load ('../build/A_2.dat')
+%load ('../build/A_2.dat')
 A1CPU = spconvert(A_1);
-A2CPU = spconvert(A_2);
+A1CPUF = full(A1CPU);
+%A2CPU = spconvert(A_2);
 
 load ('../build/MGGPU_A_1.dat')
-load ('../build/MGGPU_A_2.dat')
+%load ('../build/MGGPU_A_2.dat')
 A1GPU = spconvert(MGGPU_A_1);
-A2GPU = spconvert(MGGPU_A_2);
+A1GPUF = full(A1GPU);
+%A2GPU = spconvert(MGGPU_A_2);
 
 A1DIFF = full(sum(sum(abs(A1CPU-A1GPU))))
-A2DIFF = full(sum(sum(abs(A2CPU-A2GPU))))
+%A2DIFF = full(sum(sum(abs(A2CPU-A2GPU))))
 
 
 %%

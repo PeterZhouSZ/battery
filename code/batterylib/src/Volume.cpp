@@ -246,6 +246,13 @@ BLIB_EXPORT uint blib::Volume::numChannels() const
 	return static_cast<uint>(_channels.size());
 }
 
+bool blib::Volume::removeChannel(uint index)
+{
+	assert(index < _channels.size());
+	_channels.erase(_channels.begin() + index);
+	return true;
+}
+
 const VolumeChannel & blib::Volume::getChannel(uint index) const
 {
 	assert(index < _channels.size());
