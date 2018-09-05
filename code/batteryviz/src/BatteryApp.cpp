@@ -549,6 +549,12 @@ void BatteryApp::solveMultigridGPU()
 
 void BatteryApp::solveMGGPU()
 {
+
+	
+	while (_volume->numChannels() > 2) {
+		_volume->removeChannel(_volume->numChannels() - 1);
+	}
+
 	MGGPU<double>::Params p;
 	p.levels = 5;
 	p.dir = X_NEG;

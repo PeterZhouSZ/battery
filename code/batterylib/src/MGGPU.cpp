@@ -325,6 +325,8 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			A1.retrieve();
 						
 
+		
+
 			auto t0 = std::chrono::system_clock::now();
 			MGGPU_BuildA1(
 				Nres,
@@ -341,6 +343,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		}
 
 		{
+			
 			cudaPrintMemInfo();
 			CUDATimer t(true);
 			MGGPU_BuildA1(
@@ -354,6 +357,8 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			_CUDA(cudaPeekAtLastError());
 			std::cout << "Build A1 GPU: " << t.time() << "s" << std::endl;
 			cudaPrintMemInfo();
+
+
 			
 		
 		}

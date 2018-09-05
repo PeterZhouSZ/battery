@@ -1230,6 +1230,10 @@ bool MGGPU_CombineKernelsGeneric(
 
 #define A1_SIZE (5)
 #define A1_HALF (2)
+#define A1_THREADS_PER_DIM (4)
+
+//#define UNROLL_GENA1 #pragma unroll
+#define UNROLL_GENA1 {}
 
 __device__ __host__ void buildA1At(
 	int3 & ivox,
@@ -1238,7 +1242,7 @@ __device__ __host__ void buildA1At(
 	const MGGPU_SystemTopKernel * A0,
 	const MGGPU_InterpKernel * I,
 	MGGPU_Kernel3D<5> * A1,
-	int dirPrimary
+	int dirPrimary	
 ) {
 
 	const int3 NspaceIvox = ivox * 2;
@@ -1249,13 +1253,15 @@ __device__ __host__ void buildA1At(
 
 
 	//Temporary result of R*A at row(ivox)
+	
+	
 	MGGPU_Kernel3D<RA0_SIZE> RA;
 	
-	
-	
-
+	UNROLL_GENA1	
 	for (auto raz = 0; raz < RA0_SIZE; raz++) {
+		UNROLL_GENA1
 		for (auto ray = 0; ray < RA0_SIZE; ray++) {
+			UNROLL_GENA1
 			for (auto rax = 0; rax < RA0_SIZE; rax++) {
 
 				int3 voxRA = NspaceIvox + make_int3(rax - RA0_HALF, ray - RA0_HALF, raz - RA0_HALF);
@@ -1266,7 +1272,7 @@ __device__ __host__ void buildA1At(
 
 
 				//ivox + rx,y,z is in N space
-				double sum = 0.0;
+				double sum = 0.0;		
 				for (auto rz = 0; rz < RESTR_SIZE; rz++) {
 					for (auto ry = 0; ry < RESTR_SIZE; ry++) {
 						for (auto rx = 0; rx < RESTR_SIZE; rx++) {							
@@ -1276,7 +1282,9 @@ __device__ __host__ void buildA1At(
 								continue;
 							}
 
+#ifndef __CUDA_ARCH__
 							if (rval == 0.0) continue;							
+#endif
 							
 							size_t NspaceIndex = _linearIndex(resA0, rvox);							
 
@@ -1302,32 +1310,26 @@ __device__ __host__ void buildA1At(
 	
 	size_t a1index = _linearIndex(resA1, ivox);
 	MGGPU_Kernel3D<A1_SIZE> & a1 = A1[a1index];
+
 	
-
-
-	//return;
-
-	//Iterate over target 
+	//A1 is local, fast
 	for (auto xa1 = 0; xa1 < A1_SIZE; xa1++) {
 		for (auto ya1 = 0; ya1 < A1_SIZE; ya1++) {
 			for (auto za1 = 0; za1 < A1_SIZE; za1++) {
 
-				int3 voxA1 = ivox + make_int3(xa1 - A1_HALF, ya1 - A1_HALF, za1 - A1_HALF);
-				
+				int3 voxA1 = ivox + make_int3(xa1 - A1_HALF, ya1 - A1_HALF, za1 - A1_HALF);				
 				if (!_isValidPos(resA0, voxA1)) {
 					a1.v[xa1][ya1][za1] = 0.0;
 					continue;
-				}
-
-				
+				}				
 
 				//Dot product between RA0 and I
-				double sum = 0.0;
+
+				//RA0 is local, fast, I is in memory, 
+				double sum = 0.0;				
 				for (auto raz = 0; raz < RA0_SIZE; raz++) {
 					for (auto ray = 0; ray < RA0_SIZE; ray++) {
 						for (auto rax = 0; rax < RA0_SIZE; rax++) {
-							
-							
 
 							int3 ravox = NspaceIvox + make_int3(rax - RA0_HALF, ray - RA0_HALF, raz - RA0_HALF);
 							if (!_isValidPos(resA0, ravox)) {
@@ -1335,32 +1337,16 @@ __device__ __host__ void buildA1At(
 							}
 
 							double rval = RA.v[rax][ray][raz];
-							if (rval == 0.0) continue;
-
-							
-
-							const uint3 & resI0row = resA0;							
-
-							size_t NspaceIndex = _linearIndex(resI0row, ravox);
-
+							size_t NspaceIndex = _linearIndex(resA0, ravox);
 							//Top level
-							{
-#ifdef DEBUG
-								if (NspaceIndex >= resI0row.x * resI0row.y * resI0row.z) {
-									printf("out of bounds %d\n", NspaceIndex);
-								}
-#endif
-								
+							{	
 
-								const MGGPU_InterpKernel & Ikern = I[NspaceIndex];
-								
 								int3 offset = voxA1 - make_int3(ravox.x / 2, ravox.y / 2, ravox.z / 2) + make_int3(INTERP_SIZE / 2);
-
 								if (!_isValidPos(make_uint3(INTERP_SIZE), offset)) {
 									continue;
 								}
 
-								double ival = Ikern.v[offset.x][offset.y][offset.z];
+								double ival = I[NspaceIndex].v[offset.x][offset.y][offset.z];
 								
 								sum += ival*rval;
 							}
@@ -1394,6 +1380,11 @@ __global__ void __buildA1(
 	
 	//Combine kernels at ivox position
 	//combineKernelsAt<combineType, AKernelAllocSize>(ivox, p);
+
+	//__shared__ MGGPU_Kernel3D<RA0_SIZE> RA[A1_THREADS_PER_DIM][A1_THREADS_PER_DIM][A1_THREADS_PER_DIM];
+	
+
+
 	buildA1At(
 		ivox,
 		resA0,
@@ -1420,7 +1411,7 @@ bool MGGPU_BuildA1(
 	uint3 resA1 = make_uint3(resA0.x / 2, resA0.y / 2, resA0.z / 2);
 
 	if (onDevice) {		
-		BLOCKS3D(4, resA1); //TODO increase
+		BLOCKS3D(A1_THREADS_PER_DIM, resA1); //TODO increase
 		__buildA1 <<< numBlocks, block >> >(			
 			resA0,
 			resA1,
@@ -1428,8 +1419,7 @@ bool MGGPU_BuildA1(
 			I,
 			A1);
 	}
-	else {
-
+	else {		
 		for (ivox.z = 0; ivox.z < resA1.x; ivox.z++) {
 			for (ivox.y = 0; ivox.y < resA1.y; ivox.y++) {
 				for (ivox.x = 0; ivox.x < resA1.z; ivox.x++) {
@@ -1440,7 +1430,7 @@ bool MGGPU_BuildA1(
 						A0,
 						I,
 						A1,
-						const_sys_params_cpu.dirPrimary
+						const_sys_params_cpu.dirPrimary						
 					);
 				}
 			}
