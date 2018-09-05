@@ -37,6 +37,8 @@ namespace blib {
 		int line,
 		bool abort = true);
 
+	BLIB_EXPORT void cudaPrintProperties();
+
 	BLIB_EXPORT void cudaOccupiedMemory(size_t * total, size_t * occupied, int device = 0);
 
 	BLIB_EXPORT void cudaPrintMemInfo(int device = 0);

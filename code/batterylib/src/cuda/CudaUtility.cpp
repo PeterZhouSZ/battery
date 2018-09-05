@@ -142,6 +142,49 @@ bool blib::cusparseCheck(cusparseStatus_t result, const char * function, const c
 	return false;
 }
 
+void blib::cudaPrintProperties()
+{
+	int dcount = 0;
+	cudaGetDeviceCount(&dcount);
+
+	float KB = 1024.f;
+	float MB = 1024.0f * 1024.0f;
+
+	for (auto i = 0; i < dcount; i++) {
+		cudaDeviceProp p;
+		_CUDA(cudaGetDeviceProperties(&p, i));
+
+		std::cout << "Device ID " << i << std::endl;
+		std::cout << "Name " << p.name << std::endl;
+		std::cout << "---" << std::endl;
+
+		std::cout << "Global Memory: " << p.totalGlobalMem / MB << "MB" << std::endl;
+		std::cout << "Constant Memory: " << p.totalConstMem  / KB << "KB" << std::endl;
+		std::cout << "Shared Memory / Block: " << p.sharedMemPerBlock / KB << "KB" << std::endl;
+		std::cout << "Shared Memory / Multiprocessor: " << p.sharedMemPerMultiprocessor / KB << "KB" << std::endl;
+
+		std::cout << "Registers / block: " << p.regsPerBlock << std::endl;
+
+		std::cout << "---" << std::endl;
+		std::cout << "Warp size: " << p.warpSize<< std::endl;
+		std::cout << "Max threads per block: " << p.maxThreadsPerBlock << std::endl;
+		std::cout << "Max thread dim: " << p.maxThreadsDim[0] << "x" << p.maxThreadsDim[1] << "x"  << p.maxThreadsDim[2]  << std::endl;
+		std::cout << "Max grid size: " << p.maxGridSize[0] << "x" << p.maxThreadsDim[1] << "x" << p.maxThreadsDim[2] << std::endl;
+		std::cout << "Multiprocessor count: " << p.multiProcessorCount << std::endl;
+		std::cout << "Max threads per multiprocessor: " << p.maxThreadsPerMultiProcessor << std::endl;
+		std::cout << "Concurrent kernels: " << p.concurrentKernels << std::endl;
+		std::cout << "Single to Double perf ratio: " << p.singleToDoublePrecisionPerfRatio<< std::endl;
+
+		std::cout << "---" << std::endl;
+		std::cout << "Kernel timout enabled: " << p.kernelExecTimeoutEnabled<< std::endl;
+		std::cout << "---" << std::endl;
+
+
+	}
+
+
+}
+
 void blib::cudaOccupiedMemory(size_t * total, size_t * occupied, int device)
 {	
 	size_t free;
