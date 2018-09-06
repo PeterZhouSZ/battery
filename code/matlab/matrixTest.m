@@ -8,6 +8,8 @@ load ('../build/A_0.dat')
 load ('../build/A_1.dat')
 load ('../build/A_2.dat')
 
+load ('../build/B_0.txt')
+
 load ('../build/AI_1.dat') %A0*I0
 %load A_3.dat
 %load A_4.dat

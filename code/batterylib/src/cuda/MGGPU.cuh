@@ -106,30 +106,6 @@ inline __device__ __host__ double MGGPU_GetTopLevelValue(const MGGPU_SystemTopKe
 	}
 
 	return 0.0;
-
-	/*int sum = v.x + v.y + v.z;	
-	if (sum < -1) return 0.0;
-	if (sum > 1) return 0.0;
-
-	if (sum == -1) {
-		if (v.x == -1) return k.v[X_NEG];
-		if (v.y == -1) return k.v[Y_NEG];
-		return k.v[Z_NEG];
-	}
-
-	if (sum == 0)
-		return k.v[DIR_NONE];
-
-	if (sum == 1) {
-		if (v.x == 1) return k.v[X_POS];
-		if (v.y == 1) return k.v[Y_POS];
-		return k.v[Z_POS];
-	}
-
-	return 0.0;*/
-
-	
-
 }
 
 
@@ -395,30 +371,7 @@ inline __device__ __host__ int MGGPU_KernelProductSize(int an, int bn) {
 	return an + bn - 1;
 }
 
-inline __device__ __host__ void MGGPU_A0(MGGPU_RestrictKernel & R, MGGPU_SystemTopKernel & A, MGGPU_InterpKernel & I) {
-	
-	//R*A
 
-
-}
-
-inline __device__ __host__ void MGGPU_CombineKernels(
-	MGGPU_KernelPtr * a, int an,
-	MGGPU_KernelPtr * b, int bn,
-	int stride,
-	MGGPU_KernelPtr * c
-) {
-	int cn = MGGPU_KernelProductSize(an, bn);
-		
-
-	/*
-	a0 needs to be transformed from [7] -> 3x3x3
-	a1 = r * a0 * i
-	= 4^3 * 3^3 * 3^3
-	c .. a1
-	*/
-
-}
 
 /*
 	Generates domain from mask and two double values
@@ -432,7 +385,7 @@ void MGGPU_GenerateDomain(
 
 
 /*
-	Convolves using a single kernel
+	Convolves using a single kernel (suports only 2^3 kernel, stride 2 at the moment)
 */
 void MGGPU_Convolve(
 	const MGGPU_Volume & in,
@@ -441,20 +394,91 @@ void MGGPU_Convolve(
 );
 
 
+/*
+Preparation
+*/
+
+
+/*
+	Generates 7-point stencil of linear system as a function of the domain
+*/
 void MGGPU_GenerateSystemTopKernel(
 	const MGGPU_Volume & domain,
 	MGGPU_SystemTopKernel * A0,
 	MGGPU_Volume & f //rhs of lin sys
 );
 
-
-
-
+/*
+	Generates interpolation kernels
+*/
 void MGGPU_GenerateSystemInterpKernels(
 	const uint3 & destRes,
-	const MGGPU_Volume & domain,	
+	const MGGPU_Volume & domain,
 	MGGPU_InterpKernel * I
 );
+
+
+/*
+	Builds A1 using Galerkin coarsening operator (special case of R0*A0*I0)
+*/
+bool MGGPU_BuildA1(
+	const uint3 resA,
+	const MGGPU_SystemTopKernel * A0,
+	const MGGPU_InterpKernel * I,
+	MGGPU_Kernel3D<5> * A1,
+	bool onDevice
+);
+
+/*
+	Builds Ai using Galerkin coarsening operator (Ri-1*Ai-1*Ii-1)
+*/
+bool MGGPU_BuildAi(
+	const uint3 resA,
+	const MGGPU_Kernel3D<5> * Aprev,
+	const MGGPU_InterpKernel * I,
+	MGGPU_Kernel3D<5> * Anext,
+	bool onDevice
+);
+
+
+void MGGPU_Residual_TopLevel(
+	const uint3 res,
+	const MGGPU_SystemTopKernel * A0,
+	const MGGPU_Volume & x,
+	const MGGPU_Volume & f,
+	MGGPU_Volume & r
+);
+
+
+
+#ifdef ___OLD
+
+
+inline __device__ __host__ void MGGPU_A0(MGGPU_RestrictKernel & R, MGGPU_SystemTopKernel & A, MGGPU_InterpKernel & I) {
+
+	//R*A
+
+
+}
+
+inline __device__ __host__ void MGGPU_CombineKernels(
+	MGGPU_KernelPtr * a, int an,
+	MGGPU_KernelPtr * b, int bn,
+	int stride,
+	MGGPU_KernelPtr * c
+) {
+	int cn = MGGPU_KernelProductSize(an, bn);
+
+
+	/*
+	a0 needs to be transformed from [7] -> 3x3x3
+	a1 = r * a0 * i
+	= 4^3 * 3^3 * 3^3
+	c .. a1
+	*/
+
+}
+
 
 
 void MGGPU_GenerateTranposeInterpKernels(
@@ -514,19 +538,4 @@ bool MGGPU_CombineKernelsRestrict(
 	bool onDevice = true
 );
 
-
-bool MGGPU_BuildA1(
-	const uint3 resA,
-	const MGGPU_SystemTopKernel * A0,
-	const MGGPU_InterpKernel * I,
-	MGGPU_Kernel3D<5> * A1,
-	bool onDevice
-);
-
-bool MGGPU_BuildAi(
-	const uint3 resA,
-	const MGGPU_Kernel3D<5> * Aprev,
-	const MGGPU_InterpKernel * I,
-	MGGPU_Kernel3D<5> * Anext,
-	bool onDevice
-);
+#endif

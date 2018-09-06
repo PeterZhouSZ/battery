@@ -59,6 +59,8 @@ bool commitKernelCombineParams(const KernelCombineParams & p) {
 	return res == cudaSuccess;
 }
 
+////////////////////////////////////////////// Generate domain
+
 __global__ void ___generateDomain(
 	const MGGPU_Volume binaryMask,
 	double value_zero,
@@ -91,6 +93,8 @@ void MGGPU_GenerateDomain(
 		output
 	);
 }
+
+////////////////////////////////////////////// Convolve
 
 
 //Kernel for 3D convolution by 2^3 kernel with stride 2 and border
@@ -125,8 +129,9 @@ __global__ void ___convolve3D_2_2(
 	sum += read<double>(in.surf, voxSrc + make_uint3(s.x, s.y, s.z)) * k.v[1][1][1];
 
 	write<double>(out.surf, vox, sum);
-
 }
+
+
 
 void MGGPU_Convolve(
 	const MGGPU_Volume & in,
@@ -147,6 +152,10 @@ void MGGPU_Convolve(
 			out
 			);
 	}
+	else {
+		printf("MGGPU_Convolve does not support kn!=2 at the moment\n");
+		exit(1);
+	}
 
 }
 
@@ -154,6 +163,9 @@ void MGGPU_Convolve(
 /*
 	Kernel generation
 */
+
+
+////////////////////////////////////////////// Top level system kernel
 
 // Lin.sys at top level
 template <typename T>
@@ -242,6 +254,44 @@ __device__ void MGGPU_GetSystemTopKernel(
 
 
 
+void __global__ ___systemTopKernel(
+	MGGPU_Volume domain,
+	MGGPU_SystemTopKernel * A0,
+	MGGPU_Volume f
+){
+	VOLUME_VOX_GUARD(domain.res);
+
+	size_t i = _linearIndex(domain.res, vox);
+
+	double fval = 0.0;
+	MGGPU_GetSystemTopKernel<double>(domain, vox, &A0[i], &fval);	
+	write<double>(f.surf, vox, fval);
+
+}
+
+void MGGPU_GenerateSystemTopKernel(
+	const MGGPU_Volume & domain,
+	MGGPU_SystemTopKernel * A0,
+	MGGPU_Volume & f
+) {
+
+	BLOCKS3D(2, domain.res);
+	___systemTopKernel << < numBlocks, block >> > (
+		domain,
+		A0,
+		f
+		);
+	
+
+
+}
+
+
+////////////////////////////////////////////// Interpolation kernel
+
+
+
+
 __device__ __host__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 	const MGGPU_Volume & domainSrc,
 	const int3 & vox, //vox in destination
@@ -257,18 +307,18 @@ __device__ __host__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 	dest: n (vox, destRes)
 	*/
 
-	
-	
+
+
 	memset(&kernel, 0, sizeof(MGGPU_InterpKernel));
 
 	//If outside, return zero kernel
-	if (!_isValidPos(destRes, vox)) {		
+	if (!_isValidPos(destRes, vox)) {
 		return kernel;
 	}
 
-	
 
-	const int3 r = make_int3(vox.x % 2, vox.y % 2, vox.z % 2) * 2 - 1;	
+
+	const int3 r = make_int3(vox.x % 2, vox.y % 2, vox.z % 2) * 2 - 1;
 	const int3 voxSrc = make_int3(vox.x / 2, vox.y / 2, vox.z / 2);
 
 #ifdef DEBUG
@@ -317,7 +367,7 @@ __device__ __host__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 	}
 
 
-	
+
 
 	double w[8] = {
 		0,0,0,0,0,0,0,0
@@ -343,7 +393,7 @@ __device__ __host__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 
 			//Change offset to nearest valid voxel from source
 			int3 offset = offsets[i];
-			
+
 			_at<int, int3>(offset, dirIndex) = 0;
 			if (!_isValidPos(domainSrc.res, voxSrc + offset)) {
 				_at<int, int3>(offset, (dirIndex + 1) % 3) = 0;
@@ -356,7 +406,7 @@ __device__ __host__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 			//Update src vox with new offset
 			voxSrcNew = voxSrc + offset;
 #ifdef DEBUG
-			if(!_isValidPos(domainSrc.res, voxSrc + offset)) {
+			if (!_isValidPos(domainSrc.res, voxSrc + offset)) {
 				int3 p = voxSrc + offset;
 				printf("%d %d %d\n", p.x, p.y, p.z);
 			}
@@ -374,14 +424,14 @@ __device__ __host__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 	}
 
 
-	
+
 
 	//Normalize weights
 	for (auto i = 0; i < 8; i++) {
 		w[i] /= W;
 	}
 
-	
+
 
 	//Create 3^3 kernel
 	memset(kernel.v, 0, INTERP_SIZE*INTERP_SIZE*INTERP_SIZE * sizeof(double));
@@ -392,161 +442,6 @@ __device__ __host__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 
 
 	return kernel;
-}
-
-
-
-
-
-void __global__ ___systemTopKernel(
-	MGGPU_Volume domain,
-	MGGPU_SystemTopKernel * A0,
-	MGGPU_Volume f
-){
-	VOLUME_VOX_GUARD(domain.res);
-
-	size_t i = _linearIndex(domain.res, vox);
-
-	double fval = 0.0;
-	MGGPU_GetSystemTopKernel<double>(domain, vox, &A0[i], &fval);	
-	write<double>(f.surf, vox, fval);
-
-}
-
-void MGGPU_GenerateSystemTopKernel(
-	const MGGPU_Volume & domain,
-	MGGPU_SystemTopKernel * A0,
-	MGGPU_Volume & f
-) {
-
-	BLOCKS3D(2, domain.res);
-	___systemTopKernel << < numBlocks, block >> > (
-		domain,
-		A0,
-		f
-		);
-	
-
-
-}
-
-
-
-
-
-
-
-void __device__ MGGPU_Convolve_A0_I_Direct(
-	const uint3 destRes,
-	const MGGPU_Volume & domain,
-	const MGGPU_SystemTopKernel * A0,
-	const uint3 & vox,
-	int dirIndex,
-	MGGPU_Kernel3D<5> * out
-) {
-	const int3 voxi = make_int3(vox);
-
-	const int N_A = 3;
-	const int N_I = 3;
-	const int N_AI = N_A + N_I - 1; //5
-
-	MGGPU_Kernel3D<N_AI> & AI = *out;
-
-
-	//Read packed a0 kernel
-	size_t i = _linearIndex(destRes, vox);
-	const MGGPU_SystemTopKernel & a7 = A0[i];
-
-	//Scatter to 3x3x3 kernel
-	MGGPU_Kernel3D<3> a;
-	{
-		memset(&a, 0, sizeof(MGGPU_Kernel3D<3>));
-		a.v[1][1][1] = a7.v[DIR_NONE];
-		a.v[0][1][1] = a7.v[X_NEG];
-		a.v[2][1][1] = a7.v[X_POS];
-		a.v[1][0][1] = a7.v[Y_NEG];
-		a.v[1][2][1] = a7.v[Y_POS];
-		a.v[1][1][0] = a7.v[Z_NEG];
-		a.v[1][1][2] = a7.v[Z_POS];
-	}
-
-
-
-	for (int x_ai = 0; x_ai < N_AI; x_ai++) {
-		for (int y_ai = 0; y_ai < N_AI; y_ai++) {
-			for (int z_ai = 0; z_ai < N_AI; z_ai++) {
-				int3 offsetACenter = make_int3(-N_AI / 2) + make_int3(x_ai, y_ai, z_ai);
-
-
-				//Get I kernel at _ai pos
-				MGGPU_InterpKernel I = MGGPU_GetInterpolationKernel(domain, voxi + offsetACenter, destRes, dirIndex);
-
-				double sum = 0.0;
-
-				//dot with offseted a
-				for (int x_i = 0; x_i < N_I; x_i++) {
-					for (int y_i = 0; y_i < N_I; y_i++) {
-						for (int z_i = 0; z_i < N_I; z_i++) {
-
-							int3 offsetICenter = make_int3(-N_I / 2) + make_int3(x_i, y_i, z_i);
-
-							int3 apos = offsetACenter + make_int3(N_A / 2) + offsetICenter;
-							int x_a = apos.x;
-							int y_a = apos.y;
-							int z_a = apos.z;
-
-							
-
-							if (!_isValidPos(make_uint3(N_A), make_int3(x_a, y_a, z_a)))
-								continue;
-
-							sum += I.v[x_i][y_i][z_i] * a.v[x_a][y_a][z_a];
-						}
-					}
-				}
-
-				AI.v[x_ai][y_ai][z_ai] = sum;
-			}
-		}
-	}
-
-
-}
-
-
-
-__global__ void ___convolve_A0_I_Direct(
-	const uint3 destRes,
-	const MGGPU_Volume domainHalf,
-	const MGGPU_SystemTopKernel * A0,
-	MGGPU_Kernel3D<5> * AI
-	){
-
-	VOLUME_VOX_GUARD(destRes);
-
-	size_t i = _linearIndex(destRes, vox);
-
-	MGGPU_Convolve_A0_I_Direct(destRes, domainHalf, A0, vox, const_sys_params.dirPrimary, &(AI[i]) );
-
-
-}
-
-void MGGPU_GenerateAI0(
-	const MGGPU_Volume & domainHalf,
-	const MGGPU_SystemTopKernel * A0,
-	MGGPU_Kernel3D<5> * AI
-) {
-
-	const uint3 destRes = domainHalf.res * 2; // TODO:
-
-	BLOCKS3D(2, destRes);
-	___convolve_A0_I_Direct << < numBlocks, block >> > (
-		destRes,
-		domainHalf,
-		A0,
-		AI
-		);
-
 }
 
 
@@ -633,212 +528,18 @@ __global__ void ___genITranpose(
 }
 
 
-
-void MGGPU_GenerateTranposeInterpKernels(
-	const uint3 & Nres,
-	const uint3 & Nhalfres,
-	const MGGPU_Volume & domainHalf,
-	MGGPU_Kernel3D<4> * output
-) {
-
-	
-	BLOCKS3D(2, Nres);
-	___genITranpose << < numBlocks, block >> > (
-		Nres, Nhalfres,
-		domainHalf,
-		output
-		);
-
-}
-
-__global__ void ___convolve_A0_IT0_Direct(
-	const uint3 Nres,
-	const uint3 Nhalfres,
-	const MGGPU_SystemTopKernel * A0,
-	const MGGPU_Kernel3D<4> * IT0,
-	MGGPU_Kernel3D<3> * output
-){
-
-	VOLUME_VOX_GUARD(Nres);
-
-	size_t iN = _linearIndex(Nres, vox);
-	size_t iNHalf = _linearIndex(Nhalfres, vox);
-
-
-	int3 voxi = make_int3(vox);
-	int3 voxiHalf = make_int3(voxi.x /2, voxi.y / 2, voxi.z / 2);
-
-	const int N_A = 3;	
-	const int N_I = 4;
-	const int STRIDE = 2;
-	const int N_AI = (N_A + N_I - 1) / STRIDE; //3	
-
-
-	//Read packed a0 kernel
-	size_t i = _linearIndex(Nres, vox);
-	MGGPU_Kernel3D<N_AI> & AI = output[i];
-
-	const MGGPU_SystemTopKernel & a7 = A0[i];
-
-	//Scatter to 3x3x3 kernel
-	MGGPU_Kernel3D<3> a;
-	{
-		memset(&a, 0, sizeof(MGGPU_Kernel3D<3>));
-		a.v[1][1][1] = a7.v[DIR_NONE];
-		a.v[0][1][1] = a7.v[X_NEG];
-		a.v[2][1][1] = a7.v[X_POS];
-		a.v[1][0][1] = a7.v[Y_NEG];
-		a.v[1][2][1] = a7.v[Y_POS];
-		a.v[1][1][0] = a7.v[Z_NEG];
-		a.v[1][1][2] = a7.v[Z_POS];
-	}
-	
-
-	for (int x_ai = 0; x_ai < N_AI; x_ai++) {
-		for (int y_ai = 0; y_ai < N_AI; y_ai++) {
-			for (int z_ai = 0; z_ai < N_AI; z_ai++) {
-
-				int3 offsetAICenter = make_int3(-N_AI / 2) + make_int3(x_ai, y_ai, z_ai);
-				int3 interpPos = voxiHalf + offsetAICenter;
-				
-				if (!_isValidPos(Nhalfres, interpPos)) {
-					AI.v[x_ai][y_ai][z_ai] = 0.0;
-					continue;
-				}
-
-				size_t interpIndex = _linearIndex(Nhalfres, voxiHalf + offsetAICenter);
-
-				const MGGPU_Kernel3D<N_I> & I = IT0[interpIndex];
-
-				double sum = 0.0;
-				//dot with offseted a
-				for (int x_i = 0; x_i < N_I; x_i++) {
-					for (int y_i = 0; y_i < N_I; y_i++) {
-						for (int z_i = 0; z_i < N_I; z_i++) {
-
-						
-
-
-							int3 offsetICenter = make_int3(x_i, y_i, z_i) - make_int3(N_I / 2 - 1);
-							int3 voxI = 2*(interpPos) + offsetICenter;
-							
-							
-							int3 apos = voxI - voxi + make_int3(1,1,1);
-
-							
-							int x_a = apos.x;
-							int y_a = apos.y;
-							int z_a = apos.z;
-
-							if (!_isValidPos(make_uint3(N_A), make_int3(x_a, y_a, z_a)))
-								continue;
-							
-							sum += I.v[x_i][y_i][z_i] * a.v[x_a][y_a][z_a];
-						}
-					}
-				}
-
-				AI.v[x_ai][y_ai][z_ai] = sum;
-			}
-		}
-	}
-
-
-}
+////////////////////////////////////////////// Interpolation kernel
 
 
 
-void MGGPU_GenerateAI0(
-	const uint3 & Nres,
-	const uint3 & Nhalfres,
-	const MGGPU_SystemTopKernel * A0,
-	const MGGPU_Kernel3D<4> * IT0,
-	MGGPU_Kernel3D<3> * output
-) {
-	
-	BLOCKS3D(2, Nres);
-	___convolve_A0_IT0_Direct << < numBlocks, block >> > (
-		Nres,
-		Nhalfres,
-		A0,
-		IT0,
-		output
-		);
 
-}
-
-
-__global__ void __genA1(
-	const uint3 Nres,
-	const uint3 Nhalfres,
-	const MGGPU_Kernel3D<4> * IT0,
-	MGGPU_Kernel3D<5> * output
-) {
-	VOLUME_VOX_GUARD(Nhalfres);
-
-
-	/*int3 ivox = make_int3(vox);
-	//int3 ivoxHalf = make_int3(vox.x / 2, vox.y / 2, vox.z / 2);
-
-	size_t i = _linearIndex(Nhalfres, ivox);
-
-	MGGPU_RestrictKernel R = MGGPU_GetRestrictionKernel(vox, Nhalfres, const_sys_params.dirPrimary);
-
-	for (auto x_r = 0; x_r < RESTR_SIZE; x_r++) {
-		for (auto y_r = 0; y_r < RESTR_SIZE; y_r++) {
-			for (auto z_r = 0; z_r < RESTR_SIZE; z_r++) {
-				
-				int3 kVox = 2*ivox + make_int3(x_r, y_r, z_r) - make_int3(RESTR_SIZE / 2 - 1);
-				if (!_isValidPos(Nres, kVox))
-					continue;
-				
-				size_t ki = _linearIndex(kVox, Nres);
-
-			}
-		}
-	}
-
-	*/
-
-
-}
-
-
-void MGGPU_GenerateA1(
-	const uint3 & Nres,
-	const uint3 & Nhalfres,	
-	const MGGPU_Kernel3D<4> * IT0,
-	MGGPU_Kernel3D<5> * output
-) {
-
-	BLOCKS3D(2, Nhalfres);
-	__genA1 << < numBlocks, block >> > (
-		Nres,
-		Nhalfres,		
-		IT0,
-		output
-		);
-
-}
-
-
-
-//////////////////////////////////////////////
+////////////////////////////////////////////// Combination (not used atm)
 
 enum CombineType {
 	A_IS_GENERIC,
 	A_IS_TOPLEVEL,
 	A_IS_RESTRICTION
 };
-
-
-//combineKernelsAt<A_IS_GENERIC,5*5*5>
-//combineKernelsAt<A_IS_TOP_LEVEL,7>
-//combineKernelsAt<A_IS_RESTRICTION,4*4*4>
-
-__device__ __host__ void combineKernelDotInner() {
-
-}
 
 template<CombineType combineType, size_t AKernelAllocSize = 5*5*5>
 __device__ __host__ void combineKernelsAt(
@@ -948,8 +649,12 @@ __device__ __host__ void combineKernelsAt(
 						
 
 						double valA = kernelA[dir];						
-
+#ifdef __CUDA_ARCH__
 						MGGPU_InterpKernel kernelInterp = MGGPU_GetInterpolationKernel(p.domain, ivoxDot, p.resBrow, const_sys_params.dirPrimary);
+#else
+						//TODO?
+						MGGPU_InterpKernel kernelInterp;
+#endif
 						MGGPU_KernelPtr kernelB = MGGPU_KernelPtr(&kernelInterp);
 
 						
@@ -1080,6 +785,8 @@ bool MGGPU_CombineKernelsTopLevel(
 			}
 		}
 	}
+
+	return true;
 
 
 }
@@ -1224,6 +931,11 @@ bool MGGPU_CombineKernelsGeneric(
 	return true;
 }
 
+
+
+
+
+////////////////////////////////////////////// Galerking coarseing operator - Generating Ai
 
 #define RA0_SIZE (RESTR_SIZE + 2)
 #define RA0_HALF (2)
@@ -1646,3 +1358,392 @@ bool MGGPU_BuildAi(
 	return true;
 
 }
+
+
+
+////////////////////////////////////////////// Residual
+
+//Convolve by system top kernel
+double __device__  convolve3D_SystemTop(
+	const int3 & ivox,
+	const MGGPU_SystemTopKernel & k,
+	const MGGPU_Volume & x
+	){
+
+	//Assumes ivox is inside the boundary
+
+	double sum = 0.0;
+
+	if (ivox.z - 1 >= 0)
+		sum += k.v[Z_NEG] * read<double>(x.surf, ivox + make_int3(0,0,-1));
+
+	if (ivox.y - 1 >= 0)
+		sum += k.v[Y_NEG] * read<double>(x.surf, ivox + make_int3(0, -1, 0));
+
+	if (ivox.x - 1 >= 0)
+		sum += k.v[X_NEG] * read<double>(x.surf, ivox + make_int3(-1, 0, 0));
+	
+	sum += k.v[DIR_NONE] * read<double>(x.surf, ivox);
+
+	if (ivox.x + 1 < x.res.x)
+		sum += k.v[X_POS] * read<double>(x.surf, ivox + make_int3(1, 0, 0));
+
+	if (ivox.y + 1 < x.res.y)
+		sum += k.v[Y_POS] * read<double>(x.surf, ivox + make_int3(0, 1, 0));
+
+	if (ivox.z + 1 < x.res.z)
+		sum += k.v[Z_POS] * read<double>(x.surf, ivox + make_int3(0, 0, 1));
+
+	return sum;
+}
+
+
+__global__ void __residual_topLevel(
+	const uint3 res,
+	const MGGPU_SystemTopKernel * A0,
+	const MGGPU_Volume x,
+	const MGGPU_Volume f,
+	MGGPU_Volume r
+) {
+	VOLUME_IVOX_GUARD(res);	
+
+	const size_t I = _linearIndex(res, ivox);
+
+	const double Axval = convolve3D_SystemTop(ivox, A0[I], x);
+	const double fval = read<double>(f.surf, ivox);
+	const double rval = fval - Axval;
+
+	write<double>(r.surf, ivox, rval);
+	
+
+
+}
+
+void MGGPU_Residual_TopLevel(
+	const uint3 res,
+	const MGGPU_SystemTopKernel * A0,
+	const MGGPU_Volume & x,
+	const MGGPU_Volume & f,
+	MGGPU_Volume & r
+) {
+
+
+	BLOCKS3D(4, res); //TODO: find best number for perofmrance/occupancy
+	__residual_topLevel << < numBlocks, block >> >(
+		res,
+		A0,
+		x,
+		f,
+		r);
+
+}
+
+
+
+#ifdef ____OLD
+
+
+__global__ void __genA1(
+	const uint3 Nres,
+	const uint3 Nhalfres,
+	const MGGPU_Kernel3D<4> * IT0,
+	MGGPU_Kernel3D<5> * output
+) {
+	VOLUME_VOX_GUARD(Nhalfres);
+
+
+	/*int3 ivox = make_int3(vox);
+	//int3 ivoxHalf = make_int3(vox.x / 2, vox.y / 2, vox.z / 2);
+
+	size_t i = _linearIndex(Nhalfres, ivox);
+
+	MGGPU_RestrictKernel R = MGGPU_GetRestrictionKernel(vox, Nhalfres, const_sys_params.dirPrimary);
+
+	for (auto x_r = 0; x_r < RESTR_SIZE; x_r++) {
+	for (auto y_r = 0; y_r < RESTR_SIZE; y_r++) {
+	for (auto z_r = 0; z_r < RESTR_SIZE; z_r++) {
+
+	int3 kVox = 2*ivox + make_int3(x_r, y_r, z_r) - make_int3(RESTR_SIZE / 2 - 1);
+	if (!_isValidPos(Nres, kVox))
+	continue;
+
+	size_t ki = _linearIndex(kVox, Nres);
+
+	}
+	}
+	}
+
+	*/
+
+
+}
+
+
+void MGGPU_GenerateA1(
+	const uint3 & Nres,
+	const uint3 & Nhalfres,
+	const MGGPU_Kernel3D<4> * IT0,
+	MGGPU_Kernel3D<5> * output
+) {
+
+	BLOCKS3D(2, Nhalfres);
+	__genA1 << < numBlocks, block >> > (
+		Nres,
+		Nhalfres,
+		IT0,
+		output
+		);
+
+}
+
+
+
+void MGGPU_GenerateTranposeInterpKernels(
+	const uint3 & Nres,
+	const uint3 & Nhalfres,
+	const MGGPU_Volume & domainHalf,
+	MGGPU_Kernel3D<4> * output
+) {
+
+
+	BLOCKS3D(2, Nres);
+	___genITranpose << < numBlocks, block >> > (
+		Nres, Nhalfres,
+		domainHalf,
+		output
+		);
+
+}
+
+__global__ void ___convolve_A0_IT0_Direct(
+	const uint3 Nres,
+	const uint3 Nhalfres,
+	const MGGPU_SystemTopKernel * A0,
+	const MGGPU_Kernel3D<4> * IT0,
+	MGGPU_Kernel3D<3> * output
+) {
+
+	VOLUME_VOX_GUARD(Nres);
+
+	size_t iN = _linearIndex(Nres, vox);
+	size_t iNHalf = _linearIndex(Nhalfres, vox);
+
+
+	int3 voxi = make_int3(vox);
+	int3 voxiHalf = make_int3(voxi.x / 2, voxi.y / 2, voxi.z / 2);
+
+	const int N_A = 3;
+	const int N_I = 4;
+	const int STRIDE = 2;
+	const int N_AI = (N_A + N_I - 1) / STRIDE; //3	
+
+
+											   //Read packed a0 kernel
+	size_t i = _linearIndex(Nres, vox);
+	MGGPU_Kernel3D<N_AI> & AI = output[i];
+
+	const MGGPU_SystemTopKernel & a7 = A0[i];
+
+	//Scatter to 3x3x3 kernel
+	MGGPU_Kernel3D<3> a;
+	{
+		memset(&a, 0, sizeof(MGGPU_Kernel3D<3>));
+		a.v[1][1][1] = a7.v[DIR_NONE];
+		a.v[0][1][1] = a7.v[X_NEG];
+		a.v[2][1][1] = a7.v[X_POS];
+		a.v[1][0][1] = a7.v[Y_NEG];
+		a.v[1][2][1] = a7.v[Y_POS];
+		a.v[1][1][0] = a7.v[Z_NEG];
+		a.v[1][1][2] = a7.v[Z_POS];
+	}
+
+
+	for (int x_ai = 0; x_ai < N_AI; x_ai++) {
+		for (int y_ai = 0; y_ai < N_AI; y_ai++) {
+			for (int z_ai = 0; z_ai < N_AI; z_ai++) {
+
+				int3 offsetAICenter = make_int3(-N_AI / 2) + make_int3(x_ai, y_ai, z_ai);
+				int3 interpPos = voxiHalf + offsetAICenter;
+
+				if (!_isValidPos(Nhalfres, interpPos)) {
+					AI.v[x_ai][y_ai][z_ai] = 0.0;
+					continue;
+				}
+
+				size_t interpIndex = _linearIndex(Nhalfres, voxiHalf + offsetAICenter);
+
+				const MGGPU_Kernel3D<N_I> & I = IT0[interpIndex];
+
+				double sum = 0.0;
+				//dot with offseted a
+				for (int x_i = 0; x_i < N_I; x_i++) {
+					for (int y_i = 0; y_i < N_I; y_i++) {
+						for (int z_i = 0; z_i < N_I; z_i++) {
+
+
+
+
+							int3 offsetICenter = make_int3(x_i, y_i, z_i) - make_int3(N_I / 2 - 1);
+							int3 voxI = 2 * (interpPos)+offsetICenter;
+
+
+							int3 apos = voxI - voxi + make_int3(1, 1, 1);
+
+
+							int x_a = apos.x;
+							int y_a = apos.y;
+							int z_a = apos.z;
+
+							if (!_isValidPos(make_uint3(N_A), make_int3(x_a, y_a, z_a)))
+								continue;
+
+							sum += I.v[x_i][y_i][z_i] * a.v[x_a][y_a][z_a];
+						}
+					}
+				}
+
+				AI.v[x_ai][y_ai][z_ai] = sum;
+			}
+		}
+	}
+
+
+}
+
+
+
+void MGGPU_GenerateAI0(
+	const uint3 & Nres,
+	const uint3 & Nhalfres,
+	const MGGPU_SystemTopKernel * A0,
+	const MGGPU_Kernel3D<4> * IT0,
+	MGGPU_Kernel3D<3> * output
+) {
+
+	BLOCKS3D(2, Nres);
+	___convolve_A0_IT0_Direct << < numBlocks, block >> > (
+		Nres,
+		Nhalfres,
+		A0,
+		IT0,
+		output
+		);
+
+}
+
+
+
+void __device__ MGGPU_Convolve_A0_I_Direct(
+	const uint3 destRes,
+	const MGGPU_Volume & domain,
+	const MGGPU_SystemTopKernel * A0,
+	const uint3 & vox,
+	int dirIndex,
+	MGGPU_Kernel3D<5> * out
+) {
+	const int3 voxi = make_int3(vox);
+
+	const int N_A = 3;
+	const int N_I = 3;
+	const int N_AI = N_A + N_I - 1; //5
+
+	MGGPU_Kernel3D<N_AI> & AI = *out;
+
+
+	//Read packed a0 kernel
+	size_t i = _linearIndex(destRes, vox);
+	const MGGPU_SystemTopKernel & a7 = A0[i];
+
+	//Scatter to 3x3x3 kernel
+	MGGPU_Kernel3D<3> a;
+	{
+		memset(&a, 0, sizeof(MGGPU_Kernel3D<3>));
+		a.v[1][1][1] = a7.v[DIR_NONE];
+		a.v[0][1][1] = a7.v[X_NEG];
+		a.v[2][1][1] = a7.v[X_POS];
+		a.v[1][0][1] = a7.v[Y_NEG];
+		a.v[1][2][1] = a7.v[Y_POS];
+		a.v[1][1][0] = a7.v[Z_NEG];
+		a.v[1][1][2] = a7.v[Z_POS];
+	}
+
+
+
+	for (int x_ai = 0; x_ai < N_AI; x_ai++) {
+		for (int y_ai = 0; y_ai < N_AI; y_ai++) {
+			for (int z_ai = 0; z_ai < N_AI; z_ai++) {
+				int3 offsetACenter = make_int3(-N_AI / 2) + make_int3(x_ai, y_ai, z_ai);
+
+
+				//Get I kernel at _ai pos
+				MGGPU_InterpKernel I = MGGPU_GetInterpolationKernel(domain, voxi + offsetACenter, destRes, dirIndex);
+
+				double sum = 0.0;
+
+				//dot with offseted a
+				for (int x_i = 0; x_i < N_I; x_i++) {
+					for (int y_i = 0; y_i < N_I; y_i++) {
+						for (int z_i = 0; z_i < N_I; z_i++) {
+
+							int3 offsetICenter = make_int3(-N_I / 2) + make_int3(x_i, y_i, z_i);
+
+							int3 apos = offsetACenter + make_int3(N_A / 2) + offsetICenter;
+							int x_a = apos.x;
+							int y_a = apos.y;
+							int z_a = apos.z;
+
+
+
+							if (!_isValidPos(make_uint3(N_A), make_int3(x_a, y_a, z_a)))
+								continue;
+
+							sum += I.v[x_i][y_i][z_i] * a.v[x_a][y_a][z_a];
+						}
+					}
+				}
+
+				AI.v[x_ai][y_ai][z_ai] = sum;
+			}
+		}
+	}
+
+
+}
+
+
+
+__global__ void ___convolve_A0_I_Direct(
+	const uint3 destRes,
+	const MGGPU_Volume domainHalf,
+	const MGGPU_SystemTopKernel * A0,
+	MGGPU_Kernel3D<5> * AI
+) {
+
+	VOLUME_VOX_GUARD(destRes);
+
+	size_t i = _linearIndex(destRes, vox);
+
+	MGGPU_Convolve_A0_I_Direct(destRes, domainHalf, A0, vox, const_sys_params.dirPrimary, &(AI[i]));
+
+
+}
+
+void MGGPU_GenerateAI0(
+	const MGGPU_Volume & domainHalf,
+	const MGGPU_SystemTopKernel * A0,
+	MGGPU_Kernel3D<5> * AI
+) {
+
+	const uint3 destRes = domainHalf.res * 2; // TODO:
+
+	BLOCKS3D(2, destRes);
+	___convolve_A0_I_Direct << < numBlocks, block >> > (
+		destRes,
+		domainHalf,
+		A0,
+		AI
+		);
+
+}
+
+#endif

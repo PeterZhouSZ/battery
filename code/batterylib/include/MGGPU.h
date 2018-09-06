@@ -24,6 +24,7 @@ namespace blib {
 			V_CYCLE_SINGLE
 		};
 
+		using Vector = Eigen::VectorXd;
 		using SparseMat = Eigen::SparseMatrix<double, Eigen::RowMajor>;
 		using DenseMat = Eigen::MatrixXd;
 		using DirectSolver = Eigen::SparseLU<SparseMat>;
@@ -58,12 +59,10 @@ namespace blib {
 
 
 		bool alloc();
-		bool buildLinearSystem();
-		bool subsampleDiffusion();
-
-		bool buildLevelsGalerkin();
-
+		
 		int numLevels() const { return _params.levels; }
+
+		std::vector<int> genCycle(CycleType ctype, uint levels) const;
 
 
 		Params _params;
@@ -71,7 +70,7 @@ namespace blib {
 		Volume * _volume;
 
 		//using SparseMat = int; //Todo cusparse mat
-		using Vector = int; //Todo cusparse vec
+		//using Vector = int; //Todo cusparse vec
 
 		struct Level {			
 			ivec3 dim;
@@ -86,18 +85,12 @@ namespace blib {
 			DataPtr I;
 
 			size_t N() const { return dim.x*dim.y*dim.z; }
-			/*SparseMat A;
-			SparseMat I;
-			SparseMat R;
-			Vector b;
-			Vector x;
-			Vector tmpx;
-			Vector r;*/
+		
 			
 		};
 
 		std::vector<Level> _levels;
-		//DenseMat _lastLevelA;
+		
 		SparseMat _lastLevelA;
 		DirectSolver _lastLevelSolver;
 

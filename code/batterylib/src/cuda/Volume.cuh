@@ -24,10 +24,22 @@ uint3 vox = make_uint3(			\
 		blockIdx.z * blockDim.z		\
 	) + threadIdx;					\
 
+#define VOLUME_IVOX					\
+int3 ivox = make_int3(			\
+		blockIdx.x * blockDim.x,	\
+		blockIdx.y * blockDim.y,	\
+		blockIdx.z * blockDim.z		\
+	) + make_int3(threadIdx);					\
+
 
 #define VOLUME_VOX_GUARD(res)					\
 	VOLUME_VOX									\
 	if (vox.x >= res.x || vox.y >= res.y || vox.z >= res.z)	\
+	return;		
+
+#define VOLUME_IVOX_GUARD(res)					\
+	VOLUME_IVOX									\
+	if (ivox.x >= res.x || ivox.y >= res.y || ivox.z >= res.z)	\
 	return;		
 
 #define BLOCKS3D(perBlockDim, res)					\
@@ -114,7 +126,7 @@ inline __device__ __host__ bool _isValidPos(const uint3 & dim, const uint3 & pos
 
 inline __device__ __host__ bool _isValidPos(const uint3 & dim, const int3 & pos) {
 	return	pos.x >= 0 && pos.y >= 0 && pos.z >= 0 &&
-		pos.x < dim.x && pos.y < dim.y && pos.z < dim.z;
+		pos.x < int(dim.x) && pos.y < int(dim.y) && pos.z < int(dim.z);
 }
 
 
@@ -166,6 +178,9 @@ Templated surface write
 template <typename T>
 inline __device__ void write(cudaSurfaceObject_t surf, const uint3 & vox, const T & val);
 
+template <typename T>
+inline __device__ void write(cudaSurfaceObject_t surf, const int3 & vox, const T & val);
+
 
 template<>
 inline __device__ void write(cudaSurfaceObject_t surf, const uint3 & vox, const float & val) {
@@ -183,12 +198,24 @@ inline __device__ void write(cudaSurfaceObject_t surf, const uint3 & vox, const 
 #endif
 }
 
+template<>
+inline __device__ void write(cudaSurfaceObject_t surf, const int3 & vox, const double & val) {
+
+#ifdef __CUDA_ARCH__
+	const int2 * valInt = (int2*)&val;
+	surf3Dwrite(*valInt, surf, vox.x * sizeof(int2), vox.y, vox.z);
+#endif
+}
+
 
 /*
 Templated surface read (direct)
 */
 template <typename T>
 inline __device__ T read(cudaSurfaceObject_t surf, const uint3 & vox);
+
+template <typename T>
+inline __device__ T read(cudaSurfaceObject_t surf, const int3 & vox);
 
 template<>
 inline __device__ float read(cudaSurfaceObject_t surf, const uint3 & vox) {
@@ -201,7 +228,7 @@ inline __device__ float read(cudaSurfaceObject_t surf, const uint3 & vox) {
 
 template<>
 inline __device__ uchar read(cudaSurfaceObject_t surf, const uint3 & vox) {
-	uchar val = 0.0f;
+	uchar val = 0;
 #ifdef __CUDA_ARCH__
 	surf3Dread(&val, surf, vox.x * sizeof(uchar), vox.y, vox.z);
 #endif
@@ -211,6 +238,18 @@ inline __device__ uchar read(cudaSurfaceObject_t surf, const uint3 & vox) {
 template<>
 inline __device__ double read(cudaSurfaceObject_t surf, const uint3 & vox) {
 	
+#ifdef __CUDA_ARCH__
+	int2 val;
+	surf3Dread(&val, surf, vox.x * sizeof(int2), vox.y, vox.z);
+	return __hiloint2double(val.y, val.x);
+#else
+	return 0.0;
+#endif
+}
+
+template<>
+inline __device__ double read(cudaSurfaceObject_t surf, const int3 & vox) {
+
 #ifdef __CUDA_ARCH__
 	int2 val;
 	surf3Dread(&val, surf, vox.x * sizeof(int2), vox.y, vox.z);

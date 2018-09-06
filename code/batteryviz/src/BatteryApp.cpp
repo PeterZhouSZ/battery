@@ -577,6 +577,14 @@ void BatteryApp::solveMGGPU()
 
 	std::chrono::duration<double> prepTime = t1 - t0;
 	std::cout << "Prep time: " << prepTime.count() << "s" << std::endl;
+
+	std::cout << "=================================" << std::endl;
+
+	_mggpu.solve(1e-6, 128);
+
+
+
+
 }
 
 void BatteryApp::reset()

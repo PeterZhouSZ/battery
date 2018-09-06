@@ -37,10 +37,10 @@ namespace blib {
 	inline ivec3 posFromLinear(const ivec3 & dim, size_t index) {
 
 		ivec3 pos;
-		pos.x = index % dim.x;
+		pos.x = static_cast<int>(index % dim.x);
 		index = (index - pos.x) / dim.x;
-		pos.y = index % dim.y;
-		pos.z = index / dim.y;
+		pos.y = static_cast<int>(index % dim.y);
+		pos.z = static_cast<int>(index / dim.y);
 		return pos;
 
 		//return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
