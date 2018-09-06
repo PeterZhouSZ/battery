@@ -316,3 +316,9 @@ void launchReduceKernel(
 	void * auxBufferCPU,
 	void * result
 );
+
+
+
+void launchClearKernel(
+	PrimitiveType type, cudaSurfaceObject_t surf, uint3 res, void * val
+);

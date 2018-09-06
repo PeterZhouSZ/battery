@@ -17,23 +17,6 @@ struct MGGPU_Volume{
 };
 
 
-#define MAX_LEVELS 10
-
-//Construction params
-struct MGGPU_SysParams {	
-	double highConc;
-	double lowConc;
-	double concetrationBegin;
-	double concetrationEnd;
-	double cellDim[3];
-	double faceArea[3];
-	int dirPrimary;
-	uint2 dirSecondary;
-	Dir dir;
-};
-
-bool commitSysParams(const MGGPU_SysParams & sysparams);
-
 template <size_t size>
 struct MGGPU_Kernel3D {
 	double v[size][size][size];
@@ -52,6 +35,41 @@ using MGGPU_InterpKernel = MGGPU_Kernel3D<INTERP_SIZE>;
 using MGGPU_RestrictKernel = MGGPU_Kernel3D<RESTR_SIZE>;
 using MGGPU_DomainRestrictKernel = MGGPU_Kernel3D<DOMAIN_RESTR_SIZE>;
 using MGGPU_KernelPtr = double *;
+
+
+
+
+//Construction params
+struct MGGPU_SysParams {	
+	double highConc;
+	double lowConc;
+	double concetrationBegin;
+	double concetrationEnd;
+	double cellDim[3];
+	double faceArea[3];
+	int dirPrimary;
+	uint2 dirSecondary;
+	Dir dir;
+};
+
+struct MGGPU_SmootherParams {
+	MGGPU_KernelPtr A;
+	bool isTopLevel;
+	
+	MGGPU_Volume f;
+	MGGPU_Volume x;
+	MGGPU_Volume tmpx;
+	MGGPU_Volume r;
+	uint3 res;
+	double tolerance;
+	void * auxBufferGPU;
+	void * auxBufferCPU;
+	int iter;
+};
+
+bool commitSysParams(const MGGPU_SysParams & sysparams);
+
+
 
 inline  __device__ __host__ int MGGPU_outputKernelSize(
 	int Adim,
@@ -471,6 +489,13 @@ double MGGPU_SquareNorm(
 	void * auxGPU,
 	void * auxCPU
 );
+
+void MGGPU_SetToZero(
+	MGGPU_Volume & x
+);
+
+
+double MGGPU_GaussSeidel(MGGPU_SmootherParams & p);
 
 
 #ifdef ___OLD

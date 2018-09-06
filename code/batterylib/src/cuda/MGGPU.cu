@@ -1517,6 +1517,181 @@ double MGGPU_SquareNorm(
 
 }
 
+void MGGPU_SetToZero(
+	MGGPU_Volume & x
+) {
+	double val = 0.0;
+	launchClearKernel(TYPE_DOUBLE, x.surf, x.res, &val);
+}
+
+
+////////////////////////////////////////////// Smoothing
+
+template <int dir, int sgn, bool alternate, bool isTopLevel>
+__global__ void __gaussSeidelLine(
+	uint3 res,
+	MGGPU_Volume F,
+	MGGPU_Volume X,
+	MGGPU_KernelPtr A
+) {
+
+	VOLUME_VOX; //no guard
+
+	//Set directions
+	const uint primDim = _at<uint>(res, dir);
+	const int secDirs[2] = {
+		(dir + 1) % 3,
+		(dir + 2) % 3
+	};
+
+	//Interleave second dir
+	_at<uint>(vox, secDirs[0]) *= 2;
+
+	//Alternate 0,1 start
+	if (!alternate)
+		_at<uint>(vox, secDirs[0]) += _at<uint>(vox, secDirs[1]) % 2;
+	else
+		_at<uint>(vox, secDirs[0]) += 1 - _at<uint>(vox, secDirs[1]) % 2;
+
+	//Guard
+	if (_at<uint>(vox, secDirs[0]) >= _at<uint>(res, secDirs[0]) ||
+		_at<uint>(vox, secDirs[1]) >= _at<uint>(res, secDirs[1]))
+		return;
+
+	//Bounds
+	const int begin = (sgn == -1) ? int(primDim) - 1 : 0;
+	const int end = (sgn == -1) ? -1 : int(primDim);
+
+
+	for (int i = begin; i != end; i += sgn) {
+		int3 voxi = { vox.x, vox.y, vox.z };
+		_at<int>(voxi, dir) = i;
+
+
+		const size_t rowI = _linearIndex(res, voxi);
+
+		double sum;
+		double diag;
+
+		if (isTopLevel) {
+			const MGGPU_SystemTopKernel a = ((MGGPU_SystemTopKernel*)A)[rowI];
+			sum = convolve3D_SystemTop(voxi, a, X);
+			diag = a.v[DIR_NONE];
+			
+		}
+		else {
+			const MGGPU_Kernel3D<Ai_SIZE> & a = ((const MGGPU_Kernel3D<Ai_SIZE>*)A)[rowI];
+			sum = convolve3D<Ai_SIZE>(voxi, a, X);
+			diag = a.v[Ai_HALF][Ai_HALF][Ai_HALF];
+		}
+
+		
+
+		double fval = read<double>(F.surf, voxi);
+		double newVal = (fval - sum) / diag;		
+		//printf("%d %f %f %f -> %f (<- %f) \n", i,sum, diag,fval, newVal, read<double>(X.surf, voxi));
+
+		write<double>(X.surf, voxi, newVal);
+
+		
+	}
+
+
+}
+
+template<bool isTopLevel>
+void gaussSeidelAllDirs(MGGPU_SmootherParams & p, int blockDim) {
+
+
+	uint3 block;
+	uint3 numBlocks;
+
+	{
+		block = make_uint3(1, blockDim, blockDim);
+		numBlocks = make_uint3(
+			1,
+			((p.res.y / 2 + (block.y - 1)) / block.y),
+			((p.res.z + (block.z - 1)) / block.z)
+		);
+
+		__gaussSeidelLine<0, 1, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
+		__gaussSeidelLine<0, 1, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
+	}
+
+	{
+		block = make_uint3(blockDim, 1, blockDim);
+		numBlocks = make_uint3(
+			((p.res.x + (block.x - 1)) / block.x),
+			1,
+			((p.res.z / 2 + (block.z - 1)) / block.z)
+		);
+
+		__gaussSeidelLine<1, 1, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
+		__gaussSeidelLine<1, 1, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
+	}
+
+	{
+		block = make_uint3(blockDim, blockDim, 1);
+		numBlocks = make_uint3(
+			((p.res.x / 2 + (block.x - 1)) / block.y),
+			((p.res.y + (block.y - 1)) / block.y),
+			1
+		);
+
+		__gaussSeidelLine<2, 1, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
+		__gaussSeidelLine<2, 1, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
+	}
+
+}
+
+double MGGPU_GaussSeidel(MGGPU_SmootherParams & p) {
+
+
+	double error = 1.0;
+#ifdef GS_CALCULATE_RESIDUAL
+	
+	double fsq = MGGPU_SquareNorm(p.res, p.f, p.auxBufferGPU, p.auxBufferCPU);
+
+	if (fsq == 0.0) {
+		printf("WARNING ||f||^2 = 0.0\n");
+	}	
+#endif
+
+	for (auto i = 0; i < p.iter; ++i) {
+
+
+		if (p.isTopLevel) {
+			gaussSeidelAllDirs<true>(p, 8);
+#ifdef GS_CALCULATE_RESIDUAL
+			MGGPU_Residual_TopLevel(p.res, (MGGPU_SystemTopKernel *)p.A, p.x, p.f, p.r);
+#endif
+		}
+		else {
+			gaussSeidelAllDirs<false>(p, 8);
+#ifdef GS_CALCULATE_RESIDUAL
+			MGGPU_Residual(p.res, (MGGPU_Kernel3D<Ai_SIZE>*)p.A, p.x, p.f, p.r);
+#endif
+		}
+
+		//printf("i %d\n", i);
+
+#ifdef GS_CALCULATE_RESIDUAL
+		//Might not be needed to calculate residual
+		double rsq = MGGPU_SquareNorm(p.res, p.r, p.auxBufferGPU, p.auxBufferCPU);		
+		
+		error = sqrt(rsq / fsq);
+
+		//printf("rsq: %f, fsq: %f, error: %f\n", rsq,fsq,error);
+
+		if (error <= p.tolerance)
+			break;
+#endif
+
+	}
+
+	return error;
+}
+
 
 
 #ifdef ____OLD

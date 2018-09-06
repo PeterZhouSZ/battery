@@ -580,7 +580,7 @@ void BatteryApp::solveMGGPU()
 
 	std::cout << "=================================" << std::endl;
 
-	_mggpu.solve(1e-6, 128);
+	_mggpu.solve(1e-6, 10);
 
 
 

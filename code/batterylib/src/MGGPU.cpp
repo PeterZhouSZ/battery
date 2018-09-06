@@ -171,7 +171,13 @@ MGGPU<double>::Vector volumeToVector(const MGGPU_Volume & vol){
 	size_t N = vol.res.x * vol.res.y * vol.res.z;
 	MGGPU<double>::Vector V = Eigen::Map< MGGPU<double>::Vector >((double*)vol.cpu, N);
 	return V;
+}
 
+void vectorToVolume(const MGGPU<double>::Vector & v, const MGGPU_Volume & vol) {
+	//assert(vol.cpu);
+	size_t N = vol.res.x * vol.res.y * vol.res.z;
+	memcpy(vol.cpu, v.data(), N * sizeof(double));
+	
 }
 
 
@@ -1224,7 +1230,7 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 	double r0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim), _levels[0].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);	
 	double lastError = sqrt(r0SqNorm / f0SqNorm);
 
-
+	//TODO: idea use just one tmpx,x, f ... with the size of the largest and reuse?
 
 	for (auto k = 0; k < maxIter; k++) {
 
@@ -1234,14 +1240,70 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 			//Last level
 			if (i == numLevels() - 1) {
 
+				//Retrieve F GPU - > CPU
+				_volume->getChannel(_levels[i].f.volID).getCurrentPtr().retrieve();
+				
+				//Convert F, solve, convert X
+				Vector F = volumeToVector(_levels[i].f);
+				Vector X = _lastLevelSolver.solve(F); //todo possible optimization: inplace x.cpu
+				vectorToVolume(X, _levels[i].x);
+
+				//Commit X back to GPU
+				_volume->getChannel(_levels[i].x.volID).getCurrentPtr().commit();				
+
 			}
 			//Restrict
 			else if (i > prevI) {
 
+				//Zero out x
+				if (i > 0) {
+					MGGPU_SetToZero(_levels[i].x);
+				}
+
+				{
+					MGGPU_SmootherParams sp;
+					sp.A = (MGGPU_KernelPtr)_levels[i].A.gpu;
+					sp.isTopLevel = (i == 0);
+					sp.f = _levels[i].f;
+					sp.x = _levels[i].x;
+					sp.tmpx = _levels[i].tmpx;
+					sp.r = _levels[i].r;
+
+					sp.res = make_uint3(_levels[i].dim);
+					sp.tolerance = tolerance;
+					sp.auxBufferGPU = _auxReduceBuffer.gpu;
+					sp.auxBufferCPU = _auxReduceBuffer.cpu;
+					sp.iter = preN;
+					MGGPU_GaussSeidel(sp);
+					
+				}
+
 			}
 			//Interpolate
 			else {
-			
+
+				//interpolate
+
+				//correction
+
+				//smooth
+				{
+					MGGPU_SmootherParams sp;
+					sp.A = (MGGPU_KernelPtr)_levels[i].A.gpu;
+					sp.isTopLevel = (i == 0);
+					sp.f = _levels[i].f;
+					sp.x = _levels[i].x;
+					sp.tmpx = _levels[i].tmpx;
+					sp.r = _levels[i].r;
+
+					sp.res = make_uint3(_levels[i].dim);
+					sp.tolerance = tolerance;
+					sp.auxBufferGPU = _auxReduceBuffer.gpu;
+					sp.auxBufferCPU = _auxReduceBuffer.cpu;
+					sp.iter = postN;
+
+					MGGPU_GaussSeidel(sp);
+				}
 			}
 
 			prevI = i;

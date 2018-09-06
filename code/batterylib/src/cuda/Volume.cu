@@ -1042,3 +1042,19 @@ void launchReduceKernel(
 
 }
 
+
+
+template <typename T>
+__global__ void __clearKernel(cudaSurfaceObject_t surf, uint3 res, T val) {
+	VOLUME_VOX_GUARD(res);
+	write<T>(surf, vox, val);
+}
+
+void launchClearKernel(PrimitiveType type, cudaSurfaceObject_t surf, uint3 res, void * val) {
+	BLOCKS3D(8, res);
+	if (type == TYPE_FLOAT) {
+		__clearKernel<float> << < numBlocks, block >> >(surf, res, *((float *)val));
+	}
+	else if (type == TYPE_DOUBLE)
+		__clearKernel<double> << < numBlocks, block >> >(surf, res, *((double *)val));
+}
