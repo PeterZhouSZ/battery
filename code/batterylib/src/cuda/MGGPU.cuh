@@ -372,6 +372,13 @@ inline __device__ __host__ int MGGPU_KernelProductSize(int an, int bn) {
 }
 
 
+inline __device__ __host__ int MGGPU_KernelHalf(int kN) {
+	if (kN % 2 == 0) {
+		return kN / 2 - 1;
+	}	
+	return kN / 2;
+}
+
 
 /*
 	Generates domain from mask and two double values
@@ -449,6 +456,21 @@ void MGGPU_Residual_TopLevel(
 	MGGPU_Volume & r
 );
 
+void MGGPU_Residual(
+	const uint3 res,
+	const MGGPU_Kernel3D<5> * A,
+	const MGGPU_Volume & x,
+	const MGGPU_Volume & f,
+	MGGPU_Volume & r
+);
+
+
+double MGGPU_SquareNorm(
+	const uint3 res, 
+	MGGPU_Volume & x,
+	void * auxGPU,
+	void * auxCPU
+);
 
 
 #ifdef ___OLD

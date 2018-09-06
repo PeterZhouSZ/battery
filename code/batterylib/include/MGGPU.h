@@ -48,8 +48,8 @@ namespace blib {
 
 
 
-
-		BLIB_EXPORT void solve(T tolerance, size_t maxIter, CycleType cycleType = W_CYCLE);
+		//Returns error
+		BLIB_EXPORT T solve(T tolerance, size_t maxIter, CycleType cycleType = W_CYCLE);
 
 		BLIB_EXPORT T tortuosity();
 
@@ -94,6 +94,9 @@ namespace blib {
 		SparseMat _lastLevelA;
 		DirectSolver _lastLevelSolver;
 
+		DataPtr _auxReduceBuffer;
+
+		size_t _iterations;
 
 	};
 

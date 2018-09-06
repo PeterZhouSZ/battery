@@ -1397,6 +1397,39 @@ double __device__  convolve3D_SystemTop(
 	return sum;
 }
 
+template<size_t kN>
+double __device__  convolve3D(
+	const int3 & ivox,
+	const MGGPU_Kernel3D<kN> & k,
+	const MGGPU_Volume & vec
+) {
+
+	double sum = 0.0;
+
+	const int kNHalf = MGGPU_KernelHalf(kN);
+	const int3 offset = make_int3(-kNHalf);
+
+	#pragma unroll
+	for (int x = 0; x < kN; x++) {
+		#pragma unroll
+		for (int y = 0; y < kN; y++) {
+			#pragma unroll
+			for (int z = 0; z < kN; z++) {
+
+				const int3 pos = ivox + make_int3(x, y, z) + offset;
+				if (!_isValidPos(vec.res, pos))
+					continue;
+
+				sum += k.v[x][y][z] * read<double>(vec.surf, pos);
+			}
+		}
+	}
+
+
+
+	return sum;
+}
+
 
 __global__ void __residual_topLevel(
 	const uint3 res,
@@ -1414,10 +1447,26 @@ __global__ void __residual_topLevel(
 	const double rval = fval - Axval;
 
 	write<double>(r.surf, ivox, rval);
-	
-
 
 }
+__global__ void __residual(
+	const uint3 res,
+	const MGGPU_Kernel3D<Ai_SIZE> * A,
+	const MGGPU_Volume x,
+	const MGGPU_Volume f,
+	MGGPU_Volume r
+) {
+	VOLUME_IVOX_GUARD(res);
+
+	const size_t I = _linearIndex(res, ivox);
+	const double Axval = convolve3D<Ai_SIZE>(ivox, A[I], x);
+	const double fval = read<double>(f.surf, ivox);
+	const double rval = fval - Axval;
+	write<double>(r.surf, ivox, rval);
+
+}
+
+
 
 void MGGPU_Residual_TopLevel(
 	const uint3 res,
@@ -1426,15 +1475,45 @@ void MGGPU_Residual_TopLevel(
 	const MGGPU_Volume & f,
 	MGGPU_Volume & r
 ) {
+	BLOCKS3D(8, res); 
+	__residual_topLevel << < numBlocks, block >> >(	res,A0,x,f,	r);
+}
 
 
-	BLOCKS3D(4, res); //TODO: find best number for perofmrance/occupancy
-	__residual_topLevel << < numBlocks, block >> >(
+void MGGPU_Residual(
+	const uint3 res,
+	const MGGPU_Kernel3D<Ai_SIZE> * A,
+	const MGGPU_Volume & x,
+	const MGGPU_Volume & f,
+	MGGPU_Volume & r
+) {
+	BLOCKS3D(8, res);
+	__residual << < numBlocks, block >> >(res, A, x, f, r);
+}
+
+
+////////////////////////////////////////////// Reductions
+
+double MGGPU_SquareNorm(
+	const uint3 res, 
+	MGGPU_Volume & x,
+	void * auxGPU, 
+	void * auxCPU
+	) {
+
+	double result = 0.0;
+
+	launchReduceKernel(
+		TYPE_DOUBLE,
+		REDUCE_OP_SQUARESUM,
 		res,
-		A0,
-		x,
-		f,
-		r);
+		x.surf,
+		auxGPU,
+		auxCPU,
+		&result
+	);
+
+	return result;
 
 }
 

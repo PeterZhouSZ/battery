@@ -1188,74 +1188,13 @@ bool MGGPU<T>::alloc()
 
 
 
-	
-	/*const auto origDim = _mask->dim();
-	const size_t origTotal = origDim.x * origDim.y * origDim.z;
-
-	
-	_levels.resize(numLevels());
-	_levels[0].dim = origDim;
-	for (auto i = 1; i < numLevels(); i++) {
-		//TODO: add odd size handling
-		const auto prevDim = _levels[i - 1].dim;
-		_levels[i].dim = { prevDim.x / 2, prevDim.y / 2, prevDim.z / 2 };
-	}	
-
-	//Calculate memory requirements
-	const size_t perRowA = 7;
-	const size_t perRowR = 4 * 4 * 4;
-	const size_t perRowI = 8;
-
-	size_t DBL = sizeof(double);
-
-	std::vector<size_t> levelMem(numLevels(), 0);
-	size_t totalMem = 0;
-	for (auto i = 0; i < numLevels(); i++){
-		size_t N = _levels[i].dim.x * _levels[i].dim.y * _levels[i].dim.z;
-		size_t M = N;
-
-		
-		
-		size_t Aval = N * perRowA * sizeof(double);
-		size_t Arowptr = (M + 1) * sizeof(int); 
-		size_t Acolptr = N * perRowA * sizeof(int);
-
-		size_t D = N * sizeof(double);
-		size_t b = N * sizeof(double);
-		size_t x = N * sizeof(double);
-		size_t tmpx = N * sizeof(double);
-
-		size_t Rval = N * perRowR * sizeof(double);
-		size_t Rrowptr = (M + 1) * sizeof(int);
-		size_t Rcolptr = N * perRowR * sizeof(int);
-
-		size_t Ival = N * perRowI * sizeof(double);
-		size_t Irowptr = (M + 1) * sizeof(int);
-		size_t Icolptr = N * perRowI * sizeof(int);
-
-
-		/ *levelMem[i] += Aval + Arowptr + Acolptr + b + x + tmpx + D;
-		levelMem[i] += Rval + Rrowptr + Rcolptr;
-		levelMem[i] += Ival + Irowptr + Icolptr;* /
-
-		//A kernels
-		int aidim = 3 + i * 4;
-		levelMem[i] += N * DBL * aidim*aidim*aidim;
-		//I kernels
-		//levelMem[i] += N * DBL * 8;
-		//levelMem[i] += N * DBL * 4; //x, tmpx, r, f
-		//R ... on the fly
-
-		
-		totalMem += levelMem[i];
-		std::cout << "Level " << i << " :" << float(levelMem[i]) / (1024.0f * 1024.0f) << "MB" << std::endl;
-		std::cout << aidim << std::endl;
+	//Auxiliary buffer for reduction
+	{
+		const size_t maxN = _levels[0].N();
+		const size_t reduceN = maxN / VOLUME_REDUCTION_BLOCKSIZE;		
+		_auxReduceBuffer.allocDevice(reduceN, sizeof(double));
+		_auxReduceBuffer.allocHost();
 	}
-
-	std::cout << "Total  " << float(totalMem) / (1024.0f * 1024.0f * 1024.0f) << "GB" << std::endl;
-*/
-
-
 	
 
 	return true;
@@ -1264,7 +1203,7 @@ bool MGGPU<T>::alloc()
 
 
 template <typename T>
-void MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/) {
+T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/) {
 
 
 	const int preN = 1;
@@ -1272,30 +1211,62 @@ void MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCL
 	const int lastLevel = numLevels() - 1;
 
 	const std::vector<int> cycle = genCycle(cycleType, numLevels());
+		
+	MGGPU_Residual_TopLevel(
+		make_uint3(_levels[0].dim),
+		(MGGPU_SystemTopKernel *)_levels[0].A.gpu,
+		_levels[0].x,
+		_levels[0].f,
+		_levels[0].r
+	);
+
+	double f0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim), _levels[0].f, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+	double r0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim), _levels[0].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);	
+	double lastError = sqrt(r0SqNorm / f0SqNorm);
 
 
-	for(auto i=0; i < 10; i++)
-	{
-		CUDATimer tr0(true);
-		MGGPU_Residual_TopLevel(
-			make_uint3(_levels[0].dim),
-			(MGGPU_SystemTopKernel *)_levels[0].A.gpu,
-			_levels[0].x,
-			_levels[0].f,
-			_levels[0].r
-		);
-		tr0.stop();
-		std::cout << "Residual r0 t: " << tr0.timeMs() << "ms" << std::endl;
+
+	for (auto k = 0; k < maxIter; k++) {
+
+		int prevI = -1;
+		for (auto i : cycle) {
+
+			//Last level
+			if (i == numLevels() - 1) {
+
+			}
+			//Restrict
+			else if (i > prevI) {
+
+			}
+			//Interpolate
+			else {
+			
+			}
+
+			prevI = i;
+		}
+
+		
+		_iterations++;
+
+		double r0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim), _levels[0].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+		double err = sqrt(r0SqNorm / f0SqNorm);
+		
+		{
+			std::cout << "k = " << k << " err: " << err << ", ratio: " << err / lastError << std::endl;
+		}
+
+		lastError = err;
+
+		if (err < tolerance || isinf(err) || isnan(err))
+			return T(err);		
+
 	}
-	
-
-	/*_volume->getChannel(_levels[0].r.volID).getCurrentPtr().retrieve();
-	double * rCPU = (double*)_levels[0].r.cpu;*/
 
 
-	cudaDeviceSynchronize();
 
-	
+	cudaDeviceSynchronize();	
 
 	//CPU version
 	{
