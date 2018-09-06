@@ -31,7 +31,7 @@ AI_1 = A_1 * I_1;
 AI_2 = A_2 * I_2;
 RA_0 = R_0 * A_0;
 RA_1 = R_1 * A_1;
-AA_2 = R_2 * A_2;
+RA_2 = R_2 * A_2;
 %A_3 = (spconvert(A_3));
 %A_4 = (spconvert(A_4));
 %R_0 = 8 * R_0;
@@ -121,22 +121,40 @@ end
 %%
 
 clear
+
+load ('../build/I_1.dat')
 load ('../build/A_1.dat')
-%load ('../build/A_2.dat')
+load ('../build/A_2.dat')
+I1CPU = spconvert(I_1);
 A1CPU = spconvert(A_1);
 A1CPUF = full(A1CPU);
-%A2CPU = spconvert(A_2);
+A2CPU = spconvert(A_2);
+A2CPUF = full(A2CPU);
 
+load ('../build/MGGPU_I_1.dat')
 load ('../build/MGGPU_A_1.dat')
-%load ('../build/MGGPU_A_2.dat')
+load ('../build/MGGPU_A_2.dat')
+I1GPU = spconvert(MGGPU_I_1);
 A1GPU = spconvert(MGGPU_A_1);
 A1GPUF = full(A1GPU);
-%A2GPU = spconvert(MGGPU_A_2);
+A2GPU = spconvert(MGGPU_A_2);
+A2GPUF = full(A2GPU);
 
 A1DIFF = full(sum(sum(abs(A1CPU-A1GPU))))
-%A2DIFF = full(sum(sum(abs(A2CPU-A2GPU))))
+A2DIFF = full(sum(sum(abs(A2CPU-A2GPU))))
 
+clf
+subplot(2,2,1)
+spy(A1CPU)
+subplot(2,2,2)
+spy(A1GPU)
 
+subplot(2,2,3)
+spy(A2CPU)
+subplot(2,2,4)
+spy(A2GPU)
+
+%set(gcf, 'Position', get(0, 'Screensize'));
 %%
 %cusparse sizes
 

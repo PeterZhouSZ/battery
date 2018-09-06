@@ -520,3 +520,11 @@ bool MGGPU_BuildA1(
 	MGGPU_Kernel3D<5> * A1,
 	bool onDevice
 );
+
+bool MGGPU_BuildAi(
+	const uint3 resA,
+	const MGGPU_Kernel3D<5> * Aprev,
+	const MGGPU_InterpKernel * I,
+	MGGPU_Kernel3D<5> * Anext,
+	bool onDevice
+);

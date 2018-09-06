@@ -41,6 +41,8 @@ uint3 vox = make_uint3(			\
 		((res.y + (block.y-1)) / block.y),		\
 		((res.z + (block.z-1)) / block.z)		\
 	);											\
+	//printf("Launching kernel with %d,%d,%d blocks, per block: %d,%d,%d\n", numBlocks.x, numBlocks.y,numBlocks.z, block.x, block.y, block.z)\
+	
 
 #define BLOCKS3D_INT3(a,b,c, res)					\
 	if(a*b*c > 1024){	\

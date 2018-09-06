@@ -562,6 +562,7 @@ __global__ void ___genI(
 	const int3 ivox = make_int3(vox);
 	I[i] = MGGPU_GetInterpolationKernel(domainHalf, ivox, destRes, const_sys_params.dirPrimary);
 
+
 }
 
 
@@ -570,7 +571,8 @@ void MGGPU_GenerateSystemInterpKernels(
 	const MGGPU_Volume & domainHalf,
 	MGGPU_InterpKernel * I
 ) {
-	BLOCKS3D(2, destRes);
+
+	BLOCKS3D(destRes.x <= 4 ? 1 : 2, destRes);
 	___genI << < numBlocks, block >> > (
 		destRes,
 		domainHalf,
@@ -1235,6 +1237,7 @@ bool MGGPU_CombineKernelsGeneric(
 //#define UNROLL_GENA1 #pragma unroll
 #define UNROLL_GENA1 {}
 
+
 __device__ __host__ void buildA1At(
 	int3 & ivox,
 	const uint3 & resA0,
@@ -1253,16 +1256,15 @@ __device__ __host__ void buildA1At(
 
 
 	//Temporary result of R*A at row(ivox)
-	
-	
 	MGGPU_Kernel3D<RA0_SIZE> RA;
 	
 	UNROLL_GENA1	
-	for (auto raz = 0; raz < RA0_SIZE; raz++) {
+	for (auto rax = 0; rax < RA0_SIZE; rax++) {	
 		UNROLL_GENA1
 		for (auto ray = 0; ray < RA0_SIZE; ray++) {
 			UNROLL_GENA1
-			for (auto rax = 0; rax < RA0_SIZE; rax++) {
+				for (auto raz = 0; raz < RA0_SIZE; raz++) {
+			
 
 				int3 voxRA = NspaceIvox + make_int3(rax - RA0_HALF, ray - RA0_HALF, raz - RA0_HALF);
 				if (!_isValidPos(resA0, voxRA)) {
@@ -1273,19 +1275,15 @@ __device__ __host__ void buildA1At(
 
 				//ivox + rx,y,z is in N space
 				double sum = 0.0;		
-				for (auto rz = 0; rz < RESTR_SIZE; rz++) {
-					for (auto ry = 0; ry < RESTR_SIZE; ry++) {
-						for (auto rx = 0; rx < RESTR_SIZE; rx++) {							
+				for (auto rx = 0; rx < RESTR_SIZE; rx++) {
+					for (auto ry = 0; ry < RESTR_SIZE; ry++) {											
+						for (auto rz = 0; rz < RESTR_SIZE; rz++) {
 							double rval = R.v[rx][ry][rz];							
 							int3 rvox = NspaceIvox + make_int3(rx - RESTR_HALF, ry - RESTR_HALF, rz - RESTR_HALF);
 							if (!_isValidPos(resA0, rvox)) {
 								continue;
 							}
-
-#ifndef __CUDA_ARCH__
-							if (rval == 0.0) continue;							
-#endif
-							
+						
 							size_t NspaceIndex = _linearIndex(resA0, rvox);							
 
 							//Top level
@@ -1312,10 +1310,12 @@ __device__ __host__ void buildA1At(
 	MGGPU_Kernel3D<A1_SIZE> & a1 = A1[a1index];
 
 	
-	//A1 is local, fast
+	
+	
 	for (auto xa1 = 0; xa1 < A1_SIZE; xa1++) {
-		for (auto ya1 = 0; ya1 < A1_SIZE; ya1++) {
+		for (auto ya1 = 0; ya1 < A1_SIZE; ya1++) {		
 			for (auto za1 = 0; za1 < A1_SIZE; za1++) {
+			
 
 				int3 voxA1 = ivox + make_int3(xa1 - A1_HALF, ya1 - A1_HALF, za1 - A1_HALF);				
 				if (!_isValidPos(resA0, voxA1)) {
@@ -1323,13 +1323,11 @@ __device__ __host__ void buildA1At(
 					continue;
 				}				
 
-				//Dot product between RA0 and I
-
-				//RA0 is local, fast, I is in memory, 
+				
 				double sum = 0.0;				
-				for (auto raz = 0; raz < RA0_SIZE; raz++) {
+				for (auto rax = 0; rax < RA0_SIZE; rax++) {				
 					for (auto ray = 0; ray < RA0_SIZE; ray++) {
-						for (auto rax = 0; rax < RA0_SIZE; rax++) {
+						for (auto raz = 0; raz < RA0_SIZE; raz++) {						
 
 							int3 ravox = NspaceIvox + make_int3(rax - RA0_HALF, ray - RA0_HALF, raz - RA0_HALF);
 							if (!_isValidPos(resA0, ravox)) {
@@ -1338,7 +1336,7 @@ __device__ __host__ void buildA1At(
 
 							double rval = RA.v[rax][ray][raz];
 							size_t NspaceIndex = _linearIndex(resA0, ravox);
-							//Top level
+							
 							{	
 
 								int3 offset = voxA1 - make_int3(ravox.x / 2, ravox.y / 2, ravox.z / 2) + make_int3(INTERP_SIZE / 2);
@@ -1364,6 +1362,158 @@ __device__ __host__ void buildA1At(
 	return;
 }
 
+#define RAi_SIZE 8
+#define RAi_HALF 3
+#define Ai_SIZE 5
+#define Ai_HALF 2
+
+#define Ai_THREADS_PER_DIM (4)
+
+
+__device__ __host__ void buildAiAt(
+	int3 & ivox,
+	const uint3 & resAprev,
+	const uint3 & resAnext,
+	const MGGPU_Kernel3D<Ai_SIZE> * Aprev,
+	const MGGPU_InterpKernel * I,
+	MGGPU_Kernel3D<Ai_SIZE> * Anext,
+	int dirPrimary
+) {
+
+
+	const int3 NspaceIvox = ivox * 2;	
+	const size_t debugI = _linearIndex(resAnext, ivox);
+
+	MGGPU_RestrictKernel R;
+	MGGPU_GetRestrictionKernel(make_uint3(ivox), resAnext, dirPrimary, (double*)&R);
+
+
+	//Temporary result of R*A at row(ivox)
+	MGGPU_Kernel3D<RAi_SIZE> RA; //At A1->A2, 58% occupancy for 16^3
+
+	UNROLL_GENA1
+		for (auto rax = 0; rax < RAi_SIZE; rax++) {
+		
+			UNROLL_GENA1
+				for (auto ray = 0; ray < RAi_SIZE; ray++) {
+					UNROLL_GENA1
+						for (auto raz = 0; raz < RAi_SIZE; raz++) {
+						
+
+							int3 voxRA = NspaceIvox + make_int3(rax - RAi_HALF, ray - RAi_HALF, raz - RAi_HALF);
+							if (!_isValidPos(resAprev, voxRA)) {
+								RA.v[rax][ray][raz] = 0.0;
+								continue;
+							}
+
+
+							//ivox + rx,y,z is in N space
+							double sum = 0.0;
+							for (auto rx = 0; rx < RESTR_SIZE; rx++) {
+								for (auto rz = 0; rz < RESTR_SIZE; rz++) {
+									for (auto ry = 0; ry < RESTR_SIZE; ry++) {									
+										double rval = R.v[rx][ry][rz];
+										int3 rvox = NspaceIvox + make_int3(rx - RESTR_HALF, ry - RESTR_HALF, rz - RESTR_HALF);
+										if (!_isValidPos(resAprev, rvox)) {
+											continue;
+										}
+
+										size_t NspaceIndex = _linearIndex(resAprev, rvox);
+										
+										{
+											const MGGPU_Kernel3D<Ai_SIZE> & A = Aprev[NspaceIndex];
+											int3 Aoffset = voxRA - rvox + make_int3(Ai_HALF);
+											
+											if (!_isValidPos(make_uint3(Ai_SIZE), Aoffset)) {
+												continue;
+											}
+
+											double aval = A.v[Aoffset.x][Aoffset.y][Aoffset.z];
+											sum += aval*rval;
+
+
+										}
+
+									}
+								}
+							}
+
+
+							RA.v[rax][ray][raz] = sum;
+						}
+				}
+		}
+
+
+
+
+	size_t a1index = _linearIndex(resAnext, ivox);
+	MGGPU_Kernel3D<Ai_SIZE> & aNext = Anext[a1index];
+
+
+	for (auto xa1 = 0; xa1 < Ai_SIZE; xa1++) {	
+		for (auto ya1 = 0; ya1 < Ai_SIZE; ya1++) {			
+			for (auto za1 = 0; za1 < Ai_SIZE; za1++) {
+				
+				
+				//ivox ... ivox / Cratio, Cratio = 1
+				int3 voxA1 = ivox + make_int3(xa1 - Ai_HALF, ya1 - Ai_HALF, za1 - Ai_HALF);
+
+				size_t debugJ = _linearIndex(resAnext, voxA1);
+
+				if (!_isValidPos(resAprev, voxA1)) {
+					aNext.v[xa1][ya1][za1] = 0.0;
+					continue;
+				}
+
+
+				
+
+				double sum = 0.0;
+				for (auto rax = 0; rax < RAi_SIZE; rax++) {
+					for (auto raz = 0; raz < RAi_SIZE; raz++) {
+						for (auto ray = 0; ray < RAi_SIZE; ray++) {						
+
+							
+							int3 ravox = NspaceIvox + make_int3(rax - RAi_HALF, ray - RAi_HALF, raz - RAi_HALF);
+							size_t NspaceIndex = _linearIndex(resAprev, ravox);
+
+							if (!_isValidPos(resAprev, ravox)) {
+								continue;
+							}
+
+							double rval = RA.v[rax][ray][raz];
+							
+
+							
+
+							{
+
+								int3 offset = voxA1 - make_int3(ravox.x / 2, ravox.y / 2, ravox.z / 2) + make_int3(INTERP_SIZE / 2);
+								if (!_isValidPos(make_uint3(INTERP_SIZE), offset)) {
+									continue;
+								}
+
+								double ival = I[NspaceIndex].v[offset.x][offset.y][offset.z];
+
+								sum += ival*rval;							
+
+							}
+						}
+					}
+				}
+
+
+				aNext.v[xa1][ya1][za1] = sum;
+
+			}
+		}
+	}
+
+
+	return;
+}
+
 
 __global__ void __buildA1(
 	const uint3 resA0,
@@ -1375,15 +1525,7 @@ __global__ void __buildA1(
 
 	//Get voxel position
 	VOLUME_VOX_GUARD(resA1);
-	int3 ivox = make_int3(vox);
-	
-	
-	//Combine kernels at ivox position
-	//combineKernelsAt<combineType, AKernelAllocSize>(ivox, p);
-
-	//__shared__ MGGPU_Kernel3D<RA0_SIZE> RA[A1_THREADS_PER_DIM][A1_THREADS_PER_DIM][A1_THREADS_PER_DIM];
-	
-
+	int3 ivox = make_int3(vox);	
 
 	buildA1At(
 		ivox,
@@ -1393,9 +1535,30 @@ __global__ void __buildA1(
 		I,
 		A1,
 		const_sys_params.dirPrimary
-	);
+	);	
+}
 
-	
+__global__ void __buildAi(
+	const uint3 resAprev,
+	const uint3 resAnext,
+	const MGGPU_Kernel3D<Ai_SIZE> * Aprev,
+	const MGGPU_InterpKernel * I,
+	MGGPU_Kernel3D<Ai_SIZE> * Anext)
+{
+
+	//Get voxel position
+	VOLUME_VOX_GUARD(resAnext);
+	int3 ivox = make_int3(vox);
+
+	buildAiAt(
+		ivox,
+		resAprev,
+		resAnext,
+		Aprev,
+		I,
+		Anext,
+		const_sys_params.dirPrimary
+	);
 }
 
 bool MGGPU_BuildA1(
@@ -1431,6 +1594,49 @@ bool MGGPU_BuildA1(
 						I,
 						A1,
 						const_sys_params_cpu.dirPrimary						
+					);
+				}
+			}
+		}
+	}
+
+	return true;
+
+}
+
+bool MGGPU_BuildAi(
+	const uint3 resA,
+	const MGGPU_Kernel3D<5> * Aprev,
+	const MGGPU_InterpKernel * I,
+	MGGPU_Kernel3D<5> * Anext,
+	bool onDevice
+) {
+
+	int3 ivox;
+	uint3 resAprev = resA;
+	uint3 resAnext = make_uint3(resAprev.x / 2, resAprev.y / 2, resAprev.z / 2);
+
+	if (onDevice) {
+		BLOCKS3D(Ai_THREADS_PER_DIM, resAnext); //TODO increase
+		__buildAi << < numBlocks, block >> >(
+			resAprev,
+			resAnext,
+			Aprev,
+			I,
+			Anext);
+	}
+	else {
+		for (ivox.z = 0; ivox.z < resAnext.x; ivox.z++) {
+			for (ivox.y = 0; ivox.y < resAnext.y; ivox.y++) {
+				for (ivox.x = 0; ivox.x < resAnext.z; ivox.x++) {
+					buildAiAt(
+						ivox,
+						resAprev,
+						resAnext,
+						Aprev,
+						I,
+						Anext,
+						const_sys_params_cpu.dirPrimary
 					);
 				}
 			}

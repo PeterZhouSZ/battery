@@ -323,9 +323,6 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			I.retrieve();
 			A0.retrieve();
 			A1.retrieve();
-						
-
-		
 
 			auto t0 = std::chrono::system_clock::now();
 			MGGPU_BuildA1(
@@ -357,9 +354,6 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			_CUDA(cudaPeekAtLastError());
 			std::cout << "Build A1 GPU: " << t.time() << "s" << std::endl;
 			cudaPrintMemInfo();
-
-
-			
 		
 		}
 
@@ -377,8 +371,111 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 				);
 			saveSparse(mat, "MGGPU_A", 1);
 		}
-#endif		
+#endif	
 
+	}
+
+
+	/*
+	Generate Ai
+	*/
+	for (auto i = 2; i < _levels.size(); i++) {
+
+		DataPtr & I = _levels[i].I;
+		DataPtr & Aprev = _levels[i - 1].A;
+		DataPtr & Anext = _levels[i].A;
+
+		if (_levels[i].dim.x % 2 != 0 || _levels[i].dim.y % 2 != 0 || _levels[i].dim.z % 2 != 0) {
+			std::cout << "!!!!!!!!!!!!!! Odd dimension not supported yet !!!!!!!!!!!!!!" << std::endl;
+			return false;
+		}
+
+		std::cout << "Alloc I" << i << ", dim:" << _levels[i - 1].dim.x << "~^3 -> " << _levels[i].dim.x << "~^3" << std::endl;
+		I.allocDevice(_levels[i-1].N(), sizeof(MGGPU_Kernel3D<3>));
+		
+		CUDATimer tI(true);
+		MGGPU_GenerateSystemInterpKernels(
+			make_uint3(_levels[i-1].dim.x, _levels[i-1].dim.y, _levels[i-1].dim.z),
+			_levels[i].domain,
+			(MGGPU_Kernel3D<3> *)I.gpu
+		);
+		std::cout << "Gen I"<< i <<": " << tI.time() << "s" << std::endl;
+#ifdef SAVE_TO_FILE
+		{
+			DataPtr & I = _levels[i].I;
+
+			I.retrieve();
+			MGGPU_InterpKernel * ptr = (MGGPU_InterpKernel*)I.cpu;
+			SparseMat mat = kernelToSparse<INTERP_SIZE>(
+				(MGGPU_InterpKernel*)ptr,
+				_levels[i-1].dim,
+				_levels[i].dim
+				);
+			saveSparse(mat, "MGGPU_I", i-1);
+		}
+#endif	
+		
+
+
+		std::cout << "Alloc A"<< i << std::endl;
+		Anext.allocDevice(_levels[i].N(), sizeof(MGGPU_Kernel3D<5>));
+
+		auto Nres = make_uint3(_levels[i-1].dim.x, _levels[i-1].dim.y, _levels[i-1].dim.z);
+
+
+		bool CPUtest = false;
+
+		if (CPUtest) {
+			I.retrieve();
+			Aprev.retrieve();
+			Anext.retrieve();
+
+			auto t0 = std::chrono::system_clock::now();
+			MGGPU_BuildAi(
+				Nres,
+				(MGGPU_Kernel3D<5>*)Aprev.cpu,
+				(MGGPU_InterpKernel*)I.cpu,
+				(MGGPU_Kernel3D<5>*)Anext.cpu,
+				false
+			);
+			auto t1 = std::chrono::system_clock::now();
+			std::chrono::duration<double> prepTime = t1 - t0;
+			std::cout << "Build A1 CPU: " << prepTime.count() << "s" << std::endl;
+
+			Anext.commit();
+		}
+		else {
+
+			cudaPrintMemInfo();
+			CUDATimer t(true);
+			MGGPU_BuildAi(
+				Nres,
+				(MGGPU_Kernel3D<5>*)Aprev.gpu,
+				(MGGPU_InterpKernel*)I.gpu,
+				(MGGPU_Kernel3D<5>*)Anext.gpu,
+				true
+			);
+			t.stop();
+			_CUDA(cudaPeekAtLastError());
+			std::cout << "Build A"<< i <<" GPU: " << t.time() << "s" << std::endl;
+			cudaPrintMemInfo();
+
+		}
+
+#ifdef SAVE_TO_FILE
+		{
+			DataPtr & A = _levels[i].A;
+
+			A.retrieve();
+			MGGPU_Kernel3D<5> * ptr = (MGGPU_Kernel3D<5> *)A.cpu;
+			SparseMat mat = kernelToSparse<5>(
+				(MGGPU_Kernel3D<5>*)ptr,
+				_levels[i].dim,
+				_levels[i].dim
+				);
+			saveSparse(mat, "MGGPU_A", i);
+		}
+#endif	
 
 	}
 
