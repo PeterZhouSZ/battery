@@ -8,6 +8,8 @@
 
 #include "../src/cuda/MGGPU.cuh"
 
+#include <Eigen/Eigen>
+
 namespace blib {
 
 
@@ -21,6 +23,11 @@ namespace blib {
 			W_CYCLE,
 			V_CYCLE_SINGLE
 		};
+
+		using SparseMat = Eigen::SparseMatrix<double, Eigen::RowMajor>;
+		using DenseMat = Eigen::MatrixXd;
+		using DirectSolver = Eigen::SparseLU<SparseMat>;
+
 
 		BLIB_EXPORT MGGPU();
 
@@ -90,6 +97,9 @@ namespace blib {
 		};
 
 		std::vector<Level> _levels;
+		//DenseMat _lastLevelA;
+		SparseMat _lastLevelA;
+		DirectSolver _lastLevelSolver;
 
 
 	};

@@ -10,15 +10,17 @@
 struct MGGPU_Volume{
 	uint3 res;	
 	PrimitiveType type;
-	cudaSurfaceObject_t surf;
-	void * cpu;
+	cudaSurfaceObject_t surf;	
 	int volID;
 
+	void * cpu; //for debug
 };
 
 
+#define MAX_LEVELS 10
 
-struct MGGPU_SysParams {
+//Construction params
+struct MGGPU_SysParams {	
 	double highConc;
 	double lowConc;
 	double concetrationBegin;

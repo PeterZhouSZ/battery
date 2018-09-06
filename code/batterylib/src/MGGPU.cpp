@@ -17,14 +17,11 @@
 
 
 
-#ifdef SAVE_TO_FILE
-#include <Eigen/Eigen>
-#include <fstream>
-using SparseMat = Eigen::SparseMatrix<double, Eigen::RowMajor>;
 
-#else
-using SparseMat = char;
+#ifdef SAVE_TO_FILE
+#include <fstream>
 #endif
+
 
 
 using namespace blib;
@@ -34,7 +31,7 @@ template class MGGPU<double>;
 
 #ifndef SAVE_TO_FILE
 
-bool saveSparse(const SparseMat & M, const std::string & name, int level) {
+bool saveSparse(const MGGPU<double>::SparseMat & M, const std::string & name, int level) {
 	return true;
 }
 
@@ -44,8 +41,127 @@ bool saveVector(void * vin, size_t N, const std::string & name, int level) {
 }
 
 template <size_t KN>
-SparseMat kernelToSparse(MGGPU_Kernel3D<KN> * kernels, ivec3 dim0, ivec3 dim1) {
-	return 0;
+MGGPU<double>::DenseMat kernelToDenseMat(MGGPU_Kernel3D<KN> * kernels, ivec3 dim0, ivec3 dim1) {
+	size_t rows = dim0.x * dim0.y * dim0.z;
+	size_t cols = dim1.x * dim1.y * dim1.z;
+	
+	MGGPU<double>::DenseMat M = MGGPU<double>::DenseMat::Zero(rows, cols);
+
+	ivec3 stride = { 1, dim1.x, dim1.x * dim1.y };
+
+	for (auto i = 0; i < rows; i++) {
+		MGGPU_Kernel3D<KN> & kernel = kernels[i];
+
+		ivec3 ipos = posFromLinear(dim0, i);
+		ivec3 jpos = ipos;
+		if (dim0 != dim1) {
+			jpos = {
+				int(jpos.x / (dim0.x / float(dim1.x))),
+				int(jpos.y / (dim0.y / float(dim1.y))),
+				int(jpos.z / (dim0.z / float(dim1.z)))
+			};
+		}
+
+
+
+
+		for (int x = 0; x < KN; x++) {
+			for (int y = 0; y < KN; y++) {
+				for (int z = 0; z < KN; z++) {
+
+					ivec3 offset = { x,y,z };
+					if (KN % 2 == 0) {
+						offset -= ivec3(KN / 2 - 1);
+					}
+					else {
+						offset -= ivec3(KN / 2);
+					}
+
+
+					if (kernel.v[x][y][z] != 0.0) {
+						ivec3 kpos = jpos + offset;
+						if (isValidPos(dim1, kpos)) {
+							size_t col = kpos.x * stride.x + kpos.y * stride.y + kpos.z * stride.z;
+							M(i,col) = kernel.v[x][y][z];
+						}
+					}
+				}
+			}
+		}
+
+	}
+
+	return M;
+
+
+
+}
+
+template <size_t KN>
+MGGPU<double>::SparseMat kernelToSparse(MGGPU_Kernel3D<KN> * kernels, ivec3 dim0, ivec3 dim1) {
+
+	size_t rows = dim0.x * dim0.y * dim0.z;
+	size_t cols = dim1.x * dim1.y * dim1.z;
+
+	Eigen::SparseMatrix<double, Eigen::RowMajor> M;
+
+	M.resize(rows, cols);
+	M.reserve(Eigen::VectorXi::Constant(rows, KN*KN*KN));
+
+	ivec3 stride = { 1, dim1.x, dim1.x * dim1.y };
+
+	for (auto i = 0; i < rows; i++) {
+		MGGPU_Kernel3D<KN> & kernel = kernels[i];
+
+		ivec3 ipos = posFromLinear(dim0, i);
+		ivec3 jpos = ipos;
+		if (dim0 != dim1) {
+			jpos = {
+				int(jpos.x / (dim0.x / float(dim1.x))),
+				int(jpos.y / (dim0.y / float(dim1.y))),
+				int(jpos.z / (dim0.z / float(dim1.z)))
+			};
+		}
+
+
+		int nonzeros = 0;
+
+		for (int x = 0; x < KN; x++) {
+			for (int y = 0; y < KN; y++) {
+				for (int z = 0; z < KN; z++) {
+
+					ivec3 offset = { x,y,z };
+					if (KN % 2 == 0) {
+						offset -= ivec3(KN / 2 - 1);
+					}
+					else {
+						offset -= ivec3(KN / 2);
+					}
+
+					if (kernel.v[x][y][z] != 0.0) {
+						ivec3 kpos = jpos + offset;
+						if (isValidPos(dim1, kpos)) {
+							size_t col = kpos.x * stride.x + kpos.y * stride.y + kpos.z * stride.z;
+							M.insert(i, col) = kernel.v[x][y][z];
+							nonzeros++;
+}
+					}
+				}
+			}
+		}
+
+
+		/*if (i < 32) {
+			std::cout << i << " -> " << nonzeros << std::endl;
+		}*/
+
+	}
+
+	return M;
+
+
+
+
 }
 
 #else
@@ -87,73 +203,7 @@ bool saveVector(void * vin, size_t N,  const std::string & name, int level) {
 }
 
 
-template <size_t KN>
-SparseMat kernelToSparse(MGGPU_Kernel3D<KN> * kernels, ivec3 dim0, ivec3 dim1) {
 
-	size_t rows = dim0.x * dim0.y * dim0.z;
-	size_t cols = dim1.x * dim1.y * dim1.z;
-
-	Eigen::SparseMatrix<double, Eigen::RowMajor> M;
-
-	M.resize(rows, cols);
-	M.reserve(Eigen::VectorXi::Constant(rows, KN*KN*KN));
-
-	ivec3 stride = {1, dim1.x, dim1.x * dim1.y};
-
-	for (auto i = 0; i < rows; i++) {
-		MGGPU_Kernel3D<KN> & kernel = kernels[i];
-
-		ivec3 ipos = posFromLinear(dim0, i);
-		ivec3 jpos = ipos;
-		if (dim0 != dim1) {
-			jpos = {
-				int(jpos.x / (dim0.x / float(dim1.x))),
-				int(jpos.y / (dim0.y / float(dim1.y))),
-				int(jpos.z / (dim0.z / float(dim1.z)))
-			};
-		}
-
-
-		int nonzeros = 0;
-
-		for (int x = 0; x < KN; x++) {
-			for (int y = 0; y < KN; y++) {
-				for (int z = 0; z < KN; z++) {
-
-					ivec3 offset = { x,y,z };
-					if (KN % 2 == 0) {
-						offset -= ivec3( KN / 2 - 1);
-					}
-					else {
-						offset -= ivec3(KN / 2);
-					}
-					
-
-					if (kernel.v[x][y][z] != 0.0) {
-						ivec3 kpos = jpos + offset;
-						if (isValidPos(dim1, kpos)) {
-							size_t col = kpos.x * stride.x + kpos.y * stride.y + kpos.z * stride.z;
-							M.insert(i, col) = kernel.v[x][y][z];
-							nonzeros++;
-						}
-					}
-				}
-			}
-		}
-
-
-		if (i < 32) {
-			std::cout << i <<" -> " << nonzeros << std::endl;
-		}
-
-	}
-
-	return M;
-
-
-
-
-}
 
 #endif
 
@@ -266,15 +316,6 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 
 
 
-	//////////////
-	//Sparse
-	/*for (auto level = 1; level < _levels.size(); level++) {
-		size_t N = _levels[level].N();
-		
-		
-	}*/
-	//////////////
-
 
 	/*
 		Generate A0 - top level kernels
@@ -385,12 +426,13 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		DataPtr & Aprev = _levels[i - 1].A;
 		DataPtr & Anext = _levels[i].A;
 
+		
+
+		std::cout << "Alloc I" << i << ", dim:" << _levels[i - 1].dim.x << "~^3 -> " << _levels[i].dim.x << "~^3" << std::endl;
 		if (_levels[i].dim.x % 2 != 0 || _levels[i].dim.y % 2 != 0 || _levels[i].dim.z % 2 != 0) {
 			std::cout << "!!!!!!!!!!!!!! Odd dimension not supported yet !!!!!!!!!!!!!!" << std::endl;
 			return false;
 		}
-
-		std::cout << "Alloc I" << i << ", dim:" << _levels[i - 1].dim.x << "~^3 -> " << _levels[i].dim.x << "~^3" << std::endl;
 		I.allocDevice(_levels[i-1].N(), sizeof(MGGPU_Kernel3D<3>));
 		
 		CUDATimer tI(true);
@@ -479,7 +521,33 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 
 	}
 
+
+	//Retrieve last A from gpu and convert it to sparse/dense matrix
+	{
+	
+		auto t0 = std::chrono::system_clock::now();
+		DataPtr & lastA = _levels.back().A;
+		const ivec3 dim = _levels.back().dim;
+		lastA.retrieve();
+
+		//_lastLevelA = kernelToDenseMat((MGGPU_Kernel3D<5>*)lastA.cpu, dim, dim);
+		_lastLevelA = kernelToSparse((MGGPU_Kernel3D<5>*)lastA.cpu, dim, dim);
+		_lastLevelSolver.analyzePattern(_lastLevelA);
+		_lastLevelSolver.factorize(_lastLevelA);
+
+		auto t1 = std::chrono::system_clock::now();
+		std::chrono::duration<double> prepTime = t1 - t0;
+		std::cout << "Presolve ALast: " << prepTime.count() << "s" << std::endl;
+
+	}
+
+
+
+
 	return true;
+
+#ifdef ____OLD
+	{
 
 	/*
 		Generate Ai, using Galerkin Ri-1 * Ai-1 * Ii-1
@@ -1056,6 +1124,8 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 	return false;
 
 }
+
+#endif
 
 
 template <typename T>
