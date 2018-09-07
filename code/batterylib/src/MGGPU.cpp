@@ -447,7 +447,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 	*/
 	for (auto i = 2; i < _levels.size(); i++) {
 
-		DataPtr & I = _levels[i].I;
+		DataPtr & I = _levels[i - 1].I;
 		DataPtr & Aprev = _levels[i - 1].A;
 		DataPtr & Anext = _levels[i].A;
 
@@ -1230,6 +1230,13 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 	double r0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim), _levels[0].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);	
 	double lastError = sqrt(r0SqNorm / f0SqNorm);
 
+
+	auto err = [&](int i){
+		double fiSqNorm = MGGPU_SquareNorm(make_uint3(_levels[i].dim), _levels[i].f, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+		double riSqNorm = MGGPU_SquareNorm(make_uint3(_levels[i].dim), _levels[i].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+		return sqrt(riSqNorm / fiSqNorm);
+	};
+	
 	//TODO: idea use just one tmpx,x, f ... with the size of the largest and reuse?
 
 	for (auto k = 0; k < maxIter; k++) {
@@ -1239,6 +1246,7 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 
 			//Last level
 			if (i == numLevels() - 1) {
+				std::cout << "(" << i << ") Last level direct solve" << std::endl;
 
 				//Retrieve F GPU - > CPU
 				_volume->getChannel(_levels[i].f.volID).getCurrentPtr().retrieve();
@@ -1255,11 +1263,17 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 			//Restrict
 			else if (i > prevI) {
 
+				std::cout << "(" << i << ") Restrict" << std::endl;
+
 				//Zero out x
 				if (i > 0) {
 					MGGPU_SetToZero(_levels[i].x);
 				}
 
+
+				
+				std::cout << "Pre smooth " << err(i) << std::endl;
+				
 				{
 					MGGPU_SmootherParams sp;
 					sp.A = (MGGPU_KernelPtr)_levels[i].A.gpu;
@@ -1278,13 +1292,31 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 					
 				}
 
+				std::cout << "Post smooth " << err(i) << std::endl;
+
+				//restrict
+				//R*x multiply 
+				MGGPU_Restrict(
+					_levels[i].r,
+					_levels[i + 1].f
+				);
+
 			}
 			//Interpolate
 			else {
 
-				//interpolate
+				std::cout << "(" << i << ") Interpolate" << std::endl;
 
-				//correction
+				_levels[i].I.retrieve();
+				DataPtr & tmp = _levels[i].I;
+
+				//interpolate
+				MGGPU_InterpolateAndAdd(
+					_levels[i + 1].f, //nhalf
+					_levels[i].x, //n
+					(MGGPU_InterpKernel *)_levels[i].I.gpu //n
+				);
+							
 
 				//smooth
 				{
@@ -1305,6 +1337,8 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 					MGGPU_GaussSeidel(sp);
 				}
 			}
+
+			
 
 			prevI = i;
 		}

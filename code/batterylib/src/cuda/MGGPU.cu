@@ -1419,7 +1419,7 @@ double __device__  convolve3D(
 				const int3 pos = ivox + make_int3(x, y, z) + offset;
 				if (!_isValidPos(vec.res, pos))
 					continue;
-
+				//sum += read<double>(vec.surf, pos);
 				sum += k.v[x][y][z] * read<double>(vec.surf, pos);
 			}
 		}
@@ -1644,6 +1644,7 @@ void gaussSeidelAllDirs(MGGPU_SmootherParams & p, int blockDim) {
 
 }
 
+#define GS_CALCULATE_RESIDUAL
 double MGGPU_GaussSeidel(MGGPU_SmootherParams & p) {
 
 
@@ -1690,6 +1691,61 @@ double MGGPU_GaussSeidel(MGGPU_SmootherParams & p) {
 	}
 
 	return error;
+}
+
+
+
+__global__ void ___restrictVolume(
+	MGGPU_Volume xPrev, MGGPU_Volume xNext
+){	
+	VOLUME_IVOX_GUARD(xNext.res);
+	const MGGPU_RestrictKernel R = MGGPU_GetRestrictionKernel(make_uint3(ivox), xNext.res, const_sys_params.dirPrimary);
+	int3 ivoxPrev = make_int3(ivox.x * 2, ivox.y * 2, ivox.z * 2);
+	const double Rxval = convolve3D<RESTR_SIZE>(ivoxPrev, R, xPrev);
+	write<double>(xNext.surf, ivox, Rxval);
+}
+
+//Requires const_sys_params
+void MGGPU_Restrict(
+	MGGPU_Volume & xPrev,
+	MGGPU_Volume & xNext
+) {
+
+	BLOCKS3D(4, xNext.res);
+	___restrictVolume << < numBlocks, block >> >(xPrev, xNext);
+
+}
+
+
+__global__ void ___interpVolumeAndAdd(
+	MGGPU_Volume xPrev, 
+	MGGPU_Volume xNext,
+	MGGPU_InterpKernel * I
+) {
+	VOLUME_IVOX_GUARD(xNext.res);
+
+	const size_t linIndex = _linearIndex(xNext.res, ivox);	
+
+	int3 ivoxPrev = make_int3(ivox.x / 2, ivox.y / 2, ivox.z / 2);
+	const MGGPU_InterpKernel & kern = I[linIndex];
+	const double Ixval = convolve3D<INTERP_SIZE>(ivoxPrev, kern, xPrev);
+		
+	//read
+	double oldVal = read<double>(xNext.surf, ivox);	
+	double newVal = oldVal + Ixval;	
+	write<double>(xNext.surf, ivox, newVal);
+}
+
+//Requires const_sys_params
+void MGGPU_InterpolateAndAdd(
+	MGGPU_Volume & xPrev,
+	MGGPU_Volume & xNext,
+	MGGPU_InterpKernel * I
+) {
+
+	BLOCKS3D(4, xNext.res);
+	___interpVolumeAndAdd << < numBlocks, block >> >(xPrev, xNext, I);
+
 }
 
 

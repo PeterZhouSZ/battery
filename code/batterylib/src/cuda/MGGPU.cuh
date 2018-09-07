@@ -498,6 +498,19 @@ void MGGPU_SetToZero(
 double MGGPU_GaussSeidel(MGGPU_SmootherParams & p);
 
 
+
+void MGGPU_Restrict(
+	MGGPU_Volume & xPrev,
+	MGGPU_Volume & xNext
+);
+
+
+void MGGPU_InterpolateAndAdd(
+	MGGPU_Volume & xPrev,
+	MGGPU_Volume & xNext,
+	MGGPU_InterpKernel * I
+);
+
 #ifdef ___OLD
 
 
