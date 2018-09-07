@@ -1527,6 +1527,10 @@ void MGGPU_SetToZero(
 
 ////////////////////////////////////////////// Smoothing
 
+
+
+
+
 template <int dir, int sgn, bool alternate, bool isTopLevel>
 __global__ void __gaussSeidelLine(
 	uint3 res,
@@ -1538,10 +1542,10 @@ __global__ void __gaussSeidelLine(
 	VOLUME_VOX; //no guard
 
 	//Set directions
-	const uint primDim = _at<uint>(res, dir);
-	const int secDirs[2] = {
-		(dir + 1) % 3,
-		(dir + 2) % 3
+	const uint primDim = _at<uint>(res, dir); //16
+	const int secDirs[2] = { 
+		(dir + 1) % 3, // 2 half block
+		(dir + 2) % 3 //3%3 = 0 full block
 	};
 
 	//Interleave second dir
@@ -1574,15 +1578,19 @@ __global__ void __gaussSeidelLine(
 		double diag;
 
 		if (isTopLevel) {
-			const MGGPU_SystemTopKernel a = ((MGGPU_SystemTopKernel*)A)[rowI];
-			sum = convolve3D_SystemTop(voxi, a, X);
+			MGGPU_SystemTopKernel a = ((MGGPU_SystemTopKernel*)A)[rowI];
 			diag = a.v[DIR_NONE];
-			
+			a.v[DIR_NONE] = 0.0;
+			sum = convolve3D_SystemTop(voxi, a, X);
+
 		}
 		else {
-			const MGGPU_Kernel3D<Ai_SIZE> & a = ((const MGGPU_Kernel3D<Ai_SIZE>*)A)[rowI];
-			sum = convolve3D<Ai_SIZE>(voxi, a, X);
+			//Avoid copy here?
+			MGGPU_Kernel3D<Ai_SIZE> a = ((const MGGPU_Kernel3D<Ai_SIZE>*)A)[rowI];
 			diag = a.v[Ai_HALF][Ai_HALF][Ai_HALF];
+			a.v[Ai_HALF][Ai_HALF][Ai_HALF] = 0.0;
+			sum = convolve3D<Ai_SIZE>(voxi, a, X);
+
 		}
 
 		
@@ -1617,7 +1625,7 @@ void gaussSeidelAllDirs(MGGPU_SmootherParams & p, int blockDim) {
 		__gaussSeidelLine<0, 1, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
 		__gaussSeidelLine<0, 1, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
 	}
-
+	
 	{
 		block = make_uint3(blockDim, 1, blockDim);
 		numBlocks = make_uint3(
@@ -1642,6 +1650,8 @@ void gaussSeidelAllDirs(MGGPU_SmootherParams & p, int blockDim) {
 		__gaussSeidelLine<2, 1, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
 	}
 
+
+	
 }
 
 #define GS_CALCULATE_RESIDUAL

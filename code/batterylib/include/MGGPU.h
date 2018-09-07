@@ -10,6 +10,8 @@
 
 #include <Eigen/Eigen>
 
+//#define MGGPU_CPU_TEST
+
 namespace blib {
 
 
@@ -62,8 +64,13 @@ namespace blib {
 		
 		int numLevels() const { return _params.levels; }
 
-		std::vector<int> genCycle(CycleType ctype, uint levels) const;
+		std::vector<int> genCycle(CycleType ctype) const;
 
+
+		bool saveVolume(MGGPU_Volume & v, const std::string & name, int level);
+		void commitVolume(MGGPU_Volume & v);
+		void retrieveVolume(MGGPU_Volume & v);
+		
 
 		Params _params;
 		const VolumeChannel * _mask;
@@ -85,7 +92,10 @@ namespace blib {
 			DataPtr I;
 
 			size_t N() const { return dim.x*dim.y*dim.z; }
-		
+			
+#ifdef MGGPU_CPU_TEST
+			SparseMat Acpu;
+#endif
 			
 		};
 
@@ -100,5 +110,7 @@ namespace blib {
 
 	};
 
+	
+	
 	
 }

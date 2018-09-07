@@ -499,6 +499,7 @@ void BatteryApp::solveMultigridCPU()
 
 
 	std::cout << "Solve time: " << solveTime.count() << std::endl;
+	std::cout << "TOTAL time: " << prepTime.count() + solveTime.count() << std::endl;
 	std::cout << "Iterations: " << _multiSolver.iterations() << std::endl;
 	std::cout << "--------------" << std::endl;
 
@@ -536,8 +537,8 @@ void BatteryApp::solveMultigridGPU()
 	t1 = std::chrono::system_clock::now();
 	_multigridGPUSolver.solve(
 		1e-6,
-		4096,
-		MultigridGPU<double>::CycleType::W_CYCLE
+		1024,//4096,
+		MultigridGPU<double>::CycleType::V_CYCLE
 	);
 	auto t2 = std::chrono::system_clock::now();
 
@@ -580,8 +581,17 @@ void BatteryApp::solveMGGPU()
 
 	std::cout << "=================================" << std::endl;
 
-	_mggpu.solve(1e-6, 1);
-
+	auto ts0 = std::chrono::system_clock::now();
+	_mggpu.solve(
+		1e-6, 
+		1024,
+		MGGPU<double>::CycleType::W_CYCLE
+	);
+	auto ts1 = std::chrono::system_clock::now();
+	std::chrono::duration<double> solveTime = ts1 - ts0;
+	std::cout << "Solve time: " << solveTime.count() << "s" << std::endl;
+	std::cout << "TOTAL time: " << solveTime.count() + prepTime.count() << "s" << std::endl;
+	std::cout << "MGGPU END =================================" << std::endl;
 
 
 

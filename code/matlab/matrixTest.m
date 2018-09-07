@@ -284,3 +284,39 @@ plot(x,x.^3 * 20);
 hold on; 
 plot(x,(x/2).^3 * 160); 
 hold off;
+
+
+
+%%
+
+%%
+
+load ('../build/cmp/x_post_0.txt')
+load ('../build/cmp/cpu_x_post_0.txt')
+
+gx = x_post_0;
+cx = cpu_x_post_0;
+
+diff = gx-cx;
+
+fprintf('DIFF: %f\n',sum(abs(diff)))
+
+[X,Y,Z] = meshgrid(1:16,1:16,1:16);
+X = reshape(X,1,[]);
+Y = reshape(Y,1,[]);
+Z = reshape(Z,1,[]);
+
+
+scatter3(X,Y,Z, (abs(diff)*10).^2 + 1)
+xlabel('X')
+ylabel('Y')
+zlabel('Z')
+
+
+
+
+%plot(gx)
+%hold on
+%plot(cx)
+
+

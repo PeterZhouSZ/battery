@@ -9,11 +9,12 @@
 #include <chrono>
 
 
+#include "JacobiSolver.h"
 //#ifdef DEBUG
 //#define SAVE_TO_FILE
 //#endif
 
-//#define SAVE_TO_FILE
+#define SAVE_TO_FILE
 
 
 
@@ -39,6 +40,8 @@ template<typename T>
 bool saveVector(void * vin, size_t N, const std::string & name, int level) {
 	return true;
 }
+
+#else
 
 template <size_t KN>
 MGGPU<double>::DenseMat kernelToDenseMat(MGGPU_Kernel3D<KN> * kernels, ivec3 dim0, ivec3 dim1) {
@@ -183,14 +186,13 @@ void vectorToVolume(const MGGPU<double>::Vector & v, const MGGPU_Volume & vol) {
 
 
 
-
 inline uint3 make_uint3(const ivec3 & i) {
 	return make_uint3(i.x, i.y, i.z);
 }
 
-#else
 
-bool saveSparse(const SparseMat & M, const std::string & name, int level) {
+
+bool saveSparse(const MGGPU<double>::SparseMat & M, const std::string & name, int level) {
 	
 	char buf[24]; itoa(level, buf, 10);
 	std::ofstream f(name + "_" + std::string(buf) + ".dat");
@@ -265,6 +267,30 @@ MGGPU<T>::MGGPU()
 
 
 template <typename T>
+bool blib::MGGPU<T>::saveVolume(MGGPU_Volume & v, const std::string & name, int level)
+{
+	auto & ptr = _volume->getChannel(v.volID).getCurrentPtr();
+	ptr.retrieve();
+	return saveVector<T>(v.cpu, v.res.x*v.res.y*v.res.z, name, level);
+}
+
+template <typename T>
+void blib::MGGPU<T>::retrieveVolume(MGGPU_Volume & v)
+{
+	auto & ptr = _volume->getChannel(v.volID).getCurrentPtr();
+	ptr.retrieve();
+}
+
+template <typename T>
+void blib::MGGPU<T>::commitVolume(MGGPU_Volume & v)
+{
+	auto & ptr = _volume->getChannel(v.volID).getCurrentPtr();
+	ptr.commit();
+}
+
+
+
+template <typename T>
 bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volume) {
 
 
@@ -287,11 +313,11 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		MGGPU_GenerateDomain(MGmask, _params.d0, _params.d1, _levels[0].domain);
 		std::cout << "Gen domain " << tGenDomain.time() << "s" << std::endl;
 
-#ifdef SAVE_TO_FILE
+/*#ifdef SAVE_TO_FILE
 		auto & D0ptr = volume.getChannel(_levels[0].domain.volID).getCurrentPtr();
 		D0ptr.retrieve();
 		saveVector<double>(D0ptr.getCPU(), _levels[0].N(), "MGGPU_D", 0);
-#endif
+#endif*/
 	}
 
 
@@ -305,11 +331,11 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		for (int i = 1; i < _levels.size(); i++) {
 			MGGPU_Convolve(_levels[i - 1].domain, domainRestrKernel, 2, _levels[i].domain);
 
-#ifdef SAVE_TO_FILE
+/*#ifdef SAVE_TO_FILE
 			auto & ptr = volume.getChannel(_levels[i].domain.volID).getCurrentPtr();
 			ptr.retrieve();
 			saveVector<double>(ptr.getCPU(), _levels[i].N(), "MGGPU_D", i);
-#endif
+#endif*/
 		}
 
 		std::cout << "Convolve domain " << tConvolveDomain.time() << "s" << std::endl;
@@ -424,7 +450,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		}
 
 
-#ifdef SAVE_TO_FILE
+/*#ifdef SAVE_TO_FILE
 		{
 			DataPtr & A = _levels[1].A;
 
@@ -437,7 +463,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 				);
 			saveSparse(mat, "MGGPU_A", 1);
 		}
-#endif	
+#endif*/	
 
 	}
 
@@ -467,7 +493,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			(MGGPU_Kernel3D<3> *)I.gpu
 		);
 		std::cout << "Gen I" << i << ": " << tI.time() << "s" << std::endl;
-#ifdef SAVE_TO_FILE
+/*#ifdef SAVE_TO_FILE
 		{
 			DataPtr & I = _levels[i].I;
 
@@ -480,7 +506,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 				);
 			saveSparse(mat, "MGGPU_I", i - 1);
 		}
-#endif	
+#endif	*/
 
 
 
@@ -529,7 +555,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 
 		}
 
-#ifdef SAVE_TO_FILE
+/*#ifdef SAVE_TO_FILE
 		{
 			DataPtr & A = _levels[i].A;
 
@@ -542,7 +568,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 				);
 			saveSparse(mat, "MGGPU_A", i);
 		}
-#endif	
+#endif	*/
 
 	}
 
@@ -567,6 +593,17 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 	}
 
 
+
+#ifdef MGGPU_CPU_TEST
+	for (auto i = 1; i < numLevels(); i++) {
+
+		DataPtr & A = _levels[i].A;
+		const ivec3 dim = _levels[i].dim;
+		A.retrieve();
+		_levels[i].Acpu = kernelToSparse((MGGPU_Kernel3D<5>*)A.cpu, dim, dim);
+
+	}
+#endif
 
 
 	return true;
@@ -1216,7 +1253,7 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 	const int postN = 1;
 	const int lastLevel = numLevels() - 1;
 
-	const std::vector<int> cycle = genCycle(cycleType, numLevels());
+	const std::vector<int> cycle = genCycle(cycleType);
 		
 	MGGPU_Residual_TopLevel(
 		make_uint3(_levels[0].dim),
@@ -1246,24 +1283,31 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 
 			//Last level
 			if (i == numLevels() - 1) {
-				std::cout << "(" << i << ") Last level direct solve" << std::endl;
+
+				//return 1;
+
+				//std::cout << "(" << i << ") Last level direct solve" << std::endl;
 
 				//Retrieve F GPU - > CPU
-				_volume->getChannel(_levels[i].f.volID).getCurrentPtr().retrieve();
 				
+				retrieveVolume(_levels[i].f);
 				//Convert F, solve, convert X
 				Vector F = volumeToVector(_levels[i].f);
 				Vector X = _lastLevelSolver.solve(F); //todo possible optimization: inplace x.cpu
+				//std::cout << "LASTLEVEL NORM " << X << std::endl;			
+
+				
 				vectorToVolume(X, _levels[i].x);
+				commitVolume(_levels[i].x);
 
 				//Commit X back to GPU
-				_volume->getChannel(_levels[i].x.volID).getCurrentPtr().commit();				
+				//_volume->getChannel(_levels[i].x.volID).getCurrentPtr().commit();				
 
 			}
 			//Restrict
-			else if (i > prevI) {
+			else if (i >= prevI) {
 
-				std::cout << "(" << i << ") Restrict" << std::endl;
+				//std::cout << "(" << i << ") Restrict" << std::endl;
 
 				//Zero out x
 				if (i > 0) {
@@ -1271,9 +1315,15 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 				}
 
 
+				/*saveVolume(_levels[i].x, "cmp/x_pre", i); //identical
+				saveVolume(_levels[i].f, "cmp/f_pre", i); //identical
+				saveVolume(_levels[i].r, "cmp/r_pre", i); //identical*/
+
 				
-				std::cout << "Pre smooth " << err(i) << std::endl;
-				
+				//std::cout << "Pre smooth " << err(i) << std::endl;
+#ifdef MGGPU_CPU_TEST
+				if(i == 0)
+#endif
 				{
 					MGGPU_SmootherParams sp;
 					sp.A = (MGGPU_KernelPtr)_levels[i].A.gpu;
@@ -1288,11 +1338,44 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 					sp.auxBufferGPU = _auxReduceBuffer.gpu;
 					sp.auxBufferCPU = _auxReduceBuffer.cpu;
 					sp.iter = preN;
-					MGGPU_GaussSeidel(sp);
-					
+					double er = MGGPU_GaussSeidel(sp);					
+					//std::cout << "### (" << i << ") R " << er << std::endl;
 				}
+#ifdef MGGPU_CPU_TEST
+				else {
+					
+					retrieveVolume(_levels[i].f);
+					retrieveVolume(_levels[i].x);
+					retrieveVolume(_levels[i].r);
+					auto & F = volumeToVector(_levels[i].f);
+					auto & X = volumeToVector(_levels[i].x);
+					auto & R = volumeToVector(_levels[i].r);
 
-				std::cout << "Post smooth " << err(i) << std::endl;
+					double er = solveGaussSeidel<double>(_levels[i].Acpu, F, X, R, _levels[i].dim, tolerance, preN);
+					
+					vectorToVolume(F, _levels[i].f);//not needed
+					vectorToVolume(X, _levels[i].x);
+					vectorToVolume(R, _levels[i].r);//not needed
+					
+
+					commitVolume(_levels[i].f);
+					commitVolume(_levels[i].x);
+					commitVolume(_levels[i].r);
+					//std::cout << "### (" << i << ") R " << er << std::endl;
+				
+				}
+#endif
+
+				
+
+				/*saveVolume(_levels[i].x, "cmp/x_post", i); //different, some same
+				saveVolume(_levels[i].f, "cmp/f_post", i); //identical
+				saveVolume(_levels[i].r, "cmp/r_post", i); //different, some same*/
+
+
+				
+
+				//std::cout << "Post smooth " << err(i) << std::endl;
 
 				//restrict
 				//R*x multiply 
@@ -1305,20 +1388,31 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 			//Interpolate
 			else {
 
-				std::cout << "(" << i << ") Interpolate" << std::endl;
+				//std::cout << "(" << i << ") Interpolate" << std::endl;
 
 				_levels[i].I.retrieve();
 				DataPtr & tmp = _levels[i].I;
 
 				//interpolate
 				MGGPU_InterpolateAndAdd(
-					_levels[i + 1].f, //nhalf
+					_levels[i + 1].x, //nhalf
 					_levels[i].x, //n
 					(MGGPU_InterpKernel *)_levels[i].I.gpu //n
 				);
-							
+						
+
+				/*if (i == numLevels() - 2) {
+					retrieveVolume(_levels[i].x);
+					auto & X = volumeToVector(_levels[i].x);
+					std::cout << X << std::endl;
+					return 1;
+				}*/
+
 
 				//smooth
+#ifdef MGGPU_CPU_TEST
+				if (i == 0)
+#endif
 				{
 					MGGPU_SmootherParams sp;
 					sp.A = (MGGPU_KernelPtr)_levels[i].A.gpu;
@@ -1334,8 +1428,35 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 					sp.auxBufferCPU = _auxReduceBuffer.cpu;
 					sp.iter = postN;
 
-					MGGPU_GaussSeidel(sp);
+					double er = MGGPU_GaussSeidel(sp);
+
+					//std::cout << "### (" << i << ") I " << er << std::endl;
 				}
+#ifdef MGGPU_CPU_TEST
+				else {
+
+					retrieveVolume(_levels[i].f);
+					retrieveVolume(_levels[i].x);
+					retrieveVolume(_levels[i].r);
+					auto & F = volumeToVector(_levels[i].f);
+					auto & X = volumeToVector(_levels[i].x);
+					auto & R = volumeToVector(_levels[i].r);
+
+					double er = solveGaussSeidel<double>(_levels[i].Acpu, F, X, R, _levels[i].dim, tolerance, postN);
+
+					vectorToVolume(F, _levels[i].f);//not needed
+					vectorToVolume(X, _levels[i].x);
+					vectorToVolume(R, _levels[i].r);//not needed
+
+					commitVolume(_levels[i].f);
+					commitVolume(_levels[i].x);
+					commitVolume(_levels[i].r);
+					//std::cout << "### (" << i << ") I " << er << std::endl;
+
+				}
+#endif
+
+
 			}
 
 			
@@ -1377,9 +1498,16 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 
 
 template <typename T>
-std::vector<int> MGGPU<T>::genCycle(CycleType ctype, uint levels) const{ 
+std::vector<int> MGGPU<T>::genCycle(CycleType ctype) const{ 
 
 	std::vector<int> cycle;
+
+	int levels = numLevels();
+	ivec3 maxDim = _levels[0].dim;
+
+	if (maxDim.x <= 8 || maxDim.y <= 8 || maxDim.z <= 8)
+		ctype = V_CYCLE;
+
 
 	if (ctype == V_CYCLE) {
 		for (auto i = 0; i != levels; i++) {
@@ -1390,7 +1518,8 @@ std::vector<int> MGGPU<T>::genCycle(CycleType ctype, uint levels) const{
 		}
 	}
 	else if (ctype == W_CYCLE) {
-		auto midLevel = (levels - 1) - 2;
+		//auto midLevel = (levels - 1) - 2;
+		auto midLevel = 1;
 		for (auto i = 0; i != levels; i++) {
 			cycle.push_back(i);
 		}
@@ -1398,7 +1527,7 @@ std::vector<int> MGGPU<T>::genCycle(CycleType ctype, uint levels) const{
 		for (auto i = levels - 2; i != (midLevel - 1); i--) {
 			cycle.push_back(i);
 		}
-		for (auto i = midLevel + 1; i != levels; i++) {
+		for (auto i = midLevel; i != levels; i++) {
 			cycle.push_back(i);
 		}
 

@@ -29,6 +29,8 @@ template class MultigridSolver<double>;
 
 #include <chrono>
 
+
+
 //#define DEBUG_CHANNEL_ENABLE
 
 template <typename T = double>
@@ -88,6 +90,22 @@ void addDebugChannel(Volume & vol, const std::vector<T> & vec, ivec3 dim, const 
 #endif
 
 }
+
+
+
+template <typename T>
+void saveVector(const Eigen::Matrix<T, Eigen::Dynamic, 1> & vec, const std::string &name, int level) {
+
+	char buf[24]; itoa(level, buf, 10);
+	std::ofstream f(name + "_" + std::string(buf) + ".txt");
+	for (auto i = 0; i < vec.size(); i++) {
+		f << vec[i] << "\n";
+		if (vec.size() < 100 || i % (vec.size() / 100))
+			f.flush();
+	}
+
+}
+
 
 
 template <typename T>
@@ -1681,14 +1699,14 @@ bool MultigridSolver<T>::prepare(
 		auto ti1 = std::chrono::system_clock::now();
 
 		
-		auto tai0 = std::chrono::system_clock::now();
+		/*auto tai0 = std::chrono::system_clock::now();
 		Eigen::SparseMatrix<T, Eigen::RowMajor> temp = _A[i] * _I[i];
 		auto tai1 = std::chrono::system_clock::now();
 
 		std::chrono::duration<double> itime = (ti1 - ti0);
 		std::chrono::duration<double> aitime = (tai1 - tai0);
 		std::cout << "CPU I time: " << i << ", " << itime.count() << "s" << std::endl;
-		std::cout << "CPU AI time: " << i << ", " << aitime.count() << "s" << std::endl;
+		std::cout << "CPU AI time: " << i << ", " << aitime.count() << "s" << std::endl;*/
 		
 
 		//_R[i] = _I[i].transpose();// *pow(0.5, 3);
@@ -1737,13 +1755,13 @@ bool MultigridSolver<T>::prepare(
 			
 
 			//Galerkin
-			{
+			/*{
 				auto ta0 = std::chrono::system_clock::now();
 				Eigen::SparseMatrix<T, Eigen::RowMajor> temp = _R[i - 1] * _A[i - 1] * _I[i - 1];
 				auto ta1 = std::chrono::system_clock::now();
 				std::chrono::duration<double> t = (ta1 - ta0);
 				std::cout << "CPU RAI : " << i << ", " << t.count() << "s" << std::endl;
-			}
+			}*/
 
 			_A[i] =   _R[i - 1] * _A[i - 1] * _I[i - 1];
 			
@@ -2344,6 +2362,9 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 		for (auto i : cycle) {
 			//Last level
 			if (i == _lv - 1) {
+
+				//return 1;
+
 				//Direct solver
 				//if (_verbose) {
 					//std::cout << tabs(lastLevel) << "Exact solve at Level " << lastLevel << std::endl;
@@ -2352,6 +2373,8 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//std::cout << "x pre exact " << i << ": " << v[i].squaredNorm() << std::endl;
 
 				_x[lastLevel] = exactSolver.solve(_f[lastLevel]);
+
+				//std::cout << "LASTLEVEL NORM " << _f[lastLevel] << std::endl;
 
 				//std::cout << "x post exact " << i << ": " << v[i].squaredNorm() << std::endl;
 			}
@@ -2371,8 +2394,19 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				addDebugChannel(vol, _r[i], _dims[i], "rPre", k, true);
 
 				//Pre smoother
+				//saveVector<T>(_x[i], "cmp/cpu_x_pre", i);
+				//saveVector<T>(_f[i], "cmp/cpu_f_pre", i);
+				//saveVector<T>(_r[i], "cmp/cpu_r_pre", i);
 				T err = solveGaussSeidel(_A[i], _f[i], _x[i], _r[i], _dims[i], tolerance, preN, false); // df = f  A*v
+
 				//T err = solveJacobi(_A[i], _f[i], _x[i], _tmpx[i], _r[i], tolerance, preN, false); // df = f  A*v
+
+				//std::cout << "### (" << i << ") R " << err << std::endl;
+				//saveVector<T>(_x[i], "cmp/cpu_x_post", i);
+				//saveVector<T>(_f[i], "cmp/cpu_f_post", i);
+				//saveVector<T>(_r[i], "cmp/cpu_r_post", i);
+
+				
 				
 				if (i == 0) {
 					//std::cout << "V level " << i << " ||r||^2 = " << _r[i].squaredNorm() << std::endl;
@@ -2455,8 +2489,14 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//Correction
 				_x[i] += _tmpx[i];
 
+
+				/*if (i == _lv - 2) {
+					std::cout << _x[i] << std::endl;
+					return 1;
+				}*/
 				
-					addDebugChannel(vol, _r[i], _dims[i], "r pre corr", i, true); {
+				{
+					addDebugChannel(vol, _r[i], _dims[i], "r pre corr", i, true); 				
 					_r[i] = _f[i] - _A[i] * _x[i];
 					addDebugChannel(vol, _r[i], _dims[i], "r post corr", i, true);
 				}
@@ -2464,6 +2504,8 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 				//Post smoothing, v[i] is initial guess & result		
 				T err = solveGaussSeidel(_A[i], _f[i], _x[i], _r[i], _dims[i], tolerance, postN, false);
 				//T err = solveJacobi(_A[i], _f[i], _x[i], _tmpx[i], _r[i], tolerance, preN, false); // df = f  A*v
+
+				//std::cout << "### (" << i << ") I " << err << std::endl;
 
 				if (i == 0) {
 					//std::cout << "^ level " << i << " ||r||^2 = " << _r[i].squaredNorm() << std::endl;

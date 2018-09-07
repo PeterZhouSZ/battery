@@ -533,6 +533,8 @@ namespace blib {
 							diag = it.value();
 							continue;
 						}
+						T xval = X[col];
+						T aval = it.value();
 						sum += it.value() * X[col];
 					}
 
