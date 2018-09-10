@@ -48,6 +48,8 @@ namespace blib {
 	public:
 
 		CUDATimer(bool autoStart = false) {
+			_running = false;
+
 			cudaEventCreate(&_startEvent);
 			cudaEventCreate(&_stopEvent);
 			if (autoStart) start();

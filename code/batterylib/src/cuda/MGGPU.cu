@@ -1419,7 +1419,7 @@ double __device__  convolve3D(
 				const int3 pos = ivox + make_int3(x, y, z) + offset;
 				if (!_isValidPos(vec.res, pos))
 					continue;
-				//sum += read<double>(vec.surf, pos);
+				
 				sum += k.v[x][y][z] * read<double>(vec.surf, pos);
 			}
 		}
@@ -1654,12 +1654,12 @@ void gaussSeidelAllDirs(MGGPU_SmootherParams & p, int blockDim) {
 	
 }
 
-#define GS_CALCULATE_RESIDUAL
+//#define GS_CHECK_RESIDUAL
 double MGGPU_GaussSeidel(MGGPU_SmootherParams & p) {
 
 
-	double error = 1.0;
-#ifdef GS_CALCULATE_RESIDUAL
+	double error = 0.0;
+#ifdef GS_CHECK_RESIDUAL
 	
 	double fsq = MGGPU_SquareNorm(p.res, p.f, p.auxBufferGPU, p.auxBufferCPU);
 
@@ -1673,20 +1673,21 @@ double MGGPU_GaussSeidel(MGGPU_SmootherParams & p) {
 
 		if (p.isTopLevel) {
 			gaussSeidelAllDirs<true>(p, 8);
-#ifdef GS_CALCULATE_RESIDUAL
+#ifdef GS_CHECK_RESIDUAL
 			MGGPU_Residual_TopLevel(p.res, (MGGPU_SystemTopKernel *)p.A, p.x, p.f, p.r);
 #endif
 		}
 		else {
 			gaussSeidelAllDirs<false>(p, 8);
-#ifdef GS_CALCULATE_RESIDUAL
+#ifdef GS_CHECK_RESIDUAL
 			MGGPU_Residual(p.res, (MGGPU_Kernel3D<Ai_SIZE>*)p.A, p.x, p.f, p.r);
 #endif
+
 		}
 
 		//printf("i %d\n", i);
 
-#ifdef GS_CALCULATE_RESIDUAL
+#ifdef GS_CHECK_RESIDUAL
 		//Might not be needed to calculate residual
 		double rsq = MGGPU_SquareNorm(p.res, p.r, p.auxBufferGPU, p.auxBufferCPU);		
 		
@@ -1699,6 +1700,16 @@ double MGGPU_GaussSeidel(MGGPU_SmootherParams & p) {
 #endif
 
 	}
+
+
+#ifndef GS_CHECK_RESIDUAL
+	if (p.isTopLevel) {
+		MGGPU_Residual_TopLevel(p.res, (MGGPU_SystemTopKernel *)p.A, p.x, p.f, p.r);
+	}
+	else {
+		MGGPU_Residual(p.res, (MGGPU_Kernel3D<Ai_SIZE>*)p.A, p.x, p.f, p.r);
+	}
+#endif
 
 	return error;
 }

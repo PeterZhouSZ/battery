@@ -573,13 +573,21 @@ void BatteryApp::solveMGGPU()
 	std::cout << "Multigrid solver levels " << p.levels << std::endl;
 
 	auto t0 = std::chrono::system_clock::now();
-	_mggpu.prepare(_volume->getChannel(CHANNEL_BATTERY), p, *_volume);
+	bool resPrep = _mggpu.prepare(_volume->getChannel(CHANNEL_BATTERY), p, *_volume);
 	auto t1 = std::chrono::system_clock::now();
 
 	std::chrono::duration<double> prepTime = t1 - t0;
 	std::cout << "Prep time: " << prepTime.count() << "s" << std::endl;
 
+	if (!resPrep) {
+		std::cout << "Preparation failed" << std::endl;
+		return;
+	}
+
 	std::cout << "=================================" << std::endl;
+
+	
+		
 
 	auto ts0 = std::chrono::system_clock::now();
 	_mggpu.solve(

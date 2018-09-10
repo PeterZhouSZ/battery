@@ -19,6 +19,8 @@
 
 #include <fstream>
 
+#include "Timer.h"
+
 
 
 
@@ -1290,6 +1292,10 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 		double riSqNorm = MGGPU_SquareNorm(make_uint3(_levels[i].dim), _levels[i].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
 		return sqrt(riSqNorm / fiSqNorm);
 	};
+
+	
+	Profiler profiler;		
+	
 	
 	//TODO: idea use just one tmpx,x, f ... with the size of the largest and reuse?
 
@@ -1301,11 +1307,8 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 			//Last level
 			if (i == numLevels() - 1) {
 
-				//return 1;
-
-				//std::cout << "(" << i << ") Last level direct solve" << std::endl;
-
-				//Retrieve F GPU - > CPU
+				
+				auto t = Timer(true);
 				
 				retrieveVolume(_levels[i].f);
 				//Convert F, solve, convert X
@@ -1316,6 +1319,8 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 				
 				vectorToVolume(X, _levels[i].x);
 				commitVolume(_levels[i].x);
+				
+				profiler.add("lastLevelExact", t.time());
 
 				//Commit X back to GPU
 				//_volume->getChannel(_levels[i].x.volID).getCurrentPtr().commit();				
@@ -1342,6 +1347,7 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 				if(i == 0)
 #endif
 				{
+					auto t = CUDATimer(true);
 					MGGPU_SmootherParams sp;
 					sp.A = (MGGPU_KernelPtr)_levels[i].A.gpu;
 					sp.isTopLevel = (i == 0);
@@ -1355,7 +1361,9 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 					sp.auxBufferGPU = _auxReduceBuffer.gpu;
 					sp.auxBufferCPU = _auxReduceBuffer.cpu;
 					sp.iter = preN;
-					double er = MGGPU_GaussSeidel(sp);					
+					double er = MGGPU_GaussSeidel(sp);		
+
+					profiler.add("smooth", t.time());
 					//std::cout << "### (" << i << ") R " << er << std::endl;
 				}
 #ifdef MGGPU_CPU_TEST
@@ -1396,10 +1404,13 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 
 				//restrict
 				//R*x multiply 
+
+				auto t = CUDATimer(true);
 				MGGPU_Restrict(
 					_levels[i].r,
 					_levels[i + 1].f
 				);
+				profiler.add("restrict", t.time());
 
 			}
 			//Interpolate
@@ -1411,11 +1422,13 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 				DataPtr & tmp = _levels[i].I;
 
 				//interpolate
+				auto t = CUDATimer(true);
 				MGGPU_InterpolateAndAdd(
 					_levels[i + 1].x, //nhalf
 					_levels[i].x, //n
 					(MGGPU_InterpKernel *)_levels[i].I.gpu //n
 				);
+				profiler.add("interpolate", t.time());
 						
 
 				/*if (i == numLevels() - 2) {
@@ -1431,6 +1444,7 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 				if (i == 0)
 #endif
 				{
+					auto t = CUDATimer(true);
 					MGGPU_SmootherParams sp;
 					sp.A = (MGGPU_KernelPtr)_levels[i].A.gpu;
 					sp.isTopLevel = (i == 0);
@@ -1446,6 +1460,7 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 					sp.iter = postN;
 
 					double er = MGGPU_GaussSeidel(sp);
+					profiler.add("smooth", t.time());
 
 					//std::cout << "### (" << i << ") I " << er << std::endl;
 				}
@@ -1484,8 +1499,19 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 		
 		_iterations++;
 
+		MGGPU_Residual_TopLevel(
+			make_uint3(_levels[0].dim),
+			(MGGPU_SystemTopKernel *)_levels[0].A.gpu,
+			_levels[0].x,
+			_levels[0].f,
+			_levels[0].r
+		);
+
+
+		auto tresidualEnd = CUDATimer(true);
 		double r0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim), _levels[0].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
 		double err = sqrt(r0SqNorm / f0SqNorm);
+		profiler.add("residualEnd", tresidualEnd.time());
 		
 		{
 			std::cout << "k = " << k << " err: " << err << ", ratio: " << err / lastError << std::endl;
@@ -1493,22 +1519,22 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 
 		lastError = err;
 
-		if (err < tolerance || isinf(err) || isnan(err))
-			return T(err);		
+		if (err < tolerance || isinf(err) || isnan(err)) {
+			break;
+			
+		}
 
 	}
 
+	profiler.stop();
+	std::cout << profiler.summary();
 
 
-	cudaDeviceSynchronize();	
 
-	//CPU version
-	{
-		//auto X = volumeToVector(_levels[0].x);
-		//auto F = volumeToVector(_levels[0].f);
-		//kernelToSparse<>() ? not for kernel top
-		//Vector R = 	
-	}
+	//cudaDeviceSynchronize();	
+	return T(lastError);
+
+	
 
 }
 
