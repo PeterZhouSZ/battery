@@ -108,8 +108,7 @@ __global__ void ___convolve3D_2_2(
 	double sum = 0.0;
 
 	MGGPU_Kernel3D<2> & k = *((MGGPU_Kernel3D<2>*)const_kernel);
-	
-	//TODO: boundary handling (upper only)
+		
 	int3 s = make_int3(1, 1, 1); //stride
 	const uint3 voxSrc = vox * 2;
 	if (voxSrc.x == in.res.x - 1)
@@ -1283,7 +1282,7 @@ bool MGGPU_BuildA1(
 
 	int3 ivox;
 	uint3 resA0 = resA;
-	uint3 resA1 = make_uint3(resA0.x / 2, resA0.y / 2, resA0.z / 2);
+	uint3 resA1 = make_uint3((resA0.x +1) / 2, (resA0.y + 1) / 2, (resA0.z + 1) / 2);
 
 	if (onDevice) {		
 		BLOCKS3D(A1_THREADS_PER_DIM, resA1); //TODO increase
@@ -1326,7 +1325,8 @@ bool MGGPU_BuildAi(
 
 	int3 ivox;
 	uint3 resAprev = resA;
-	uint3 resAnext = make_uint3(resAprev.x / 2, resAprev.y / 2, resAprev.z / 2);
+	//uint3 resAnext = make_uint3(resAprev.x / 2, resAprev.y / 2, resAprev.z / 2);
+	uint3 resAnext = make_uint3((resAprev.x +1) / 2, (resAprev.y + 1) / 2, (resAprev.z + 1) / 2);
 
 	if (onDevice) {
 		BLOCKS3D(Ai_THREADS_PER_DIM, resAnext); //TODO increase

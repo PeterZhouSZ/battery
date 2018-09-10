@@ -319,4 +319,32 @@ zlabel('Z')
 %hold on
 %plot(cx)
 
+%%
+load ('../build/16/MGGPU_A_1.dat')
+load ('../build/16/MGGPU_I_0.dat')
+load ('../build/16/MGGPU_I_1.dat')
+A1_16 = spconvert(MGGPU_A_1);
+I0_16 = spconvert(MGGPU_I_0);
+I1_16 = spconvert(MGGPU_I_1);
+
+load ('../build/17/MGGPU_A_1.dat')
+load ('../build/17/MGGPU_I_0.dat')
+load ('../build/17/MGGPU_I_1.dat')
+A1_17 = spconvert(MGGPU_A_1);
+I0_17 = spconvert(MGGPU_I_0);
+I1_17 = spconvert(MGGPU_I_1);
+
+subplot(1,2,1)
+spy(A1_16)
+%hold on
+subplot(1,2,2)
+spy(A1_17)
+%hold off
+%x=get(gca,'children')
+%set(x(1),'color','b')
+%set(x(2),'color','r')
+
+
+
+
 

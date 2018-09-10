@@ -14,14 +14,11 @@
 //#define SAVE_TO_FILE
 //#endif
 
-#define SAVE_TO_FILE
+//#define SAVE_TO_FILE
 
 
-
-
-#ifdef SAVE_TO_FILE
 #include <fstream>
-#endif
+
 
 
 
@@ -30,18 +27,7 @@ using namespace blib;
 template class MGGPU<double>;
 
 
-#ifndef SAVE_TO_FILE
 
-bool saveSparse(const MGGPU<double>::SparseMat & M, const std::string & name, int level) {
-	return true;
-}
-
-template<typename T>
-bool saveVector(void * vin, size_t N, const std::string & name, int level) {
-	return true;
-}
-
-#else
 
 template <size_t KN>
 MGGPU<double>::DenseMat kernelToDenseMat(MGGPU_Kernel3D<KN> * kernels, ivec3 dim0, ivec3 dim1) {
@@ -231,7 +217,7 @@ bool saveVector(void * vin, size_t N,  const std::string & name, int level) {
 
 
 
-#endif
+
 
 MGGPU_Volume toMGGPUVolume(VolumeChannel & volchan, int id = -1) {
 	MGGPU_Volume mgvol;
@@ -303,6 +289,8 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 
 	alloc();
 
+	
+
 
 	/*
 		Generate continous domain at first level
@@ -320,7 +308,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 #endif*/
 	}
 
-
+	
 
 	/*
 		Restrict domain to further levels
@@ -341,6 +329,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		std::cout << "Convolve domain " << tConvolveDomain.time() << "s" << std::endl;
 	}
 
+	
 
 	//Send system params to gpu
 	MGGPU_SysParams sysp;
@@ -365,7 +354,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		return false;
 	}
 
-
+	
 
 
 	/*
@@ -379,6 +368,8 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f);
 		std::cout << "Gen A0: " << t.time() << "s" << std::endl;
 	}
+
+	
 
 	/*
 		Generate A1
@@ -396,6 +387,19 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		);
 		std::cout << "Gen I0: " << tI.time() << "s" << std::endl;
 
+#ifdef SAVE_TO_FILE
+		{
+			
+			I.retrieve();
+			MGGPU_InterpKernel * ptr = (MGGPU_InterpKernel*)I.cpu;
+			SparseMat mat = kernelToSparse<INTERP_SIZE>(
+				(MGGPU_InterpKernel*)ptr,
+				_levels[0].dim,
+				_levels[1].dim
+				);
+			saveSparse(mat, "MGGPU_I", 0);
+		}
+#endif	
 
 
 		DataPtr & A0 = _levels[0].A;
@@ -450,7 +454,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		}
 
 
-/*#ifdef SAVE_TO_FILE
+#ifdef SAVE_TO_FILE
 		{
 			DataPtr & A = _levels[1].A;
 
@@ -463,9 +467,11 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 				);
 			saveSparse(mat, "MGGPU_A", 1);
 		}
-#endif*/	
+#endif
 
 	}
+
+	
 
 
 	/*
@@ -480,10 +486,10 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 
 
 		std::cout << "Alloc I" << i << ", dim:" << _levels[i - 1].dim.x << "~^3 -> " << _levels[i].dim.x << "~^3" << std::endl;
-		if (_levels[i].dim.x % 2 != 0 || _levels[i].dim.y % 2 != 0 || _levels[i].dim.z % 2 != 0) {
+		/*if (_levels[i].dim.x % 2 != 0 || _levels[i].dim.y % 2 != 0 || _levels[i].dim.z % 2 != 0) {
 			std::cout << "!!!!!!!!!!!!!! Odd dimension not supported yet !!!!!!!!!!!!!!" << std::endl;
 			return false;
-		}
+		}*/
 		I.allocDevice(_levels[i - 1].N(), sizeof(MGGPU_Kernel3D<3>));
 
 		CUDATimer tI(true);
@@ -493,9 +499,9 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 			(MGGPU_Kernel3D<3> *)I.gpu
 		);
 		std::cout << "Gen I" << i << ": " << tI.time() << "s" << std::endl;
-/*#ifdef SAVE_TO_FILE
+#ifdef SAVE_TO_FILE
 		{
-			DataPtr & I = _levels[i].I;
+			//DataPtr & I = _levels[i-1].I;
 
 			I.retrieve();
 			MGGPU_InterpKernel * ptr = (MGGPU_InterpKernel*)I.cpu;
@@ -506,7 +512,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 				);
 			saveSparse(mat, "MGGPU_I", i - 1);
 		}
-#endif	*/
+#endif	
 
 
 
@@ -555,7 +561,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 
 		}
 
-/*#ifdef SAVE_TO_FILE
+#ifdef SAVE_TO_FILE
 		{
 			DataPtr & A = _levels[i].A;
 
@@ -568,10 +574,12 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 				);
 			saveSparse(mat, "MGGPU_A", i);
 		}
-#endif	*/
+#endif	
 
 	}
 
+
+	
 
 	//Retrieve last A from gpu and convert it to sparse/dense matrix
 	{
@@ -589,6 +597,8 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volum
 		auto t1 = std::chrono::system_clock::now();
 		std::chrono::duration<double> prepTime = t1 - t0;
 		std::cout << "Presolve ALast: " << prepTime.count() << "s" << std::endl;
+
+		//saveSparse(_lastLevelA, "MGGPU_lastLevelA", 0);
 
 	}
 
@@ -1200,10 +1210,17 @@ bool MGGPU<T>::alloc()
 
 	_levels.resize(numLevels());
 	_levels[0].dim = origDim;
+	std::cout << "Level 0: " << origDim.x << " X " << origDim.y << " X " << origDim.z << std::endl;
 	for (auto i = 1; i < numLevels(); i++) {
-		//TODO: add odd size handling
+		
 		const auto prevDim = _levels[i - 1].dim;
-		_levels[i].dim = { prevDim.x / 2, prevDim.y / 2, prevDim.z / 2 };
+		_levels[i].dim = { 
+			(prevDim.x + 1) / 2, 
+			(prevDim.y + 1) / 2,
+			(prevDim.z + 1) / 2
+		};
+
+		std::cout << "Level "<< i <<": " << _levels[i].dim.x << " X " << _levels[i].dim.y << " X " << _levels[i].dim.z << std::endl;
 	}
 
 	auto label = [](const std::string & prefix, int i) {
