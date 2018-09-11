@@ -322,3 +322,7 @@ void launchReduceKernel(
 void launchClearKernel(
 	PrimitiveType type, cudaSurfaceObject_t surf, uint3 res, void * val
 );
+
+void launchNormalizeKernel(
+	PrimitiveType type, cudaSurfaceObject_t surf, uint3 res, double low, double high
+);

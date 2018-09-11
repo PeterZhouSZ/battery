@@ -65,6 +65,7 @@ struct MGGPU_SmootherParams {
 	void * auxBufferGPU;
 	void * auxBufferCPU;
 	int iter;
+	double alpha; //under/overrelaxation
 };
 
 bool commitSysParams(const MGGPU_SysParams & sysparams);
@@ -496,6 +497,8 @@ void MGGPU_SetToZero(
 
 
 double MGGPU_GaussSeidel(MGGPU_SmootherParams & p);
+
+void MGGPU_Jacobi(MGGPU_SmootherParams & p);
 
 
 

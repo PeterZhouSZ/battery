@@ -928,15 +928,33 @@ void launchReduceKernel(
 			if (opType == REDUCE_OP_SQUARESUM)
 				reduce3DSurfaceToBuffer<float, blockSize, opSum, opSquare> << <numBlocks, block, sharedSize>> > (
 					res, surf, (float*)auxBufferGPU, n
-					);						
+					);	
+
+			if (opType == REDUCE_OP_MIN)
+				reduce3DSurfaceToBuffer<float, blockSize, opMin, opIdentity> << <numBlocks, block, sharedSize >> > (
+					res, surf, (float*)auxBufferGPU, n
+					);
+			if (opType == REDUCE_OP_MAX)
+				reduce3DSurfaceToBuffer<float, blockSize, opMax, opIdentity> << <numBlocks, block, sharedSize >> > (
+					res, surf, (float*)auxBufferGPU, n
+					);
 		}
 		else if (type == TYPE_DOUBLE) {
 			if (opType == REDUCE_OP_SQUARESUM) {
 				reduce3DSurfaceToBuffer<double, blockSize, opSum, opSquare> << <numBlocks, block, sharedSize >> > (
 					res, surf, (double*)auxBufferGPU, n
 					);
-			}			
+			}		
 
+			if (opType == REDUCE_OP_MIN)
+				reduce3DSurfaceToBuffer<double, blockSize, opMin, opIdentity> << <numBlocks, block, sharedSize >> > (
+					res, surf, (double*)auxBufferGPU, n
+					);
+			if (opType == REDUCE_OP_MAX)
+				reduce3DSurfaceToBuffer<double, blockSize, opMax, opIdentity> << <numBlocks, block, sharedSize >> > (
+					res, surf, (double*)auxBufferGPU, n
+					);
+			
 		}
 
 		n = numBlocks.x;
@@ -1057,4 +1075,26 @@ void launchClearKernel(PrimitiveType type, cudaSurfaceObject_t surf, uint3 res, 
 	}
 	else if (type == TYPE_DOUBLE)
 		__clearKernel<double> << < numBlocks, block >> >(surf, res, *((double *)val));
+}
+
+
+template <typename T>
+__global__ void __normalizeKernel(cudaSurfaceObject_t surf, uint3 res, T low, T high) {
+	VOLUME_VOX_GUARD(res);
+	T oldval = read<T>(surf, vox);
+	write<T>(surf, vox, (oldval - low) / (high - low));
+}
+
+
+
+void launchNormalizeKernel(
+	PrimitiveType type, cudaSurfaceObject_t surf, uint3 res, double low, double high
+) {
+	BLOCKS3D(8, res);
+	if (type == TYPE_FLOAT) {
+		__normalizeKernel<float> << < numBlocks, block >> >(surf, res,float(low), float(high));
+	}
+	else if (type == TYPE_DOUBLE)
+		__normalizeKernel<double> << < numBlocks, block >> >(surf, res,low, high);
+
 }

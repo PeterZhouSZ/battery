@@ -60,6 +60,7 @@ namespace blib{
 		BLIB_EXPORT void setName(const std::string & name);
 		BLIB_EXPORT std::string getName() const;
 		
+		BLIB_EXPORT void normalize();
 
 		BLIB_EXPORT static bool enableOpenGLInterop;
 
@@ -107,6 +108,8 @@ namespace blib{
 			float lowConc = 0.0f,
 			Dir diffusionDir = X_POS
 			);
+
+		BLIB_EXPORT void synchronize();
 		
 
 		

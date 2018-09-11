@@ -35,6 +35,43 @@ inline uint primitiveSizeof(PrimitiveType type) {
 	return 0;
 }
 
+inline float primitiveToFloat(PrimitiveType type, void * ptr) {
+	switch (type) {
+	case TYPE_FLOAT:
+		return *((float*)ptr);
+	case TYPE_DOUBLE:
+		return float(*((double*)ptr));
+	case TYPE_CHAR:
+		return float(*((char*)ptr));
+	case TYPE_UCHAR:
+		return float(*((uchar*)ptr));;
+	case TYPE_INT:
+		return float(*((int*)ptr));;		
+	case TYPE_FLOAT3:
+		return nan("");
+	case TYPE_FLOAT4:
+		return nan("");
+	}
+}
+
+inline double primitiveToDouble(PrimitiveType type, void * ptr) {
+	switch (type) {
+	case TYPE_FLOAT:
+		return double(*((float*)ptr));
+	case TYPE_DOUBLE:
+		return (*((double*)ptr));
+	case TYPE_CHAR:
+		return double(*((char*)ptr));
+	case TYPE_UCHAR:
+		return double(*((uchar*)ptr));;
+	case TYPE_INT:
+		return double(*((int*)ptr));;
+	case TYPE_FLOAT3:
+		return nan("");
+	case TYPE_FLOAT4:
+		return nan("");
+	}
+}
 
 
 

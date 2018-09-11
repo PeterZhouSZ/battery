@@ -592,7 +592,7 @@ void BatteryApp::solveMGGPU()
 	auto ts0 = std::chrono::system_clock::now();
 	_mggpu.solve(
 		1e-6, 
-		1024,
+		128,
 		MGGPU<double>::CycleType::W_CYCLE
 	);
 	auto ts1 = std::chrono::system_clock::now();
@@ -601,6 +601,20 @@ void BatteryApp::solveMGGPU()
 	std::cout << "TOTAL time: " << solveTime.count() + prepTime.count() << "s" << std::endl;
 	std::cout << "MGGPU END =================================" << std::endl;
 
+
+	for (int i = 0; i < _volume->numChannels(); i++) {
+		auto &chan = _volume->getChannel(i);
+		std::cout << chan.getName() << std::endl;
+		chan.normalize();
+		auto & ptr = chan.getCurrentPtr();
+		ptr.retrieve();
+		
+		char b;
+		b = 0;
+
+	}
+
+	_volume->synchronize();
 
 
 }

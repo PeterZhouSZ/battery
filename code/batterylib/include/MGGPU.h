@@ -55,6 +55,8 @@ namespace blib {
 
 		BLIB_EXPORT T tortuosity();
 
+		BLIB_EXPORT void profile();
+
 
 
 	private:

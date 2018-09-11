@@ -38,6 +38,10 @@ uniform vec3 resolution;
 uniform bool showGradient = false;
 uniform bool isDouble = false;
 
+uniform float normalizeLow = 0.0;
+uniform float normalizeHigh = 0.0;
+
+
 vec3 getGradient(vec3 pt){
 	vec3 res = resolution*5;
 	return vec3(
@@ -137,6 +141,9 @@ void main(){
 		else {
 			 volumeVal = texture(volumeTexture,pos).r;		
 		}
+
+		volumeVal = (volumeVal - normalizeLow) / (normalizeHigh - normalizeLow);
+
 
 		pos += stepVec;
 

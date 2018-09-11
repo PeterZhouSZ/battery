@@ -1536,7 +1536,8 @@ __global__ void __gaussSeidelLine(
 	uint3 res,
 	MGGPU_Volume F,
 	MGGPU_Volume X,
-	MGGPU_KernelPtr A
+	MGGPU_KernelPtr A,
+	double alpha
 ) {
 
 	VOLUME_VOX; //no guard
@@ -1597,6 +1598,11 @@ __global__ void __gaussSeidelLine(
 
 		double fval = read<double>(F.surf, voxi);
 		double newVal = (fval - sum) / diag;		
+		
+		double oldVal = read<double>(X.surf, voxi);
+
+		newVal = alpha * newVal + (1.0 - alpha) * oldVal;
+
 		//printf("%d %f %f %f -> %f (<- %f) \n", i,sum, diag,fval, newVal, read<double>(X.surf, voxi));
 
 		write<double>(X.surf, voxi, newVal);
@@ -1622,8 +1628,8 @@ void gaussSeidelAllDirs(MGGPU_SmootherParams & p, int blockDim) {
 			((p.res.z + (block.z - 1)) / block.z)
 		);
 
-		__gaussSeidelLine<0, 1, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
-		__gaussSeidelLine<0, 1, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
+		__gaussSeidelLine<0, 1, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
+		__gaussSeidelLine<0, 1, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
 	}
 	
 	{
@@ -1634,8 +1640,8 @@ void gaussSeidelAllDirs(MGGPU_SmootherParams & p, int blockDim) {
 			((p.res.z / 2 + (block.z - 1)) / block.z)
 		);
 
-		__gaussSeidelLine<1, 1, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
-		__gaussSeidelLine<1, 1, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
+		__gaussSeidelLine<1, 1, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
+		__gaussSeidelLine<1, 1, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
 	}
 
 	{
@@ -1646,8 +1652,8 @@ void gaussSeidelAllDirs(MGGPU_SmootherParams & p, int blockDim) {
 			1
 		);
 
-		__gaussSeidelLine<2, 1, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
-		__gaussSeidelLine<2, 1, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A);
+		__gaussSeidelLine<2, 1, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
+		__gaussSeidelLine<2, 1, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
 	}
 
 
@@ -1712,6 +1718,97 @@ double MGGPU_GaussSeidel(MGGPU_SmootherParams & p) {
 #endif
 
 	return error;
+}
+
+
+
+template <bool isTopLevel>
+__global__ void __jacobiKernel(
+	uint3 res,
+	MGGPU_Volume F,
+	MGGPU_Volume X,
+	MGGPU_Volume Y,
+	MGGPU_KernelPtr A
+) {	
+	VOLUME_IVOX_GUARD(res);
+
+	const size_t rowI = _linearIndex(res, ivox);
+
+	double sum;
+	double diag;
+
+	if (isTopLevel) {
+		MGGPU_SystemTopKernel a = ((MGGPU_SystemTopKernel*)A)[rowI];
+		diag = a.v[DIR_NONE];
+		a.v[DIR_NONE] = 0.0;
+		sum = convolve3D_SystemTop(ivox, a, X);
+
+	}
+	else {
+		//Avoid copy here?
+		MGGPU_Kernel3D<Ai_SIZE> a = ((const MGGPU_Kernel3D<Ai_SIZE>*)A)[rowI];
+		diag = a.v[Ai_HALF][Ai_HALF][Ai_HALF];
+		a.v[Ai_HALF][Ai_HALF][Ai_HALF] = 0.0;
+		sum = convolve3D<Ai_SIZE>(ivox, a, X);
+
+	}
+
+	double fval = read<double>(F.surf, ivox);
+	double newVal = (fval - sum) / diag;
+
+	write<double>(Y.surf, ivox, newVal);	
+
+
+}
+
+
+void MGGPU_Jacobi(MGGPU_SmootherParams & p) {
+
+	MGGPU_Volume src, dest;
+	src = p.x;
+	dest = p.tmpx;
+
+	const int iter = (p.iter % 2 == 0) ? p.iter : p.iter + 1;
+		
+
+	for (auto i = 0; i < iter; ++i) {
+		BLOCKS3D(4, p.res);
+		if (p.isTopLevel) {
+			const bool top = true;
+			__jacobiKernel<top> << <numBlocks, block >>> (
+				p.res,
+				p.f,
+				src,
+				dest,
+				p.A
+				);
+		}
+		else {
+			const bool top = false;
+			__jacobiKernel<top> << <numBlocks, block >> > (
+				p.res,
+				p.f,
+				src,
+				dest,
+				p.A
+				);
+		}
+		//Swap 
+		MGGPU_Volume tmp;
+		tmp = src;
+		src = dest;
+		dest = tmp;
+	}
+
+	//Calculate residual at the end
+	//only for restr, todo: move out
+	if (p.isTopLevel) {
+		MGGPU_Residual_TopLevel(p.res, (MGGPU_SystemTopKernel *)p.A, p.x, p.f, p.r);
+	}
+	else {
+		MGGPU_Residual(p.res, (MGGPU_Kernel3D<Ai_SIZE>*)p.A, p.x, p.f, p.r);
+	}
+
 }
 
 

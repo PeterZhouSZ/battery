@@ -1265,13 +1265,54 @@ bool MGGPU<T>::alloc()
 
 
 template <typename T>
-T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/) {
+void blib::MGGPU<T>::profile()
+{
 
+
+	//Profile Gauss seidel
+	{
+		double tolerance = 1e-6;
+		int preN = 1;
+		Profiler profiler;
+
+		int i = 1;
+		int kmax = 1;
+		for (auto k = 0; k < kmax; k++) {
+			auto t = CUDATimer(true);
+			MGGPU_SmootherParams sp;
+			sp.A = (MGGPU_KernelPtr)_levels[i].A.gpu;
+			sp.isTopLevel = (i == 0);
+			sp.f = _levels[i].f;
+			sp.x = _levels[i].x;
+			sp.tmpx = _levels[i].tmpx;
+			sp.r = _levels[i].r;
+
+			sp.res = make_uint3(_levels[i].dim);
+			sp.tolerance = tolerance;
+			sp.auxBufferGPU = _auxReduceBuffer.gpu;
+			sp.auxBufferCPU = _auxReduceBuffer.cpu;
+			sp.iter = preN;
+			double er = MGGPU_GaussSeidel(sp);
+
+			profiler.add("smooth", t.time());
+		}
+		profiler.stop();
+		std::cout << profiler.summary();
+
+		
+	}
+
+}
+
+
+template <typename T>
+T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/) {
 
 	const int preN = 1;
 	const int postN = 1;
 	const int lastLevel = numLevels() - 1;
-
+		
+	
 	const std::vector<int> cycle = genCycle(cycleType);
 		
 	MGGPU_Residual_TopLevel(
@@ -1292,6 +1333,8 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 		double riSqNorm = MGGPU_SquareNorm(make_uint3(_levels[i].dim), _levels[i].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
 		return sqrt(riSqNorm / fiSqNorm);
 	};
+
+	const double alpha = 1.0;
 
 	
 	Profiler profiler;		
@@ -1361,7 +1404,17 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 					sp.auxBufferGPU = _auxReduceBuffer.gpu;
 					sp.auxBufferCPU = _auxReduceBuffer.cpu;
 					sp.iter = preN;
+					sp.alpha = alpha;
+					
+					
+
+
+					//sp.iter = 2 << i;// preN * i;
 					double er = MGGPU_GaussSeidel(sp);		
+					//MGGPU_Jacobi(sp);
+
+					
+
 
 					profiler.add("smooth", t.time());
 					//std::cout << "### (" << i << ") R " << er << std::endl;
@@ -1458,9 +1511,19 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 					sp.auxBufferGPU = _auxReduceBuffer.gpu;
 					sp.auxBufferCPU = _auxReduceBuffer.cpu;
 					sp.iter = postN;
+					sp.alpha = alpha;
+
+					//sp.iter = postN * i;
+					
+					//std::cout << "Restr iter: " << sp.iter << ", i:" << i << std::endl;
 
 					double er = MGGPU_GaussSeidel(sp);
+					//MGGPU_Jacobi(sp);
 					profiler.add("smooth", t.time());
+
+					//sp.iter = 2 << i;
+					
+				
 
 					//std::cout << "### (" << i << ") I " << er << std::endl;
 				}

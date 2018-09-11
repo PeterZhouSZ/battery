@@ -100,7 +100,8 @@ VolumeRaycaster::VolumeRaycaster(std::shared_ptr<Shader> shaderPosition,
 	  _volTexture(0),
 	  _volDim({0,0,0}),
 	  showGradient(false),
-	 _enableFiltering(true)
+	 _enableFiltering(true),
+	_normalizeRange({0.0f,1.0f})
 	  {
 
   {
@@ -206,6 +207,9 @@ void VolumeRaycaster::render(const Camera &camera, ivec4 viewport) {
 			vec3(1.0f / _volDim.x, 1.0f / _volDim.y,
 				1.0f / _volDim.z);
 	}		
+
+	shader["normalizeLow"] = _normalizeRange.x; 
+	shader["normalizeHigh"] = _normalizeRange.y;
 	
     shader["enterVolumeTex"] = _enterExit.enterTexture.bindTo(GL_TEXTURE2);
     shader["exitVolumeTex"] = _enterExit.exitTexture.bindTo(GL_TEXTURE3);

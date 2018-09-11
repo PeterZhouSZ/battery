@@ -122,6 +122,14 @@
             "data": false,
             "type": 5
         },
+        "normalizeHigh": {
+            "data": 1.0,
+            "type": 3
+        },
+        "normalizeLow": {
+            "data": 0.0,
+            "type": 3
+        },
         "opacityBlack": {
             "data": 0.00999999977648258,
             "type": 3

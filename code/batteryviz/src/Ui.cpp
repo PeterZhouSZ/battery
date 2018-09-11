@@ -324,6 +324,14 @@ void Ui::update(double dt)
 		_app._volumeRaycaster->preserveAspectRatio = _app._options["Render"].get<bool>("preserveAspectRatio");
 
 		_app._volumeRaycaster->showGradient = _app._options["Render"].get<bool>("showGradient");
+
+
+		_app._volumeRaycaster->setNormalizeRange(
+		{ 
+			_app._options["Render"].get<float>("normalizeLow"), 
+			_app._options["Render"].get<float>("normalizeHigh")
+		}
+		);		
 	}	
 
 	

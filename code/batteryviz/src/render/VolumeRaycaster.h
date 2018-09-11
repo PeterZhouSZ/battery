@@ -48,6 +48,9 @@ struct VolumeRaycaster {
 	bool preserveAspectRatio;
 	bool showGradient;
 
+	void setNormalizeRange(vec2 range) {
+		_normalizeRange = range;
+	}
 	
 
 	void setTransferJet();
@@ -65,6 +68,7 @@ private:
 	ivec3 _volDim;
 	PrimitiveType _volType;
 	bool _enableFiltering;
+	vec2 _normalizeRange;
 	
 
 	VertexBuffer<VertexData> _cube;
