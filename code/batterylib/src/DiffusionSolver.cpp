@@ -473,7 +473,50 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1
 
 #endif
 
+
+	
+
+
+
 	_A.makeCompressed();
+
+
+
+	if(false){
+		//https://www.sciencedirect.com/science/article/pii/S0377042710002979
+		size_t rows = _A.rows();
+		size_t cols = _A.cols();
+		Eigen::SparseMatrix<T, Eigen::RowMajor> D;
+		D.resize(rows, cols);
+		D.reserve(Eigen::VectorXi::Constant(rows, 1));
+
+		for (auto i = 0; i < rows; i++) {
+
+			T sum = 0;
+			int n = 0;
+			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A, i); it; ++it) {
+				T val = it.value();
+				sum += val*val;
+				n++;
+			}
+			T norm = sqrt(sum);
+
+			T d = 1.0 / norm;
+
+			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A, i); it; ++it) {
+				auto  j = it.col();
+				it.valueRef() *= d;
+			}
+
+			_rhs(i) *= d;
+
+		}
+	}
+
+
+
+
+
 	_solver.compute(_A);
 
 	return true;

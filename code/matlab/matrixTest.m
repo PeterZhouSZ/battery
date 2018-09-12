@@ -345,6 +345,60 @@ spy(A1_17)
 %set(x(2),'color','r')
 
 
+%% Spectral radius
 
+load ('../build/A_0.dat')
+load ('../build/A_1.dat')
+load ('../build/A_2.dat')
+load ('../build/A_3.dat')
+load ('../build/A_4.dat')
+A_0 = (spconvert(A_0));
+A_1 = (spconvert(A_1));
+A_2 = (spconvert(A_2));
+A_3 = (spconvert(A_3));
+A_4 = (spconvert(A_4));
 
+%%
+a0e = abs(eigs(A_0, 1, 'lm'))
+a1e = abs(eigs(A_1, 1, 'lm'))
+a2e = abs(eigs(A_2, 1, 'lm'))
+a3e = abs(eigs(A_3, 1, 'lm'))
+a4e = abs(eigs(A_4, 1, 'lm'))
 
+%% Diagonal dominance
+A = A_1;
+d = abs(diag(A));
+%D = repmat(d,1,size(A,2));
+
+M = A;
+D = zeros(size(A,1),1)
+for i=1:size(A,1)
+    row = full(abs(M(i,:)) < d(i));
+    row(i) = 1;
+    D(i) = full(all(row));
+    %M(i,:) = abs(M(i,:)) / abs(A(i,i));
+end
+
+DiagDominant = D
+
+%M = abs(A) ./ D;
+%M = abs(A_4)
+subplot(1,2,1)
+cspy(M,'Levels',16,'ColorMap','jet')
+colorbar;
+
+subplot(1,2,2)
+bar(1 - D)
+nonConvRows = sum(1 -D) / size(A,1) * 100
+
+%%
+%// Do the plot
+cmap = jet; %// choose a colormap
+s = 5.5; %// dot size
+colormap(cmap); %// use it
+[ii, jj, Mnnz] = find(M); %// get nonzero values and its positions
+scatter(1,1,s,0) %// make sure the first color corresponds to 0 value.
+hold on
+scatter(ii,jj,s,Mnnz); %// do the actual plot of the nonzero values
+set(gca,'color',cmap(1,:)) %// set axis backgroud to first color
+%colorbar %// show colorbar

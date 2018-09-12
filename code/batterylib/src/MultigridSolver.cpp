@@ -1684,6 +1684,38 @@ bool MultigridSolver<T>::prepare(
 		std::cout << "Prepared multigrid with L = " << _lv << " res: " << origDim.x << ", "<< origDim.y << ", " << origDim.z << std::endl;
 	}
 
+	//Scaling
+	if(false){
+		//https://www.sciencedirect.com/science/article/pii/S0377042710002979
+		size_t rows = _A[0].rows();
+		size_t cols = _A[0].cols();
+		SparseMat D;
+		D.resize(rows, cols);
+		D.reserve(Eigen::VectorXi::Constant(rows, 1));
+
+		for (auto i = 0; i < rows; i++) {
+
+			T sum = 0;
+			int n = 0;
+			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[0], i); it; ++it) {
+				T val = it.value();
+				sum += val*val;
+				n++;			
+			}
+			T norm = sqrt(sum);
+			
+			T d = 1.0 / norm;
+
+			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[0], i); it; ++it) {
+				auto  j = it.col();
+				it.valueRef() *= d;				
+			}
+
+			_f[0](i) *= d;
+			
+		}	
+	}
+
 
 
 	for (auto i = 0; i < _lv; i++) {

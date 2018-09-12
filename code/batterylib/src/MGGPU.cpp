@@ -7,6 +7,7 @@
 #include "cuda/MGGPU.cuh"
 #include "CudaUtility.h"
 #include <chrono>
+#include <numeric>
 
 
 #include "JacobiSolver.h"
@@ -248,7 +249,8 @@ MGGPU_Volume toMGGPUVolume(const VolumeChannel & volchan, int id = -1) {
 
 
 template <typename T>
-MGGPU<T>::MGGPU()
+MGGPU<T>::MGGPU() :
+	_iterations(0)
 {
 
 }
@@ -279,7 +281,7 @@ void blib::MGGPU<T>::commitVolume(MGGPU_Volume & v)
 
 
 template <typename T>
-bool MGGPU<T>::prepare(const VolumeChannel & mask, Params params, Volume & volume) {
+bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volume) {
 
 
 
@@ -1304,16 +1306,30 @@ void blib::MGGPU<T>::profile()
 
 }
 
+template <typename T>
+void blib::MGGPU<T>::reset()
+{
+
+	for (auto lv = 0; lv < numLevels(); lv++) {
+		MGGPU_SetToZero(_levels[lv].x);
+		MGGPU_SetToZero(_levels[lv].r);
+		MGGPU_SetToZero(_levels[lv].tmpx);
+	}
+
+	_iterations = 0;
+
+}
+
 
 template <typename T>
-T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/) {
+T MGGPU<T>::solve(const SolveParams & solveParams) {
 
-	const int preN = 1;
-	const int postN = 1;
+	
+	
 	const int lastLevel = numLevels() - 1;
 		
 	
-	const std::vector<int> cycle = genCycle(cycleType);
+	const std::vector<int> cycle = genCycle(solveParams.cycleType);
 		
 	MGGPU_Residual_TopLevel(
 		make_uint3(_levels[0].dim),
@@ -1334,15 +1350,36 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 		return sqrt(riSqNorm / fiSqNorm);
 	};
 
-	const double alpha = 1.0;
+
+	if (solveParams.verbose) {
+		std::cout << "Starting solve" << "\n";
+		std::cout << "Params:" << "\n";
+		std::cout << "\t" << "Alpha:\t\t" << solveParams.alpha << "\n";
+		std::cout << "\t" << "CycleType:\t\t" << solveParams.cycleType << "\n";
+		std::cout << "\t" << "Pre/Post N:\t\t" << solveParams.preN << "/" << solveParams.postN << "\n";
+		std::cout << "\t" << "Tolerance:\t\t" << solveParams.tolerance << "\n";
+		std::cout << "\t" << "Max iter.:\t\t" << solveParams.maxIter << "\n";
+
+		std::cout << "Cycle:" << "\n";
+		for (auto k : cycle) {
+			std::cout << k << ", ";
+		}
+		std::cout << "\n";
+
+
+
+	
+	}
+
+	//const double alpha = 1.0;
 
 	
 	Profiler profiler;		
 	
 	
-	//TODO: idea use just one tmpx,x, f ... with the size of the largest and reuse?
+	//TODO: idea use just one tmpx,x,for  f ... with the size of the largest and reuse?
 
-	for (auto k = 0; k < maxIter; k++) {
+	for (auto k = 0; k < solveParams.maxIter; k++) {
 
 		int prevI = -1;
 		for (auto i : cycle) {
@@ -1400,11 +1437,11 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 					sp.r = _levels[i].r;
 
 					sp.res = make_uint3(_levels[i].dim);
-					sp.tolerance = tolerance;
+					sp.tolerance = solveParams.tolerance;
 					sp.auxBufferGPU = _auxReduceBuffer.gpu;
 					sp.auxBufferCPU = _auxReduceBuffer.cpu;
-					sp.iter = preN;
-					sp.alpha = alpha;
+					sp.iter = solveParams.preN;
+					sp.alpha = solveParams.alpha;
 					
 					
 
@@ -1507,11 +1544,11 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 					sp.r = _levels[i].r;
 
 					sp.res = make_uint3(_levels[i].dim);
-					sp.tolerance = tolerance;
+					sp.tolerance = solveParams.tolerance;
 					sp.auxBufferGPU = _auxReduceBuffer.gpu;
 					sp.auxBufferCPU = _auxReduceBuffer.cpu;
-					sp.iter = postN;
-					sp.alpha = alpha;
+					sp.iter = solveParams.postN;
+					sp.alpha = solveParams.alpha;
 
 					//sp.iter = postN * i;
 					
@@ -1576,13 +1613,18 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 		double err = sqrt(r0SqNorm / f0SqNorm);
 		profiler.add("residualEnd", tresidualEnd.time());
 		
+		if(solveParams.verbose)
 		{
 			std::cout << "k = " << k << " err: " << err << ", ratio: " << err / lastError << std::endl;
 		}
 
+		if (err > lastError) {
+			return -1.0;			
+		}
+
 		lastError = err;
 
-		if (err < tolerance || isinf(err) || isnan(err)) {
+		if (err < solveParams.tolerance || isinf(err) || isnan(err)) {
 			break;
 			
 		}
@@ -1590,7 +1632,9 @@ T MGGPU<T>::solve(T tolerance, size_t maxIter, CycleType cycleType/* = W_CYCLE*/
 	}
 
 	profiler.stop();
-	std::cout << profiler.summary();
+	if (solveParams.verbose) {
+		std::cout << profiler.summary();
+	}
 
 
 
@@ -1611,7 +1655,7 @@ std::vector<int> MGGPU<T>::genCycle(CycleType ctype) const{
 	int levels = numLevels();
 	ivec3 maxDim = _levels[0].dim;
 
-	if (maxDim.x <= 8 || maxDim.y <= 8 || maxDim.z <= 8)
+	if (maxDim.x <= 64 || maxDim.y <= 64 || maxDim.z <= 64)
 		ctype = V_CYCLE;
 
 
@@ -1625,7 +1669,7 @@ std::vector<int> MGGPU<T>::genCycle(CycleType ctype) const{
 	}
 	else if (ctype == W_CYCLE) {
 		//auto midLevel = (levels - 1) - 2;
-		auto midLevel = 1;
+		auto midLevel = levels - 2;;
 		for (auto i = 0; i != levels; i++) {
 			cycle.push_back(i);
 		}
@@ -1648,4 +1692,125 @@ std::vector<int> MGGPU<T>::genCycle(CycleType ctype) const{
 
 
 	return cycle;
+}
+
+
+template <typename T>
+T blib::MGGPU<T>::tortuosity()
+{		
+	
+	//TODO on gpu
+
+	const auto & topLevel = _levels[0];
+	const auto dim = topLevel.dim;
+
+	auto & xChannel = _volume->getChannel(topLevel.x.volID);
+	auto & maskChannel = *_mask;
+
+	xChannel.getCurrentPtr().retrieve();
+	maskChannel.getCurrentPtr().retrieve();
+
+	T * xData = (T*)xChannel.getCurrentPtr().getCPU();
+	uchar * maskData = (uchar*)maskChannel.getCurrentPtr().getCPU();
+
+	
+	const int primary = getDirIndex(_params.dir);
+	const int secondary[2] = { (primary + 1) % 3, (primary + 2) % 3 };
+
+	int n = dim[secondary[0]] * dim[secondary[1]];
+	int k = (getDirSgn(_params.dir) == -1) ? 0 : dim[primary] - 1;
+
+	//Porosity
+	std::vector<size_t> psums(dim[0], T(0));
+	#pragma omp parallel for
+	for (auto i = 0; i < dim[0]; i++) {
+		size_t psum = 0;
+		for (auto j = 0; j < dim[1]; j++) {
+			for (auto k = 0; k < dim[2]; k++) {
+				psum += (maskData[linearIndex(dim, {i,j,k})] == 0) ? 1 : 0;
+			}
+		}
+		psums[i] = psum;
+	}
+	size_t sumD0 = std::accumulate(psums.begin(), psums.end(), T(0));
+
+	T porosity = T(sumD0) / T(dim.x * dim.y * dim.z);
+
+
+	std::vector<T> isums(dim[secondary[0]], T(0));
+	#pragma omp parallel for
+	for (auto i = 0; i < dim[secondary[0]]; i++) {
+		T jsum = T(0);
+		for (auto j = 0; j < dim[secondary[1]]; j++) {
+			ivec3 pos;
+			pos[primary] = k;
+			pos[secondary[0]] = i;
+			pos[secondary[1]] = j;
+
+			if (maskData[linearIndex(dim, pos)] == 0)
+				jsum += xData[linearIndex(dim, pos)];
+		}
+		isums[i] = jsum;
+	}
+
+	T sum = std::accumulate(isums.begin(), isums.end(), T(0));
+
+	T dc = sum / n;
+	T dx = 1.0f / (dim[primary] + 1);
+	T tau = porosity / (dc * dim[primary] * 2);
+
+	return tau;
+
+	/*
+	Calculate average of low concetration plane where mask == 1
+	*/
+	
+	
+	
+
+	/*
+	const T * concData = _x[0].data();
+	const uchar * cdata = (uchar *)mask.getCurrentPtr().getCPU();
+
+	const int primaryDim = getDirIndex(dir);
+	const int secondaryDims[2] = { (primaryDim + 1) % 3, (primaryDim + 2) % 3 };
+
+
+	int n = dim[secondaryDims[0]] * dim[secondaryDims[1]];
+	int k = (getDirSgn(dir) == -1) ? 0 : dim[primaryDim] - 1;
+	*/
+
+	/*
+	Calculate average in low concetration plane
+	*/
+
+	/*
+	bool zeroOutPart = true;
+	std::vector<T> isums(dim[secondaryDims[0]], T(0));
+
+	#pragma omp parallel for
+	for (auto i = 0; i < dim[secondaryDims[0]]; i++) {
+		T jsum = T(0);
+		for (auto j = 0; j < dim[secondaryDims[1]]; j++) {
+			ivec3 pos;
+			pos[primaryDim] = k;
+			pos[secondaryDims[0]] = i;
+			pos[secondaryDims[1]] = j;
+
+			if (zeroOutPart && cdata[linearIndex(dim, pos)] == 0)
+				jsum += concData[linearIndex(dim, pos)];
+		}
+		isums[i] = jsum;
+	}
+
+	T sum = std::accumulate(isums.begin(), isums.end(), T(0));
+
+	double dc = sum / n;
+	double dx = 1.0f / (dim[primaryDim] + 1);
+	double tau = _porosity / (dc * dim[primaryDim] * 2);
+	*/
+	
+
+	
+
 }

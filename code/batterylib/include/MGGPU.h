@@ -34,29 +34,54 @@ namespace blib {
 
 		BLIB_EXPORT MGGPU();
 
-		struct Params {
+		struct PrepareParams {
 			Dir dir;
 			T d0;
 			T d1;
 			uint levels;
-			vec3 cellDim;
+			vec3 cellDim;			
 		};
 
+		struct SolveParams {
+			T alpha = 1.0;
+			int preN = 1;
+			int postN = 1;
+			CycleType cycleType = W_CYCLE;
+			T tolerance = 1e-6;
+			size_t maxIter = 1024;
+			bool verbose = false;
+			
+		};
+
+
+
 		BLIB_EXPORT bool prepare(
-			const VolumeChannel & mask,
-			Params params,
+			VolumeChannel & mask,
+			PrepareParams params,
 			Volume & volume
 		);
 
 
 
 		//Returns error
-		BLIB_EXPORT T solve(T tolerance, size_t maxIter, CycleType cycleType = W_CYCLE);
+		BLIB_EXPORT T solve(
+			const SolveParams & solveParams
+			/*T tolerance, 
+			size_t maxIter, 
+			CycleType cycleType = W_CYCLE,
+			T alpha = 1.0 //Smoothing over/under relaxation*/
+		);
 
 		BLIB_EXPORT T tortuosity();
+		
 
 		BLIB_EXPORT void profile();
 
+		BLIB_EXPORT void reset();
+
+		BLIB_EXPORT size_t iterations() const {
+			return _iterations;
+		}
 
 
 	private:
@@ -74,8 +99,8 @@ namespace blib {
 		void retrieveVolume(MGGPU_Volume & v);
 		
 
-		Params _params;
-		const VolumeChannel * _mask;
+		PrepareParams _params;
+		VolumeChannel * _mask;
 		Volume * _volume;
 
 		//using SparseMat = int; //Todo cusparse mat
@@ -112,6 +137,8 @@ namespace blib {
 
 	};
 
+	
+	
 	
 	
 	

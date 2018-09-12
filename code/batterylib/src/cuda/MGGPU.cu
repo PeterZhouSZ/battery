@@ -1529,6 +1529,37 @@ void MGGPU_SetToZero(
 
 
 
+template <bool isTopLevel>
+__global__ void __gaussSeidelZeroGuess( //assumes zero x guess
+	uint3 res,
+	MGGPU_Volume F,
+	MGGPU_Volume X,
+	MGGPU_KernelPtr A,
+	double alpha
+){
+	VOLUME_IVOX_GUARD(res);
+
+	const double fval = read<double>(F.surf, ivox);
+	const size_t rowI = _linearIndex(res, ivox);
+	double diag;
+	if (isTopLevel) {
+		diag = ((MGGPU_SystemTopKernel*)A)[rowI].v[DIR_NONE];
+	}
+	else {
+		diag = ((const MGGPU_Kernel3D<Ai_SIZE>*)A)[rowI].v[Ai_HALF][Ai_HALF][Ai_HALF];
+	}
+	double newVal = fval / diag;
+
+	double oldVal = read<double>(X.surf, ivox);
+	newVal = alpha * newVal + (1.0 - alpha) * oldVal;
+
+	write<double>(X.surf, ivox, newVal);
+	
+	
+
+	
+
+}
 
 
 template <int dir, int sgn, bool alternate, bool isTopLevel>
@@ -1619,6 +1650,11 @@ void gaussSeidelAllDirs(MGGPU_SmootherParams & p, int blockDim) {
 
 	uint3 block;
 	uint3 numBlocks;
+
+	/*if (!p.isTopLevel) {
+		BLOCKS3D(8, p.res);
+		__gaussSeidelZeroGuess<false><<<numBlocks, block>>>(p.res, p.f, p.x, p.A, 0.5);
+	}*/
 
 	{
 		block = make_uint3(1, blockDim, blockDim);

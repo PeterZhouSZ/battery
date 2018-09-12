@@ -30,6 +30,7 @@
 
 
 
+
 #define DATA_FOLDER "../../data/graphiteSections/SL43_C5_1c5bar_Data/SL43_C5_1c5bar_section001/"
 
 
@@ -46,6 +47,7 @@ RNGUniformInt uniformDistInt(0, INT_MAX);
 #include "render/Shaders.h"
 #include "batterylib/include/MGGPU.h"
 
+#include "batterylib/include/Timer.h"
 
 
 
@@ -551,12 +553,18 @@ void BatteryApp::solveMultigridGPU()
 void BatteryApp::solveMGGPU()
 {
 
+
+	/*
+		Prepare
+	*/
 	
 	while (_volume->numChannels() > 2) {
 		_volume->removeChannel(_volume->numChannels() - 1);
 	}
 
-	MGGPU<double>::Params p;
+	
+
+	MGGPU<double>::PrepareParams p;
 	p.levels = 5;
 	p.dir = X_NEG;
 	p.d0 = _options["Diffusion"].get<float>("D_zero");
@@ -587,22 +595,99 @@ void BatteryApp::solveMGGPU()
 	std::cout << "=================================" << std::endl;
 
 	
+	//One solve
+	if (true) {
+		MGGPU<double>::SolveParams sp; //default
+
+		/*{
+			sp.alpha = 1.45;
+			sp.cycleType = MGGPU<double>::CycleType::V_CYCLE;
+			sp.verbose = true;
+		}*/
+
+		sp.alpha = 1.0;
+		sp.verbose = true;
+		sp.cycleType = MGGPU<double>::CycleType::V_CYCLE;
+		sp.postN = 1; //0 for post or pre makes it worse
+		sp.preN = 1;
 		
 
-	auto ts0 = std::chrono::system_clock::now();
-	_mggpu.solve(
-		1e-6, 
-		128,
-		MGGPU<double>::CycleType::W_CYCLE
-	);
-	auto ts1 = std::chrono::system_clock::now();
-	std::chrono::duration<double> solveTime = ts1 - ts0;
-	std::cout << "Solve time: " << solveTime.count() << "s" << std::endl;
-	std::cout << "TOTAL time: " << solveTime.count() + prepTime.count() << "s" << std::endl;
-	std::cout << "MGGPU END =================================" << std::endl;
+		auto ts0 = std::chrono::system_clock::now();
+		double err = _mggpu.solve(
+			sp
+		);
+		auto ts1 = std::chrono::system_clock::now();
+
+		if (err < 0.0) {
+			std::cout << "DIVERGED";
+		}
+		else if (err > 1e-6) {
+			std::cout << "NOT CONVERGED";
+		}
+		else {
+			std::cout << " iter: " << _mggpu.iterations() << ", error: " << err;			
+		}
+		std::cout << std::endl;
 
 
-	for (int i = 0; i < _volume->numChannels(); i++) {
+		double tau = _mggpu.tortuosity();
+		std::cout << "TORTUOSITY: " << tau << std::endl;
+
+		std::chrono::duration<double> solveTime = ts1 - ts0;
+		std::cout << "Solve time: " << solveTime.count() << "s" << std::endl;
+		std::cout << "TOTAL time: " << solveTime.count() + prepTime.count() << "s" << std::endl;
+		std::cout << "MGGPU END =================================" << std::endl;
+	}
+
+	//std::ofstream f("alpha.txt");
+
+	if (false) {
+
+
+		int N = 50;
+		for (auto i = 0; i < N; i++) {
+			double start = 0.1;
+			double end = 1.99;
+
+			auto & f = std::cout;
+
+
+			MGGPU<double>::SolveParams sp; //default
+			sp.alpha = start + (end - start) / (N - 1) * i;
+			sp.maxIter = 64;
+			sp.postN = 1;
+			sp.preN = 1;
+			sp.verbose = false;
+			sp.cycleType = MGGPU<double>::CycleType::V_CYCLE;
+
+			Timer timer(true);
+			double err = _mggpu.solve(sp);
+			double t = timer.time();
+
+			f << "Alpha: " << sp.alpha << ", ";
+			if (err < 0.0) {
+				f << "DIVERGED";
+			}
+			else if (err > 1e-6) {
+				f << "NOT CONVERGED";
+			}
+			else {
+				f << " iter: " << _mggpu.iterations() << ", error: " << err;
+				f << ", t: " << t << "s";
+			}
+
+
+			f << std::endl;
+
+			_mggpu.reset();
+
+
+		}
+
+	}
+
+
+	/*for (int i = 0; i < _volume->numChannels(); i++) {
 		auto &chan = _volume->getChannel(i);
 		std::cout << chan.getName() << std::endl;
 		chan.normalize();
@@ -611,10 +696,8 @@ void BatteryApp::solveMGGPU()
 		
 		char b;
 		b = 0;
-
 	}
-
-	_volume->synchronize();
+	_volume->synchronize();*/
 
 
 }
