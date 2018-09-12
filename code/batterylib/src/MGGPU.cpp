@@ -1288,6 +1288,7 @@ void blib::MGGPU<T>::profile()
 			sp.x = _levels[i].x;
 			sp.tmpx = _levels[i].tmpx;
 			sp.r = _levels[i].r;
+			sp.dir = _params.dir;
 
 			sp.res = make_uint3(_levels[i].dim);
 			sp.tolerance = tolerance;
@@ -1435,6 +1436,7 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 					sp.x = _levels[i].x;
 					sp.tmpx = _levels[i].tmpx;
 					sp.r = _levels[i].r;
+					sp.dir = _params.dir;
 
 					sp.res = make_uint3(_levels[i].dim);
 					sp.tolerance = solveParams.tolerance;
@@ -1758,6 +1760,8 @@ T blib::MGGPU<T>::tortuosity()
 	T dc = sum / n;
 	T dx = 1.0f / (dim[primary] + 1);
 	T tau = porosity / (dc * dim[primary] * 2);
+
+	_porosity = porosity;
 
 	return tau;
 

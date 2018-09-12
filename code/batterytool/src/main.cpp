@@ -3,6 +3,7 @@
 #include <args.h>
 
 #include <batterylib/include/DiffusionSolver.h>
+#include <batterylib/include/MGGPU.h>
 #include <batterylib/include/VolumeIO.h>
 
 
@@ -43,6 +44,7 @@ args::ValueFlag<std::string> argTauDir(group, "string", "Direction (x|y|z)|all|p
 args::ValueFlag<int> argTol(group, "tolerance", "Tolerance 1e-{tol}", { "tol" }, 6);
 args::ValueFlag<int> argMaxIterations(group, "maxIterations", "Max Iterations", { "iter" }, 10000);
 args::ValueFlag<int> argStep(group, "step", "Step", { "step" }, 250);
+args::ValueFlag<std::string> argSolver(group, "string", "Solver (MGGPU|Eigen)", { "solver" }, "MGGPU");
 args::Flag argVolumeExport(group, "Volume export", "Concetration volume export", { "volExport" });
 args::Flag argVerbose(group, "v", "Verbose", { 'v', "verbose" });
 
@@ -142,7 +144,15 @@ bool tortuosity() {
 	T d0 = 1.0f;
 	T d1 = 0.001f;
 
-	blib::DiffusionSolver<T> solver(argVerbose);
+	
+	
+
+	
+
+	blib::DiffusionSolver<T> solverEigen(argVerbose);
+	blib::MGGPU<T> solverMGGPU;
+
+
 	for (auto i = 0; i < dirs.size(); i++) {
 		auto dir = dirs[i];
 		if (argVerbose) {
@@ -150,22 +160,49 @@ bool tortuosity() {
 		}
 
 		auto t0 = std::chrono::system_clock::now();
-		//Prepare linear system
-		solver.prepare(
-			c,
-			dir,
-			d0,
-			d1,
-			true
-		);
 
 		T tol = T(pow(10.0, -argTol.Get()));
-		//Solve to desired tolerance
-		solver.solve(tol, argMaxIterations.Get(), argStep.Get());
 
-		//Calculate tortuosity and porosity
-		taus[i] = solver.tortuosity(c, dir);
-		porosity = solver.porosity();
+		//Prepare linear system
+		if (argSolver.Get() == "Eigen") {			
+			solverEigen.prepare(
+				c,
+				dir,
+				d0,
+				d1,
+				true
+			);
+
+			solverEigen.solve(tol, argMaxIterations.Get(), argStep.Get());
+
+			taus[i] = solverEigen.tortuosity(c, dir);
+			porosity = solverEigen.porosity();
+		}
+		else {
+			blib::MGGPU<T>::PrepareParams p;
+			{
+				p.dir = dir;
+				p.d0 = d0;
+				p.d1 = d1;				
+				auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
+				auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
+				auto exactSolveDim = 4;
+				p.cellDim = blib::vec3(1.0 / maxDim);
+				p.levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;								
+			}			
+			solverMGGPU.prepare(c, p, volume);
+
+			blib::MGGPU<T>::SolveParams sp;
+			sp.tolerance = tol;
+			sp.verbose = argVerbose;
+			sp.maxIter = argMaxIterations.Get();			
+			solverMGGPU.solve(sp);
+
+			taus[i] = solverMGGPU.tortuosity();
+			porosity = solverMGGPU.porosity();
+		}		
+
+		//Calculate tortuosity and porosity				
 		auto t1 = std::chrono::system_clock::now();
 
 
@@ -177,11 +214,11 @@ bool tortuosity() {
 		}
 
 		//Export calculated concetration volume
-		if (argVolumeExport) {
+		if (argVolumeExport && argSolver.Get() == "Eigen") {
 			const std::string exportPath = (argInput.Get() + std::string("/conc_dir_") + char(char(dir) + '0')
 				+ std::string("_") + tmpstamp("%Y_%m_%d_%H_%M_%S") 
 				+ std::string(".vol"));			
-			solver.resultToVolume(volume.getChannel(IDConc));
+			solverEigen.resultToVolume(volume.getChannel(IDConc));
 			bool res = blib::saveVolumeBinary(exportPath.c_str(), volume.getChannel(IDConc));
 			if (argVerbose) {
 				std::cout << "export to" << (exportPath) << std::endl;
@@ -217,6 +254,9 @@ bool tortuosity() {
 		auto dim = c.dim();
 		os << dim.x << ",\t" << dim.y << ",\t" << dim.z;
 
+
+		os << ",\t" << argSolver.Get();
+
 		os << "\n";
 	}
 
@@ -246,10 +286,12 @@ int main(int argc, char **argv){
 
 	bool res = true;
 
-	if (argPrecision.Get() == "float")
+	/*if (argPrecision.Get() == "float")
 		res &= tortuosity<float>();
 	else
-		res &= tortuosity<double>();
+		res &= tortuosity<double>();*/
+
+	res &= tortuosity<double>();
 
 
 	

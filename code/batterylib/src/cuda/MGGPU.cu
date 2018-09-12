@@ -1644,53 +1644,107 @@ __global__ void __gaussSeidelLine(
 
 }
 
+template<bool isTopLevel, int sgn>
+void gaussSeidelX(MGGPU_SmootherParams & p, int blockDim) {
+	uint3 block;
+	uint3 numBlocks;
+
+	block = make_uint3(1, blockDim, blockDim);
+	numBlocks = make_uint3(
+		1,
+		((p.res.y / 2 + (block.y - 1)) / block.y),
+		((p.res.z + (block.z - 1)) / block.z)
+	);
+
+	__gaussSeidelLine<0, sgn, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
+	__gaussSeidelLine<0, sgn, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
+}
+
+template<bool isTopLevel, int sgn>
+void gaussSeidelY(MGGPU_SmootherParams & p, int blockDim) {
+	uint3 block;
+	uint3 numBlocks;
+
+	block = make_uint3(blockDim, 1, blockDim);
+	numBlocks = make_uint3(
+		((p.res.x + (block.x - 1)) / block.x),
+		1,
+		((p.res.z / 2 + (block.z - 1)) / block.z)
+	);
+
+	__gaussSeidelLine<1, sgn, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
+	__gaussSeidelLine<1, sgn, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
+}
+
+template<bool isTopLevel, int sgn>
+void gaussSeidelZ(MGGPU_SmootherParams & p, int blockDim) {
+	uint3 block;
+	uint3 numBlocks;
+
+	block = make_uint3(blockDim, blockDim, 1);
+	numBlocks = make_uint3(
+		((p.res.x / 2 + (block.x - 1)) / block.y),
+		((p.res.y + (block.y - 1)) / block.y),
+		1
+	);
+
+	__gaussSeidelLine<2, sgn, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
+	__gaussSeidelLine<2, sgn, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
+}
+
 template<bool isTopLevel>
 void gaussSeidelAllDirs(MGGPU_SmootherParams & p, int blockDim) {
 
+	if (p.dir == X_NEG) {
+		gaussSeidelX<isTopLevel, 1>(p, blockDim);
+		gaussSeidelY<isTopLevel, 1>(p, blockDim);
+		gaussSeidelZ<isTopLevel, 1>(p, blockDim);
+	}
 
-	uint3 block;
-	uint3 numBlocks;
+	if (p.dir == Y_NEG) {
+		gaussSeidelY<isTopLevel, 1>(p, blockDim);
+		gaussSeidelZ<isTopLevel, 1>(p, blockDim);
+		gaussSeidelX<isTopLevel, 1>(p, blockDim);
+	}
+	
+
+	if (p.dir == Z_NEG) {
+		gaussSeidelZ<isTopLevel, 1>(p, blockDim);
+		gaussSeidelX<isTopLevel, 1>(p, blockDim);
+		gaussSeidelY<isTopLevel, 1>(p, blockDim);
+	}
+
+	if (p.dir == X_POS) {
+		gaussSeidelX<isTopLevel, -1>(p, blockDim);
+		gaussSeidelY<isTopLevel, -1>(p, blockDim);
+		gaussSeidelZ<isTopLevel, -1>(p, blockDim);
+	}
+
+	if (p.dir == Y_POS) {
+		gaussSeidelY<isTopLevel, -1>(p, blockDim);
+		gaussSeidelZ<isTopLevel, -1>(p, blockDim);
+		gaussSeidelX<isTopLevel, -1>(p, blockDim);
+	}
+
+
+	if (p.dir == Z_POS) {
+		gaussSeidelZ<isTopLevel, -1>(p, blockDim);
+		gaussSeidelX<isTopLevel, -1>(p, blockDim);
+		gaussSeidelY<isTopLevel, -1>(p, blockDim);
+	}
+
+
+
+	
 
 	/*if (!p.isTopLevel) {
 		BLOCKS3D(8, p.res);
 		__gaussSeidelZeroGuess<false><<<numBlocks, block>>>(p.res, p.f, p.x, p.A, 0.5);
 	}*/
 
-	{
-		block = make_uint3(1, blockDim, blockDim);
-		numBlocks = make_uint3(
-			1,
-			((p.res.y / 2 + (block.y - 1)) / block.y),
-			((p.res.z + (block.z - 1)) / block.z)
-		);
-
-		__gaussSeidelLine<0, 1, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
-		__gaussSeidelLine<0, 1, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
-	}
 	
-	{
-		block = make_uint3(blockDim, 1, blockDim);
-		numBlocks = make_uint3(
-			((p.res.x + (block.x - 1)) / block.x),
-			1,
-			((p.res.z / 2 + (block.z - 1)) / block.z)
-		);
-
-		__gaussSeidelLine<1, 1, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
-		__gaussSeidelLine<1, 1, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
-	}
-
-	{
-		block = make_uint3(blockDim, blockDim, 1);
-		numBlocks = make_uint3(
-			((p.res.x / 2 + (block.x - 1)) / block.y),
-			((p.res.y + (block.y - 1)) / block.y),
-			1
-		);
-
-		__gaussSeidelLine<2, 1, false, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
-		__gaussSeidelLine<2, 1, true, isTopLevel> << <numBlocks, block >> > (p.res, p.f, p.x, p.A, p.alpha);
-	}
+	
+	
 
 
 	

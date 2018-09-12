@@ -46,7 +46,7 @@ namespace blib {
 			T alpha = 1.0;
 			int preN = 1;
 			int postN = 1;
-			CycleType cycleType = W_CYCLE;
+			CycleType cycleType = V_CYCLE;
 			T tolerance = 1e-6;
 			size_t maxIter = 1024;
 			bool verbose = false;
@@ -81,6 +81,10 @@ namespace blib {
 
 		BLIB_EXPORT size_t iterations() const {
 			return _iterations;
+		}
+
+		BLIB_EXPORT T porosity() const {
+			return _porosity;
 		}
 
 
@@ -135,6 +139,7 @@ namespace blib {
 
 		size_t _iterations;
 
+		T _porosity;
 	};
 
 	

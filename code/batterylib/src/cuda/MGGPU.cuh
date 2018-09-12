@@ -55,6 +55,7 @@ struct MGGPU_SysParams {
 struct MGGPU_SmootherParams {
 	MGGPU_KernelPtr A;
 	bool isTopLevel;
+	Dir dir;
 	
 	MGGPU_Volume f;
 	MGGPU_Volume x;
