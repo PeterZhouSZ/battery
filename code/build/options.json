@@ -45,7 +45,7 @@
             "type": 5
         },
         "GenResolution": {
-            "data": 16,
+            "data": 128,
             "type": 2
         },
         "Sphere": {
