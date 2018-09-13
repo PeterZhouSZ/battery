@@ -10,6 +10,7 @@
 #include <numeric>
 
 
+
 #include "JacobiSolver.h"
 //#ifdef DEBUG
 //#define SAVE_TO_FILE
@@ -183,7 +184,8 @@ inline uint3 make_uint3(const ivec3 & i) {
 
 bool saveSparse(const MGGPU<double>::SparseMat & M, const std::string & name, int level) {
 	
-	char buf[24]; itoa(level, buf, 10);
+	char buf[24]; 
+	sprintf(buf, "%d", level);	
 	std::ofstream f(name + "_" + std::string(buf) + ".dat");
 
 	for (auto k = 0; k < M.rows(); k++) {
@@ -205,7 +207,8 @@ bool saveVector(void * vin, size_t N,  const std::string & name, int level) {
 
 		T * v = (T *)vin;
 		
-		char buf[24]; itoa(level, buf, 10);
+		char buf[24]; 
+		sprintf(buf, "%d", level);
 		std::ofstream f(name + "_" + std::string(buf) + ".txt");
 		for (auto i = 0; i < N; i++) {
 			f << v[i] << "\n";
@@ -1229,7 +1232,7 @@ bool MGGPU<T>::alloc()
 
 	auto label = [](const std::string & prefix, int i) {
 		char buf[16];
-		itoa(i, buf, 10);
+		sprintf(buf, "%d", i);
 		return prefix + std::string(buf);
 	};
 

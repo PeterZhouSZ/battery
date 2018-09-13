@@ -2,6 +2,7 @@
 
 
 #include <functional>
+#include <limits>
 
 #include "BatteryLibDef.h"
 #include "RandomGenerator.h"
@@ -86,7 +87,7 @@ namespace blib {
 				float P = acceptance(currentScore, newScore, temperature);
 				lastAcceptanceP = P;
 			
-				if (newScore != FLT_MAX && P >= randomUniform()) {
+				if (newScore != std::numeric_limits<float>::max() && P >= randomUniform()) {
 					state = std::move(newState);
 					currentScore = newScore;
 				}

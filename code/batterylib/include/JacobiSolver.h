@@ -89,7 +89,7 @@ namespace blib {
 			T diag = 0.0f;
 			int cnt = 0;
 			T sumA = 0.0;
-			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
+			for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
 				auto  j = it.col();
 				if (j == i) {
 					diag = it.value();
@@ -132,7 +132,7 @@ namespace blib {
 
 			T sum = 0.0f;
 			T diag = 0.0f;
-			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
+			for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
 				auto  j = it.col();
 				if (j == i) {
 					diag = it.value();
@@ -145,6 +145,190 @@ namespace blib {
 		}
 	}
 
+	template <typename T, int dir, int sgn, bool alternate>
+	void gaussSeidelStepLineZebra(
+		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
+		ivec3 dim
+	) {
+
+
+		int primDim = dim[dir];
+		const int secDirs[2] = {
+			(dir + 1) % 3,
+			(dir + 2) % 3
+		};
+
+		
+		for (auto i = 0; i < dim[secDirs[0]] / 2; i++) {
+			for (auto j = 0; j < dim[secDirs[1]]; j++) {
+
+				ivec3 vox;
+				vox[secDirs[0]] = i * 2;
+				vox[secDirs[1]] = j;
+
+				if (!alternate)
+					vox[secDirs[0]] += j % 2;
+				else 
+					vox[secDirs[0]] += 1 - j % 2;
+
+				const int begin = (sgn == -1) ? int(primDim) - 1 : 0;
+				const int end = (sgn == -1) ? -1 : int(primDim);
+
+				for (auto k = begin; k != end; k+=sgn) {
+
+					ivec3 voxi = { vox.x, vox.y, vox.z };
+					voxi[dir] = k;
+
+
+					auto row = linearIndex(dim, voxi);
+
+					
+
+					T sum = T(0);
+					T diag = T(0);
+					for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
+						auto  col = it.col();
+						if (col == row) {
+							diag = it.value();
+							continue;
+						}
+						T xval = X[col];
+						T aval = it.value();
+						sum += it.value() * X[col];
+					}
+
+					X[row] = (b[row] - sum) / diag;
+
+				}
+
+			}		
+		}
+
+
+
+	}
+
+	template <typename T, int dir> 
+	void jacobiPlane(
+		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & xprime,
+		ivec3 dim,
+		int planeInDir,
+		int iterations
+	) {
+		const int secDirs[2] = {
+			(dir + 1) % 3,
+			(dir + 2) % 3
+		};
+
+		Eigen::Matrix<T, Eigen::Dynamic, 1> * X[2] = {
+			&x, &xprime
+		};
+
+		if (iterations % 2 == 1) iterations++;
+
+		for (auto iter = 0; iter < iterations; iter++) {
+
+			auto & x0 = *X[iter % 2];
+			auto & x1 = *X[(iter + 1) % 2];
+
+			#pragma omp parallel for
+			for (auto i = 0; i < dim[secDirs[0]]; i++) {
+				for (auto j = 0; j < dim[secDirs[1]]; j++) {
+					ivec3 vox;
+					vox[dir] = planeInDir;
+					vox[secDirs[0]] = i;
+					vox[secDirs[1]] = j;
+
+
+					auto row = linearIndex(dim, vox);
+					T sum = T(0);
+					T diag = T(0);
+					for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
+						auto  col = it.col();
+						if (col == row) {
+							diag = it.value();
+							continue;
+						}
+						sum += it.value() * x0[col];
+					}
+
+					x1[row] = (b[row] - sum) / diag;
+
+				}
+			}
+		}		
+
+	}
+
+	template <typename T, int dir, int sgn>
+	void gaussSeidelBoundary(
+		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
+		ivec3 dim,
+		int layers = 1
+	) {
+
+
+		const int secDirs[2] = {
+			(dir + 1) % 3,
+			(dir + 2) % 3
+		};
+		for (auto i = 0; i < dim[secDirs[0]]; i++) {
+			for (auto j = 0; j < dim[secDirs[1]]; j++) {
+				ivec3 vox;
+				auto dirBegin = (sgn == 1) ? (dim[dir] - 1) : 0;
+				vox[dir] = dirBegin;
+				vox[secDirs[0]] = i;
+				vox[secDirs[1]] = j;
+
+				//layers from boundary
+				for (auto k = 0; k < layers; k++) {
+					vox[dir] = dirBegin + k*(-sgn);
+
+					auto row = linearIndex(dim, vox);
+
+					T sum = T(0);
+					T diag = T(0);
+					for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
+						auto  col = it.col();
+						if (col == row) {
+							diag = it.value();
+							continue;
+						}
+						sum += it.value() * X[col];
+					}
+
+					X[row] = (b[row] - sum) / diag;
+
+				}
+			}
+		}
+	
+	}
+
+
+	template <typename T>
+	void gaussSeidelBoundaries(
+		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
+		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
+		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
+		ivec3 dim
+	) {
+
+		gaussSeidelBoundary<T, 0, -1>(A, b, X, dim);
+		gaussSeidelBoundary<T, 0, 1>(A, b, X, dim);
+		gaussSeidelBoundary<T, 1, -1>(A, b, X, dim);
+		gaussSeidelBoundary<T, 1, 1>(A, b, X, dim);
+		gaussSeidelBoundary<T, 2, -1>(A, b, X, dim);
+		gaussSeidelBoundary<T, 2, 1>(A, b, X, dim);
+	
+	}
 
 	template <typename T>
 	T solveGaussSeidel(
@@ -264,60 +448,7 @@ namespace blib {
 	}
 
 
-	template <typename T, int dir> 
-	void jacobiPlane(
-		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
-		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
-		Eigen::Matrix<T, Eigen::Dynamic, 1> & x,
-		Eigen::Matrix<T, Eigen::Dynamic, 1> & xprime,
-		ivec3 dim,
-		int planeInDir,
-		int iterations
-	) {
-		const int secDirs[2] = {
-			(dir + 1) % 3,
-			(dir + 2) % 3
-		};
-
-		Eigen::Matrix<T, Eigen::Dynamic, 1> * X[2] = {
-			&x, &xprime
-		};
-
-		if (iterations % 2 == 1) iterations++;
-
-		for (auto iter = 0; iter < iterations; iter++) {
-
-			auto & x0 = *X[iter % 2];
-			auto & x1 = *X[(iter + 1) % 2];
-
-			#pragma omp parallel for
-			for (auto i = 0; i < dim[secDirs[0]]; i++) {
-				for (auto j = 0; j < dim[secDirs[1]]; j++) {
-					ivec3 vox;
-					vox[dir] = planeInDir;
-					vox[secDirs[0]] = i;
-					vox[secDirs[1]] = j;
-
-
-					auto row = linearIndex(dim, vox);
-					T sum = T(0);
-					T diag = T(0);
-					for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
-						auto  col = it.col();
-						if (col == row) {
-							diag = it.value();
-							continue;
-						}
-						sum += it.value() * x0[col];
-					}
-
-					x1[row] = (b[row] - sum) / diag;
-
-				}
-			}
-		}		
-
-	}
+	
 
 	
 
@@ -332,7 +463,7 @@ namespace blib {
 		for (auto i = 0; i < A.rows(); i++) {		
 			T sum = T(0);
 			T diag = T(0);
-			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
+			for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
 				auto  j = it.col();
 				if (j == i) {
 					diag = it.value();
@@ -346,70 +477,10 @@ namespace blib {
 
 	}
 
-
-	template <typename T>
-	void gaussSeidelBoundaries(
-		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
-		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
-		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
-		ivec3 dim
-	) {
-
-		gaussSeidelBoundary<T, 0, -1>(A, b, X, dim);
-		gaussSeidelBoundary<T, 0, 1>(A, b, X, dim);
-		gaussSeidelBoundary<T, 1, -1>(A, b, X, dim);
-		gaussSeidelBoundary<T, 1, 1>(A, b, X, dim);
-		gaussSeidelBoundary<T, 2, -1>(A, b, X, dim);
-		gaussSeidelBoundary<T, 2, 1>(A, b, X, dim);
 	
-	}
-
-	template <typename T, int dir, int sgn>
-	void gaussSeidelBoundary(
-		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
-		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
-		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
-		ivec3 dim,
-		int layers = 1
-	) {
 
 
-		const int secDirs[2] = {
-			(dir + 1) % 3,
-			(dir + 2) % 3
-		};
-		for (auto i = 0; i < dim[secDirs[0]]; i++) {
-			for (auto j = 0; j < dim[secDirs[1]]; j++) {
-				ivec3 vox;
-				auto dirBegin = (sgn == 1) ? (dim[dir] - 1) : 0;
-				vox[dir] = dirBegin;
-				vox[secDirs[0]] = i;
-				vox[secDirs[1]] = j;
-
-				//layers from boundary
-				for (auto k = 0; k < layers; k++) {
-					vox[dir] = dirBegin + k*(-sgn);
-
-					auto row = linearIndex(dim, vox);
-
-					T sum = T(0);
-					T diag = T(0);
-					for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
-						auto  col = it.col();
-						if (col == row) {
-							diag = it.value();
-							continue;
-						}
-						sum += it.value() * X[col];
-					}
-
-					X[row] = (b[row] - sum) / diag;
-
-				}
-			}
-		}
 	
-	}
 
 	template <typename T, int dir, int sgn, bool alternate>
 	void gaussSeidelBoundaryAlternating(
@@ -442,7 +513,7 @@ namespace blib {
 
 				T sum = T(0);
 				T diag = T(0);
-				for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
+				for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
 					auto  col = it.col();
 					if (col == row) {
 						diag = it.value();
@@ -471,7 +542,7 @@ namespace blib {
 		
 		T sum = T(0);
 		T diag = T(0);
-		for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
+		for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
 			auto  col = it.col();
 			if (col == row) {
 				diag = it.value();
@@ -484,70 +555,7 @@ namespace blib {
 	}
 
 
-	template <typename T, int dir, int sgn, bool alternate>
-	void gaussSeidelStepLineZebra(
-		const Eigen::SparseMatrix<T, Eigen::RowMajor> & A,
-		const Eigen::Matrix<T, Eigen::Dynamic, 1> & b,
-		Eigen::Matrix<T, Eigen::Dynamic, 1> & X,
-		ivec3 dim
-	) {
-
-
-		int primDim = dim[dir];
-		const int secDirs[2] = {
-			(dir + 1) % 3,
-			(dir + 2) % 3
-		};
-
-		
-		for (auto i = 0; i < dim[secDirs[0]] / 2; i++) {
-			for (auto j = 0; j < dim[secDirs[1]]; j++) {
-
-				ivec3 vox;
-				vox[secDirs[0]] = i * 2;
-				vox[secDirs[1]] = j;
-
-				if (!alternate)
-					vox[secDirs[0]] += j % 2;
-				else 
-					vox[secDirs[0]] += 1 - j % 2;
-
-				const int begin = (sgn == -1) ? int(primDim) - 1 : 0;
-				const int end = (sgn == -1) ? -1 : int(primDim);
-
-				for (auto k = begin; k != end; k+=sgn) {
-
-					ivec3 voxi = { vox.x, vox.y, vox.z };
-					voxi[dir] = k;
-
-
-					auto row = linearIndex(dim, voxi);
-
-					
-
-					T sum = T(0);
-					T diag = T(0);
-					for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, row); it; ++it) {
-						auto  col = it.col();
-						if (col == row) {
-							diag = it.value();
-							continue;
-						}
-						T xval = X[col];
-						T aval = it.value();
-						sum += it.value() * X[col];
-					}
-
-					X[row] = (b[row] - sum) / diag;
-
-				}
-
-			}		
-		}
-
-
-
-	}
+	
 
 
 
@@ -590,7 +598,7 @@ namespace blib {
 
 						T sum = T(0);
 						T diag = T(0);
-						for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
+						for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
 							auto  j = it.col();
 							if (j == i) {
 								diag = it.value();

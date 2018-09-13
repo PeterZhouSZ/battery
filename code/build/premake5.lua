@@ -3,6 +3,9 @@ local glew = os.getenv("GLEW_PATH") -- glew-2.0.0
 local glm = os.getenv("GLM_PATH") --glm 0.9.8
 local eigen = os.getenv("EIGEN_PATH") --eigen 3.3.4
 
+local cuda = os.getenv("CUDA_PATH")
+
+
 cuda_version = "9.2"
 include("premake-cuda/cuda.lua")
 
@@ -12,14 +15,26 @@ local libDir = "../batterylib/"
 local toolDir = "../batterytool/"
 
 workspace "battery"
-	configurations { "Debug", "Release" }
+	configurations { "Debug", "Release" }	
+	--platforms {"Windows","Unix","Mac"}
+
+--filter { "platforms:Windows" }
+    --system "Windows"
+	architecture "x64"
+
+filter "action:vs*"
 	buildoptions { "/openmp /std:c++latest" }
-	platforms {"x64"}
+filter "action:gmake*"
+	buildoptions {"-fopenmp","-w","-lstdc++fs"}	
+	
+	--filter { "platforms:Unix" }
+    --system "linux"
+	--architecture "x64"
+	--buildoptions { "/openmp /std:c++latest" }
 
-filter { "platforms:x64" }
-    system "Windows"
-    architecture "x64"
-
+	--filter { "platforms:Mac" }
+    --system "macosx"
+	--architecture "x64"
 
 project "batterylib"
 	kind "SharedLib"
@@ -44,7 +59,8 @@ project "batterylib"
 		libDir .. "external/",		
 		glew .. "/include",		
 		glm,
-		eigen	
+		eigen,
+		cuda .. "/include"
 	}
 
 	libdirs {

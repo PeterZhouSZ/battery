@@ -101,7 +101,7 @@ std::pair<Eigen::Vector3f, Eigen::Vector3f> vectorToPlaneBasis(const Eigen::Vect
 		v2 = v0.cross(v1).normalized();
 		v1 = v2.cross(v0).normalized();		
 
-		assert(!isnan(v2[0]) && !isinf(v2[0]));
+		assert(!std::isnan(v2[0]) && !std::isinf(v2[0]));
 	}
 
 	return { v1, v2 };	

@@ -406,7 +406,8 @@ void blib::MultigridGPU<T>::exportLevel(int level)
 	L.A.row.retrieve();
 	L.A.col.retrieve();
 
-	char buf[24]; itoa(level, buf, 10);
+	char buf[24]; 
+	sprintf(buf, "%d", level);
 	std::ofstream f("A_GPU_" + std::string(buf) + ".dat");
 
 
@@ -529,7 +530,8 @@ void blib::MultigridGPU<T>::prepareSystemAtLevel(uint level)
 			stride.z
 		};
 
-		char buf[24]; itoa(level, buf, 10);
+		char buf[24]; 
+		sprintf(buf, "%d", level);
 		std::ofstream f("A_GPU_" + std::string(buf) + ".dat");
 
 		for (auto i = 0; i < N; i++) {
@@ -553,7 +555,8 @@ void blib::MultigridGPU<T>::prepareSystemAtLevel(uint level)
 
 		T * ptr = (T*)(_f[level].getCPU());
 
-		char buf[24]; itoa(level, buf, 10);
+		char buf[24]; 
+		sprintf(buf, "%d", level);
 		std::ofstream f("B_GPU_" + std::string(buf) + ".txt");
 		for (auto i = 0; i < N; i++) {
 			f << ptr[i] << "\n";
@@ -569,7 +572,8 @@ void blib::MultigridGPU<T>::prepareSystemAtLevel(uint level)
 
 		T * ptr = (T*)(_D[level].getCPU());
 
-		char buf[24]; itoa(level, buf, 10);
+		char buf[24]; 
+		sprintf(buf, "%d", level);
 		std::ofstream f("D_GPU_" + std::string(buf) + ".txt");
 		for (auto i = 0; i < N; i++) {
 			f << ptr[i] << "\n";

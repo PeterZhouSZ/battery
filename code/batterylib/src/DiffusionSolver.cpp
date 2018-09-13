@@ -449,7 +449,7 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1
 		std::ofstream f("A.dat");
 
 		for (auto i = 0; i < _A.rows(); i++) {
-			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A, i); it; ++it) {
+			for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A, i); it; ++it) {
 				auto  j = it.col();
 				f << i << " " << j << " " << it.value() << "\n";
 			}
@@ -494,7 +494,7 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1
 
 			T sum = 0;
 			int n = 0;
-			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A, i); it; ++it) {
+			for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A, i); it; ++it) {
 				T val = it.value();
 				sum += val*val;
 				n++;
@@ -503,7 +503,7 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1
 
 			T d = 1.0 / norm;
 
-			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A, i); it; ++it) {
+			for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A, i); it; ++it) {
 				auto  j = it.col();
 				it.valueRef() *= d;
 			}
@@ -582,11 +582,11 @@ bool DiffusionSolver<T>::resultToVolume(VolumeChannel & vol)
 	}
 	else {
 		if (vol.type() == TYPE_FLOAT) {
-			Eigen::Matrix<float, Eigen::Dynamic, 1> tmpX = _x.cast<float>();
+			Eigen::Matrix<float, Eigen::Dynamic, 1> tmpX = _x.template cast<float>();
 			memcpy(destPtr, tmpX.data(), tmpX.size() * sizeof(float));
 		}
 		else if (vol.type() == TYPE_DOUBLE) {
-			Eigen::Matrix<double, Eigen::Dynamic, 1> tmpX = _x.cast<double>();
+			Eigen::Matrix<double, Eigen::Dynamic, 1> tmpX = _x.template cast<double>();
 			memcpy(destPtr, tmpX.data(), tmpX.size() * sizeof(double));
 		}
 		else {

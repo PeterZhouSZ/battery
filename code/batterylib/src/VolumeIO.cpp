@@ -3,8 +3,15 @@
 
 #include "tinytiff/tinytiffreader.h"
 
-#include <filesystem>
+
+#if defined(__GNUC__)
+    #include <experimental/filesystem>
+#else
+	#include <filesystem>
+#endif
+
 #include <fstream>
+#include <algorithm>
 
 using namespace std;
 using namespace blib;

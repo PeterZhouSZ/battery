@@ -68,7 +68,8 @@ void addDebugChannel(Volume & vol, const Eigen::Matrix<T, Eigen::Dynamic, 1> & v
 	memcpy(c.getCurrentPtr().getCPU(), tmp.data(), dim.x * dim.z* dim.y * sizeof(float));
 	c.getCurrentPtr().commit();
 
-	char buf[24]; itoa(levnum, buf, 10);
+	char buf[24]; 
+	sprintf(buf, "%d", levnum);
 	c.setName(name + buf);
 
 #endif
@@ -96,7 +97,8 @@ void addDebugChannel(Volume & vol, const std::vector<T> & vec, ivec3 dim, const 
 template <typename T>
 void saveVector(const Eigen::Matrix<T, Eigen::Dynamic, 1> & vec, const std::string &name, int level) {
 
-	char buf[24]; itoa(level, buf, 10);
+	char buf[24]; 
+	sprintf(buf, "%d", level);
 	std::ofstream f(name + "_" + std::string(buf) + ".txt");
 	for (auto i = 0; i < vec.size(); i++) {
 		f << vec[i] << "\n";
@@ -1697,7 +1699,7 @@ bool MultigridSolver<T>::prepare(
 
 			T sum = 0;
 			int n = 0;
-			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[0], i); it; ++it) {
+			for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[0], i); it; ++it) {
 				T val = it.value();
 				sum += val*val;
 				n++;			
@@ -1706,7 +1708,7 @@ bool MultigridSolver<T>::prepare(
 			
 			T d = 1.0 / norm;
 
-			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[0], i); it; ++it) {
+			for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[0], i); it; ++it) {
 				auto  j = it.col();
 				it.valueRef() *= d;				
 			}
@@ -1746,11 +1748,12 @@ bool MultigridSolver<T>::prepare(
 
 		#ifdef MG_LINSYS_TO_FILE
 		{
-			char buf[24]; itoa(i, buf, 10);
+			char buf[24]; 
+			sprintf(buf, "%d", i);
 			std::ofstream f("I_" + std::string(buf) + ".dat");
 
 			for (auto r = 0; r < _I[i].rows(); r++) {
-				for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_I[i], r); it; ++it) {
+				for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_I[i], r); it; ++it) {
 					auto  j = it.col();
 					f << r+1 << " " << j+1 << " " << it.value() << "\n";
 				}				
@@ -1758,11 +1761,12 @@ bool MultigridSolver<T>::prepare(
 		}
 
 		{
-			char buf[24]; itoa(i, buf, 10);
+			char buf[24]; 
+			sprintf(buf, "%d", i);
 			std::ofstream f("R_" + std::string(buf) + ".dat");
 
 			for (auto r = 0; r < _R[i].rows(); r++) {
-				for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_R[i], r); it; ++it) {
+				for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_R[i], r); it; ++it) {
 					auto  j = it.col();
 					f << r + 1 << " " << j + 1 << " " << it.value() << "\n";
 				}
@@ -1804,11 +1808,12 @@ bool MultigridSolver<T>::prepare(
 #ifdef MG_LINSYS_TO_FILE
 		{
 			int level = i;
-			char buf[24]; itoa(level, buf, 10);
+			char buf[24]; 
+			sprintf(buf, "%d", level);
 			std::ofstream f("A_" + std::string(buf) + ".dat");
 
 			for (auto k = 0; k < _A[level].rows(); k++) {
-				for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[level], k); it; ++it) {
+				for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[level], k); it; ++it) {
 					auto  j = it.col();
 					f << k + 1 << " " << j + 1 << " " << it.value() << "\n";
 				}
@@ -1824,11 +1829,12 @@ bool MultigridSolver<T>::prepare(
 
 			SparseMat AI = _A[i - 1] * _I[i - 1];
 			int level = i;
-			char buf[24]; itoa(level, buf, 10);
+			char buf[24]; 
+			sprintf(buf, "%d", level);
 			std::ofstream f("AI_" + std::string(buf) + ".dat");
 
 			for (auto k = 0; k < AI.rows(); k++) {
-				for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(AI, k); it; ++it) {
+				for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(AI, k); it; ++it) {
 					auto  j = it.col();
 					f << k + 1 << " " << j + 1 << " " << it.value() << "\n";
 				}
@@ -2228,11 +2234,12 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 
 
 	{
-		char buf[24]; itoa(level, buf, 10);
+		char buf[24]; 
+		sprintf(buf, "%d", level);
 		std::ofstream f("A_" + std::string(buf) + ".dat");
 
 		for (auto i = 0; i < _A[level].rows(); i++) {
-			for (Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[level], i); it; ++it) {
+			for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A[level], i); it; ++it) {
 				auto  j = it.col();
 				f << i+1 << " " << j+1 << " " << it.value() << "\n";
 			}
@@ -2243,7 +2250,8 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 	}
 
 	{
-		char buf[24]; itoa(level, buf, 10);
+		char buf[24]; 
+		sprintf(buf, "%d", level);
 		std::ofstream f("B_" + std::string(buf) + ".txt");
 		for (auto i = 0; i < _f[level].size(); i++) {
 			f << _f[level][i] << "\n";
@@ -2254,7 +2262,8 @@ bool MultigridSolver<T>::prepareAtLevelFVM(
 	}
 
 	{
-		char buf[24]; itoa(level, buf, 10);
+		char buf[24]; 
+		sprintf(buf, "%d", level);
 		std::ofstream f("D_" + std::string(buf) + ".txt");
 		for (auto i = 0; i < _D[level].size(); i++) {
 			f << _D[level][i] << "\n";
@@ -2581,7 +2590,7 @@ T MultigridSolver<T>::solve(Volume &vol, T tolerance, size_t maxIterations)
 			break;
 		}
 
-		if (isinf(err) || isnan(err) || err > lastError) {
+		if (std::isinf(err) || std::isnan(err) || err > lastError) {
 			std::cerr << "======= DIVERGENCE =======" << std::endl;
 			finalError = err;
 			break;
@@ -2674,11 +2683,11 @@ BLIB_EXPORT bool blib::MultigridSolver<T>::resultToVolume(VolumeChannel & vol)
 	}
 	else {
 		if (vol.type() == TYPE_FLOAT) {
-			Eigen::Matrix<float, Eigen::Dynamic, 1> tmpX = _x[0].cast<float>();
+			Eigen::Matrix<float, Eigen::Dynamic, 1> tmpX = _x[0].template cast<float>();
 			memcpy(destPtr, tmpX.data(), tmpX.size() * sizeof(float));
 		}
 		else if (vol.type() == TYPE_DOUBLE) {
-			Eigen::Matrix<double, Eigen::Dynamic, 1> tmpX = _x[0].cast<double>();
+			Eigen::Matrix<double, Eigen::Dynamic, 1> tmpX = _x[0].template cast<double>();
 			memcpy(destPtr, tmpX.data(), tmpX.size() * sizeof(double));
 		}
 		else {
