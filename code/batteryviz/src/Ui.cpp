@@ -197,7 +197,7 @@ bool renderOptionSet(const std::string & name, OptionSet & options, unsigned int
 	if (isOpen) {
 
 		for (auto & it : options.children) {
-			hasChanged |= renderOptionSet(it.first, it.second, depth + 1);
+			hasChanged |= renderOptionSet(it.first, *it.second, depth + 1);
 		}
 
 

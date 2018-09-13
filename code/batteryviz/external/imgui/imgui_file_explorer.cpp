@@ -1,7 +1,12 @@
 #include "imgui_file_explorer.h"
 #include "imgui.h"
 
-#include <filesystem>
+#if defined(__GNUC__)
+    #include <experimental/filesystem>
+#else
+	#include <filesystem>
+#endif
+
 #include <sstream>
 
 using namespace std;
@@ -31,9 +36,9 @@ tuple<string, string>  imguiFileExplorer(
 {
 
 	
-
-	int ID = (int)&directory;
-	fs::path path((directory.length() == 0) ? fs::current_path() : directory);
+	std::hash<std::string> hash_fn;
+	int ID = static_cast<int>(hash_fn(directory));
+	fs::path path((directory.length() == 0) ? fs::current_path() : fs::path(directory));
 
 	tuple<string, string> result = { path.string(), "" };
 

@@ -6,7 +6,12 @@
 
 
 
-#include <filesystem>
+#if defined(__GNUC__)
+    #include <experimental/filesystem>
+#else
+	#include <filesystem>
+#endif
+
 namespace fs = std::experimental::filesystem;
 
 using namespace std;

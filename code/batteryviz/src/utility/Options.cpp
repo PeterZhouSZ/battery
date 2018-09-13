@@ -1,24 +1,30 @@
 #include "Options.h"
 
+//#define NO_VARIANT
+
 #include "json.hpp"
-#include <glm\gtc\type_ptr.hpp>
+#include "glm/gtc/type_ptr.hpp"
 
 using json = nlohmann::json;
 using namespace std;
 
 OptionSet & OptionSet::operator[](const std::string & childName)
 {
-	return children[childName];
+	auto & ptr = children[childName];
+	if(!ptr)
+		children[childName] = std::make_unique<OptionSet>();
+
+	return *children[childName];
 }
 
 const OptionSet & OptionSet::operator[](const std::string & childName) const
 {
-	return children.at(childName);
+	return *children.at(childName);
 }
 
 bool OptionSet::erase(const std::string & optionName)
 {
-	auto & it = options.find(optionName);
+	auto it = options.find(optionName);
 	if (it == options.end()) return false;
 	
 	options.erase(it);
@@ -66,37 +72,105 @@ json toJson(const std::string &v) {
 	return json(v);
 }
 
-json toJson(const OptionSet & optSet) {
+json toJson(const std::unique_ptr<OptionSet> & optSet) {
 		
 	json j;
 
-	for (auto & it : optSet.children) {
+	for (auto & it : optSet->children) {
 		j[it.first] = toJson(it.second);		
 	}
 
-	for (auto & it : optSet.options) {
-		std::visit(
-			[&](auto&& arg) {
+	#if defined(NO_VARIANT)
+		for (auto & it : optSet->options) {
 
-				j[it.first] = {
-					{ "type", it.second.value.index() },
-					{ "data", toJson(arg) }
-				};				
-			},
-			it.second.value
-		);
-	}
+			json v;
+			switch(it.second.type){
+				case OT_STRING:
+					v = toJson(it.value._string);
+					break;
+				case OT_CHAR:
+					v = toJson(it.value._char);
+					break;
+				case OT_INT:
+					v = toJson(it.value._int);
+					break;
+				case OT_FLOAT:
+					v = toJson(it.value._float);
+					break;
+				case OT_DOUBLE:
+					v = toJson(it.value._double);
+					break;
+				case OT_BOOL:
+					v = toJson(it.value._bool);
+					break;
+				case OT_VEC2:
+					v = toJson(it.value._vec2);
+					break;
+				case OT_VEC3:
+					v = toJson(it.value._vec3);
+					break;
+				case OT_VEC4:
+					v = toJson(it.value._vec4);
+					break;
+				case OT_IVEC2:
+					v = toJson(it.value._ivec2);
+					break;
+				case OT_IVEC3:
+					v = toJson(it.value._ivec3);
+					break;
+				case OT_IVEC4:
+					v = toJson(it.value._ivec4);
+					break;
+				case OT_MAT2:
+					v = toJson(it.value._mat2);
+					break;
+				case OT_MAT3:
+					v = toJson(it.value._mat3);
+					break;
+				case OT_MAT4:
+					v = toJson(it.value._mat4);
+					break;				
+			};
+
+			j[it.first] == {
+				{ "type", static_cast<int>(it.second.type) },
+				{ "data", v }
+			};		
+		}
+	#else 
+		for (auto & it : optSet->options) {
+			std::visit(
+				[&](auto&& arg) {
+
+					j[it.first] = {
+						{ "type", it.second.value.index() },
+						{ "data", toJson(arg) }
+					};				
+				},
+				it.second.value
+			);
+		}
+	#endif
 
 	return j;
 
 }
 
-std::ostream & operator<<(std::ostream & os, const OptionSet & optSet)
+std::ostream & operator<<(std::ostream & os, const std::unique_ptr<OptionSet> & optSet)
 {
 	os << toJson(optSet).dump(4);
 	return os;
 }
 
+
+std::ostream & operator<<(std::ostream & os, const OptionSet & optSet)
+{
+	/*auto x = std::make_unique<OptionSet>();
+	*x = optSet;
+	os << toJson(x).dump(4);//awful*/
+	std::cout << "NOT IMPLEMENTED" << std::endl;
+	return os;
+}
 
 
 
@@ -129,7 +203,14 @@ void fromJson(const json & j, mat2 & v) { v = jsonToMat<mat2>(j); }
 void fromJson(const json & j, mat3 & v) { v = jsonToMat<mat3>(j); }
 void fromJson(const json & j, mat4 & v) { v = jsonToMat<mat4>(j); }
 
-
+#if defined(NO_VARIANT)
+template<typename T>
+void set(OptionSet &opt, json::const_iterator & it) {	
+	T val;
+	fromJson((*it)["data"], val);
+	opt.set<T>(it.key(), val);
+};
+#else
 template<size_t idx>
 void set(OptionSet &opt, json::const_iterator & it) {
 	using T = variant_alternative_t<idx, OptionType>;
@@ -137,6 +218,7 @@ void set(OptionSet &opt, json::const_iterator & it) {
 	fromJson((*it)["data"], val);
 	opt.set<T>(it.key(), val);
 };
+#endif
 
 
 OptionSet fromJson(const json & j) {
@@ -147,6 +229,57 @@ OptionSet fromJson(const json & j) {
 			opt[it.key()] = fromJson(*it);			
 		}
 		else {	
+			#if defined(NO_VARIANT)
+			switch((*it)["type"].get<int>()){
+				case OT_STRING:
+					set<std::string>(opt, it);
+					break;
+				case OT_CHAR:
+					set<char>(opt, it);
+					break;
+				case OT_INT:
+					set<int>(opt, it);
+					break;
+				case OT_FLOAT:
+					set<float>(opt, it);
+					break;
+				case OT_DOUBLE:
+					set<double>(opt, it);
+					break;
+				case OT_BOOL:
+					set<bool>(opt, it);
+					break;
+				case OT_VEC2:
+					set<vec2>(opt, it);
+					break;
+				case OT_VEC3:
+					set<vec3>(opt, it);
+					break;
+				case OT_VEC4:
+					set<vec4>(opt, it);
+					break;
+				case OT_IVEC2:
+					set<ivec2>(opt, it);
+					break;
+				case OT_IVEC3:
+					set<ivec3>(opt, it);
+					break;
+				case OT_IVEC4:
+					set<ivec4>(opt, it);
+					break;
+				case OT_MAT2:
+					set<mat2>(opt, it);
+					break;
+				case OT_MAT3:
+					set<mat3>(opt, it);
+					break;
+				case OT_MAT4:
+					set<mat4>(opt, it);
+					break;				
+			};
+
+
+			#else
 			switch ((*it)["type"].get<int>() ) {
 				case 0: set<0>(opt, it); break;	case 1: set<1>(opt, it); break;
 				case 2: set<2>(opt, it); break;	case 3: set<3>(opt, it); break;
@@ -157,6 +290,7 @@ OptionSet fromJson(const json & j) {
 				case 12: set<12>(opt, it); break; case 13: set<13>(opt, it); break;
 				case 14: set<14>(opt, it); break;
 			};			
+			#endif
 		}
 	}
 
@@ -164,6 +298,16 @@ OptionSet fromJson(const json & j) {
 
 }
 
+
+std::istream & operator>>(std::istream & is, std::unique_ptr<OptionSet> & opt)
+{
+	json j;
+	is >> j;
+	
+	opt = std::make_unique<OptionSet>(fromJson(j));
+
+	return is;
+}
 
 std::istream & operator>>(std::istream & is, OptionSet & opt)
 {

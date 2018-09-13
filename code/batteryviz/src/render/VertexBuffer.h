@@ -116,7 +116,7 @@ protected:
 
 ////////////////////////////////
 
-template<typename T>
+/*template<typename T>
 class IndexedBuffer : public VertexBuffer<T> {
 public:
 
@@ -158,7 +158,7 @@ private:
 	GLbyte m_indexTypeSize;
 	size_t m_indexCount;
 };
-
+*/
 
 
 

@@ -5,7 +5,12 @@
 #include <string>
 #include <unordered_map>
 #include <functional>
-#include <optional>
+
+#if defined(__GNUC__)
+    #include <experimental/optional>
+#else
+	#include <optional>
+#endif
 
 #include "render/ShaderResource.h"
 

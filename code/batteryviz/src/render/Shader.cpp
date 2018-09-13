@@ -85,8 +85,8 @@ string annotateLines(const string &str) {
 	while (true) {		
 		index = newstr.find("\n", index);
 		if (index == std::string::npos) break;		
-		char buf[16];
-		_itoa_s(line++, buf, 10);
+		char buf[16];		
+		sprintf(buf,"%d",line++);
 		newstr.replace(index, 1, string("\n") + buf + string("\t"));
 		
 		index += strlen(buf) + 1 + 1;

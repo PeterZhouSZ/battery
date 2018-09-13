@@ -3,6 +3,7 @@
 #include <GL/glew.h>
 #include "utility/mathtypes.h"
 #include <vector>
+
 #include <variant>
 
 enum ShaderInterface {
@@ -10,6 +11,7 @@ enum ShaderInterface {
 	SHADER_INTERFACE_UNIFORM = 1,
 	SHADER_INTERFACE_ATTRIB = 2
 };
+
 
 using ShaderResourceValue = std::variant<
 	vec2,vec3,vec4,mat2,mat3,mat4,double,float,int,bool

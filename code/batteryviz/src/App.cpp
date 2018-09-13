@@ -125,7 +125,7 @@ double App::getFPS() const
 App::~App()
 {
 	glfwTerminate();
-	currentApp = false;
+	currentApp = nullptr;
 }
 
 void App::update(double dt)

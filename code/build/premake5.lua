@@ -14,27 +14,27 @@ local vizDir = "../batteryviz/"
 local libDir = "../batterylib/"
 local toolDir = "../batterytool/"
 
+local GLFWLIB = "glfw3"
+
 workspace "battery"
 	configurations { "Debug", "Release" }	
-	--platforms {"Windows","Unix","Mac"}
-
---filter { "platforms:Windows" }
-    --system "Windows"
+	
 	architecture "x64"
 
 filter "action:vs*"
 	buildoptions { "/openmp /std:c++latest" }
-filter "action:gmake*"
-	buildoptions {"-fopenmp","-w","-lstdc++fs"}	
+	local OpenGLLib = "opengl32"
+	local GLEWLib = "glew32s"
 	
-	--filter { "platforms:Unix" }
-    --system "linux"
-	--architecture "x64"
-	--buildoptions { "/openmp /std:c++latest" }
 
-	--filter { "platforms:Mac" }
-    --system "macosx"
-	--architecture "x64"
+filter "action:gmake*"
+	buildoptions {"-fopenmp","-w","-std=c++17", "-lstdc++fs"}	
+	linkoptions {"-lstdc++fs","-lglfw","-lgomp"}
+	local OpenGLLib = "GL"
+	local GLEWLib = "GLEW"
+	
+	
+
 
 project "batterylib"
 	kind "SharedLib"
@@ -63,12 +63,18 @@ project "batterylib"
 		cuda .. "/include"
 	}
 
-	libdirs {
-		glew .. "/lib/%{cfg.buildcfg}/%{cfg.platform}/"
-	}
+	filter "action:vs*"
+		libdirs {			
+			glew .. "/lib/%{cfg.buildcfg}/%{cfg.platform}/",				
+		}
+	filter "action:gmake*"
+		libdirs {
+			cuda .. "/lib64/"
+		}
 
 	links {
-		"opengl32",
+		OpenGLLib,
+		GLEWLib,
 		"cudart",
 		"cusparse",
 		"cusolver"
@@ -84,13 +90,13 @@ project "batterylib"
 
 	filter "configurations:Debug"
     	defines { "DEBUG" }
-    	flags { "Symbols" }
-    	links {"glew32sd"}        	
+    	flags { "Symbols" }   
+ 
 
 	filter "configurations:Release"
 		defines { "NDEBUG" }
-		optimize "On"		
-		links {"glew32s"}
+		optimize "On"
+		
 
 
 project "batteryviz"
@@ -109,26 +115,40 @@ project "batteryviz"
 	
 	includedirs {
 		"../",--root
+		libDir .. "/include",
 		vizDir .. "src/",		
 		vizDir .. "external/imgui/",
 		vizDir .. "external/",		
 		glew .. "/include",		
 		glfw .. "/include",
 		glm,
-		eigen		
+		eigen,
+		cuda .. "/include"	
 	}
 
-	libdirs {
-    	glfw .. "/src/%{cfg.buildcfg}/",
-    	glew .. "/lib/%{cfg.buildcfg}/%{cfg.platform}/",
-    	"../bin/%{cfg.buildcfg}/"
-   	}
 
-	links { 	    
-	    "glfw3",	    
-	    "opengl32",
-	    "batterylib"   
-	} 
+	filter "action:vs*"
+		libdirs {
+			glfw .. "/src/%{cfg.buildcfg}/",
+			glew .. "/lib/%{cfg.buildcfg}/%{cfg.platform}/",
+			"../bin/%{cfg.buildcfg}/"
+		}
+
+		links { 	    
+			GLFWLib,	    
+			OpenGLLib,
+			GLEWLib,
+			"batterylib"   
+		} 
+	filter "action:gmake*"			
+		links { 	    
+			GLFWLib,	    
+			OpenGLLib,
+			GLEWLib,
+			"batterylib"   
+		} 
+
+	
 
 	defines {
 		"GLEW_STATIC", 
@@ -141,13 +161,11 @@ project "batteryviz"
 
 	filter "configurations:Debug"
     	defines { "DEBUG" }
-    	flags { "Symbols" }    
-    	links {"glew32sd"}
+    	flags { "Symbols" }        	
 
 	filter "configurations:Release"
 		defines { "NDEBUG" }
-		optimize "On"
-		links {"glew32s"}
+		optimize "On"		
 
 project "batterytool"
 	kind "ConsoleApp"
@@ -178,8 +196,8 @@ project "batterytool"
 	}
 
 	links { 	   
-	 	--"glfw3",	 	        
-	    --"opengl32",
+	 	--GLFWLib,	 	        
+	    --OpenGLLib,
 	    "batterylib"   
 	} 
 

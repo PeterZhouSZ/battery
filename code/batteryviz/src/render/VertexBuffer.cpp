@@ -7,8 +7,8 @@
 template class VertexBuffer<VertexData>;
 template class VertexBuffer<VertexDataExtended>;
 
-template class IndexedBuffer<VertexData>;
-template class IndexedBuffer<VertexDataExtended>;
+//template class IndexedBuffer<VertexData>;
+//template class IndexedBuffer<VertexDataExtended>;
 
 
 VertexAttribArray::VertexAttribArray()
@@ -327,14 +327,14 @@ bool VertexBuffer<T>::render(
 	Indexed buffer
 */
 
-
+/*
 template<typename T>
-IndexedBuffer<T>::IndexedBuffer(GLenum usage /*= GL_STATIC_DRAW*/)
+IndexedBuffer<T>::IndexedBuffer(GLenum usage )
 	: VertexBuffer<T>(usage)
 {	
 	glGenBuffers(1, &m_indexBuffer);
 	setAttribs(T::vertexAttribArray);
-}
+}*/
 
 /*
 template <typename T>
@@ -364,11 +364,11 @@ bool IndexedBuffer<T>::setIndices(typename std::vector<T>::iterator begin,
 
 	return !GLError(THIS_FUNCTION);
 }*/
-
+/*
 template <typename T>
 bool IndexedBuffer<T>::render(
-    GLenum mode /*=0xAAAAAA*/, size_t offset /*= 0*/,
-    size_t count /*= std::numeric_limits<std::size_t>::max()*/) const{
+    GLenum mode  size_t offset ,
+    size_t count ) const{
 	
 	glBindVertexArray(m_vao);
 	glBindBuffer(GL_ARRAY_BUFFER, m_buffer);
@@ -393,7 +393,7 @@ bool IndexedBuffer<T>::render(
 
 	return !GLError(THIS_FUNCTION);
 }
-
+*/
 VertexData::VertexData(vec3 _pos, vec3 _normal, vec2 _uv, vec4 _color)
 {
 	memcpy(pos, &_pos, sizeof(vec3));

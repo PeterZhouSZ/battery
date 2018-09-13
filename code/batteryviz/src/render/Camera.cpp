@@ -1,4 +1,4 @@
-#include "camera.h"
+#include "Camera.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <assert.h>
@@ -73,12 +73,12 @@ int Camera::getWindowHeight() const { return m_windowHeight; }
 
 void Camera::updateV(){
 	m_V = glm::lookAt(m_pos, m_lookat, m_up);
-	assert(!isnan(m_V[0][0]));
+	assert(!std::isnan(m_V[0][0]));
 }
 
 void Camera::updateP(){
 	m_P = glm::perspective(m_fov, m_aspectRatio, m_znear, m_zfar);
-	assert(!isnan(m_P[0][0]));
+	assert(!std::isnan(m_P[0][0]));
 }
 
 
