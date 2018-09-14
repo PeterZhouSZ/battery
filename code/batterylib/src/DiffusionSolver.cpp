@@ -18,8 +18,10 @@
 
 using namespace blib;
 
-template class DiffusionSolver<float>;
-template class DiffusionSolver<double>;
+namespace blib{
+	template class DiffusionSolver<float>;
+	template class DiffusionSolver<double>;
+}
 
 
 
@@ -51,7 +53,7 @@ struct Node {
 void buildNodeList(std::vector<Node> & nodeList, std::vector<size_t> & indices, const VolumeChannel & c, size_t nodeIndex_) {
 
 	const auto & dim = c.dim();
-	const size_t stride[3] = { 1, dim.x, dim.x*dim.y };
+	const size_t stride[3] = { 1, static_cast<size_t>(dim.x), static_cast<size_t>(dim.x*dim.y) };
 	const uchar * cdata = (uchar *)c.getCurrentPtr().getCPU();
 	//todo add bound.cond here
 	/*if (curPos.x < 0 || curPos.y < 0 || curPos.z < 0 ||

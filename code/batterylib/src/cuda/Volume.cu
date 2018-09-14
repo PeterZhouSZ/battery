@@ -248,12 +248,12 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 
 	//If zero grad boundary cond, copy value from neighbour (after sync!)
 	if (ndx[tid.x][tid.y][tid.z] == BOUNDARY_ZERO_GRADIENT) {		
-		int3 neighVec = -dirVec(dir);
+		int3 neighVec = dirVec(dir) * -1;
 		ndx[tid.x][tid.y][tid.z] = ndx[tid.x + neighVec.x][tid.y + neighVec.y][tid.z + neighVec.z];
 	}
 
 	if (Ddx[tid.x][tid.y][tid.z] == BOUNDARY_ZERO_GRADIENT) {
-		int3 neighVec = -dirVec(dir);
+		int3 neighVec = dirVec(dir) * -1;
 		Ddx[tid.x][tid.y][tid.z] = Ddx[tid.x + neighVec.x][tid.y + neighVec.y][tid.z + neighVec.z];
 	}
 	//TODO: test what is faster -> double read from global memory, or copy within shared with extra threadsync

@@ -28,7 +28,9 @@
 
 using namespace blib;
 
-template class MGGPU<double>;
+namespace blib{
+	template class MGGPU<double>;
+}
 
 
 

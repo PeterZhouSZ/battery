@@ -3,7 +3,9 @@
 using namespace blib;
 
 //template class MultigridSolver<float>;
-template class MultigridSolver<double>;
+namespace blib{
+	template class MultigridSolver<double>;
+}
 
 
 #include "JacobiSolver.h"

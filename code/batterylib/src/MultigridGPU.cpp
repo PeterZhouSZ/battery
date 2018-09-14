@@ -6,8 +6,10 @@
 
 using namespace blib;
 
-template class MultigridGPU<float>;
-template class MultigridGPU<double>;
+namespace blib{
+	template class MultigridGPU<float>;
+	template class MultigridGPU<double>;
+}
 
 #define MG_LINSYS_TO_FILE
 
