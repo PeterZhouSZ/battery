@@ -19,9 +19,9 @@ bool blib::cudaVerify(){
 
 	std::vector<double> arr(N);
 
-	_CUDA(cudaMemcpy(ptr, arr.data(), N * sizeof(double), cudaMemcpyKind::cudaMemcpyHostToDevice));
+	_CUDA(cudaMemcpy(ptr, arr.data(), N * sizeof(double), cudaMemcpyHostToDevice));
 
-	_CUDA(cudaMemcpy(ptr, arr.data(), N * sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+	_CUDA(cudaMemcpy(arr.data(),ptr, N * sizeof(double), cudaMemcpyDeviceToHost));
 
 	_CUDA(cudaFree(ptr));
 	
