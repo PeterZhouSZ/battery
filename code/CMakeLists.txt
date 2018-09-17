@@ -32,5 +32,5 @@ endif()
 
 add_subdirectory(batterylib)
 add_subdirectory(batteryviz)
-#add_subdirectory(batterytool)
+add_subdirectory(batterytool)
 

@@ -9,12 +9,19 @@
 
 #include <chrono>
 #include <numeric>
-#include <filesystem>
+
+#if defined(__GNUC__)
+    #include <experimental/filesystem>
+#else
+	#include <filesystem>
+#endif
+
 #include <fstream>
 
 namespace fs = std::experimental::filesystem;
 
 using namespace std;
+using namespace blib;
 
 
 std::string tmpstamp(const std::string & format /*= "%Y_%m_%d_%H_%M_%S"*/)
@@ -179,7 +186,7 @@ bool tortuosity() {
 			porosity = solverEigen.porosity();
 		}
 		else {
-			blib::MGGPU<T>::PrepareParams p;
+			typename blib::MGGPU<T>::PrepareParams p;
 			{
 				p.dir = dir;
 				p.d0 = d0;
@@ -192,7 +199,7 @@ bool tortuosity() {
 			}			
 			solverMGGPU.prepare(c, p, volume);
 
-			blib::MGGPU<T>::SolveParams sp;
+			typename blib::MGGPU<T>::SolveParams sp;
 			sp.tolerance = tol;
 			sp.verbose = argVerbose;
 			sp.maxIter = argMaxIterations.Get();			

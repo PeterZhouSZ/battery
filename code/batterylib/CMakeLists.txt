@@ -4,6 +4,17 @@ project(batterylib LANGUAGES CXX CUDA)
 
 find_library(CUDART_LIBRARY cudart ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
 
+#Opengl
+find_package(OpenGL REQUIRED)
+include_directories(${OPENGL_INCLUDE_DIRS})
+link_libraries(${OPENGL_LIBRARIES})
+
+#Glew 
+find_package(GLEW REQUIRED)
+include_directories(${GLEW_INCLUDE_DIRS})
+link_libraries(${GLEW_LIBRARIES})
+
+
 #Set main directories
 set (PROJECT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set (BATTERYLIB_INCLUDE PROJECT_INCLUDE_DIR)
