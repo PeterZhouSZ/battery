@@ -1,7 +1,31 @@
 #include "CudaUtility.h"
 
 #include <iostream>
+#include <vector>
 
+bool blib::cudaVerify(){
+
+	std::cout << "Properties:" << std::endl;
+	cudaPrintProperties();
+
+	std::cout << "Memory info:" << std::endl;
+	cudaPrintMemInfo();
+
+
+	std::cout << "Malloc/copy test:" << std::endl;
+	double * ptr;
+	size_t N = 1024;
+	_CUDA(cudaMalloc(&ptr,N * sizeof(double)));
+
+	std::vector<double> arr(N);
+
+	_CUDA(cudaMemcpy(ptr, arr.data(), N * sizeof(double), cudaMemcpyKind::cudaMemcpyHostToDevice));
+
+	_CUDA(cudaMemcpy(ptr, arr.data(), N * sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+
+	_CUDA(cudaFree(ptr));
+	
+}
 
 bool blib::cudaCheck(
 	cudaError_t result, 
@@ -61,7 +85,7 @@ bool blib::cusolverCheck(cusolverStatus_t result, const char * function, const c
 		case CUSOLVER_STATUS_INTERNAL_ERROR:
 			std::cerr << "CUSOLVER_STATUS_INTERNAL_ERROR, \
 				\nAn internal cuSolver operation failed. This error is usually caused by a cudaMemcpyAsync() failure.\
-				\nTo correct : check that the hardware, an appropriate version of the driver, and the cuSolver library are correctly installed.Also, check that the memory passed as a parameter to the routine is not being deallocated prior to the routine’s completion.";
+				\nTo correct : check that the hardware, an appropriate version of the driver, and the cuSolver library are correctly installed.Also, check that the memory passed as a parameter to the routine is not being deallocated prior to the routineï¿½s completion.";
 			break;
 		case CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED:
 			std::cerr << "CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED, \
@@ -122,7 +146,7 @@ bool blib::cusparseCheck(cusparseStatus_t result, const char * function, const c
 	case CUSPARSE_STATUS_INTERNAL_ERROR:
 		std::cerr << "CUSPARSE_STATUS_INTERNAL_ERROR, \
 				An internal cuSPARSE operation failed. This error is usually caused by a cudaMemcpyAsync() failure.\
-				To correct : check that the hardware, an appropriate version of the driver, and the cuSPARSE library are correctly installed. Also, check that the memory passed as a parameter to the routine is not being deallocated prior to the routine’s completion.";
+				To correct : check that the hardware, an appropriate version of the driver, and the cuSPARSE library are correctly installed. Also, check that the memory passed as a parameter to the routine is not being deallocated prior to the routineï¿½s completion.";
 		break;
 	case CUSPARSE_STATUS_MATRIX_TYPE_NOT_SUPPORTED:
 		std::cerr << "CUSPARSE_STATUS_MATRIX_TYPE_NOT_SUPPORTED, \
@@ -145,7 +169,7 @@ bool blib::cusparseCheck(cusparseStatus_t result, const char * function, const c
 void blib::cudaPrintProperties()
 {
 	int dcount = 0;
-	cudaGetDeviceCount(&dcount);
+	_CUDA(cudaGetDeviceCount(&dcount));
 
 	float KB = 1024.f;
 	float MB = 1024.0f * 1024.0f;
@@ -188,7 +212,7 @@ void blib::cudaPrintProperties()
 void blib::cudaOccupiedMemory(size_t * total, size_t * occupied, int device)
 {	
 	size_t free;
-	cudaMemGetInfo(&free, total);
+	_CUDA(cudaMemGetInfo(&free, total));
 	*occupied = *total - free;
 
 }

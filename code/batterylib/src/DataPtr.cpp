@@ -11,6 +11,14 @@
 	#include <iostream>
 //#endif
 
+
+bool blib::verifyCuda(){
+
+
+	
+}
+
+
 blib::DataPtr::DataPtr()
 {
 	memset(this, 0, sizeof(DataPtr));	

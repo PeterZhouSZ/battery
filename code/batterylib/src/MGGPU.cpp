@@ -28,9 +28,6 @@
 
 using namespace blib;
 
-namespace blib{
-	template class MGGPU<double>;
-}
 
 
 
@@ -1631,7 +1628,7 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 
 		lastError = err;
 
-		if (err < solveParams.tolerance || isinf(err) || isnan(err)) {
+		if (err < solveParams.tolerance || std::isinf(err) || std::isnan(err)) {
 			break;
 			
 		}
@@ -1822,4 +1819,9 @@ T blib::MGGPU<T>::tortuosity()
 
 	
 
+}
+
+
+namespace blib{
+	template class MGGPU<double>;
 }

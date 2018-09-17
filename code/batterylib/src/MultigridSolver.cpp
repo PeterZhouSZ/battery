@@ -2,10 +2,7 @@
 
 using namespace blib;
 
-//template class MultigridSolver<float>;
-namespace blib{
-	template class MultigridSolver<double>;
-}
+
 
 
 #include "JacobiSolver.h"
@@ -2772,4 +2769,11 @@ BLIB_EXPORT T blib::MultigridSolver<T>::tortuosity(const VolumeChannel & mask, D
 	}
 
 	return tau;
+}
+
+
+
+//template class MultigridSolver<float>;
+namespace blib{
+	template class MultigridSolver<double>;
 }

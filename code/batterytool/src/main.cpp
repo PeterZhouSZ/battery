@@ -6,6 +6,8 @@
 #include <batterylib/include/MGGPU.h>
 #include <batterylib/include/VolumeIO.h>
 
+#include <batterylib/src/cuda/CudaUtility.h>
+
 
 #include <chrono>
 #include <numeric>
@@ -297,6 +299,9 @@ int main(int argc, char **argv){
 		res &= tortuosity<float>();
 	else
 		res &= tortuosity<double>();*/
+
+
+	cudaVerify();
 
 	res &= tortuosity<double>();
 

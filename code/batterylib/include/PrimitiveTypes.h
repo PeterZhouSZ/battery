@@ -5,6 +5,7 @@ using uint64 = unsigned long long;
 using uint = unsigned int;
 using uchar = unsigned char;
 
+
 enum PrimitiveType {
 	TYPE_FLOAT = 0,	
 	TYPE_CHAR,
@@ -52,6 +53,7 @@ inline float primitiveToFloat(PrimitiveType type, void * ptr) {
 	case TYPE_FLOAT4:
 		return nan("");
 	}
+	return nan("");
 }
 
 inline double primitiveToDouble(PrimitiveType type, void * ptr) {
@@ -71,6 +73,8 @@ inline double primitiveToDouble(PrimitiveType type, void * ptr) {
 	case TYPE_FLOAT4:
 		return nan("");
 	}
+
+	return nan("");
 }
 
 
@@ -99,6 +103,7 @@ inline uint getDirIndex(Dir dir) {
 		default:
 			return uint(-1);
 	}
+	return uint(-1);
 	
 }
 

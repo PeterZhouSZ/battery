@@ -6,10 +6,7 @@
 
 using namespace blib;
 
-namespace blib{
-	template class MultigridGPU<float>;
-	template class MultigridGPU<double>;
-}
+
 
 #define MG_LINSYS_TO_FILE
 
@@ -850,7 +847,7 @@ T MultigridGPU<T>::solve(T tolerance, size_t maxIterations, CycleType cycleType)
 
 		lastError = err;
 
-		if (err < tolerance || isinf(err) || isnan(err))
+		if (err < tolerance || std::isinf(err) || std::isnan(err))
 			return err;
 
 
@@ -899,4 +896,10 @@ std::vector<int> blib::MultigridGPU<T>::genCycle(CycleType ctype, uint levels)
 	
 
 	return cycle;
+}
+
+
+namespace blib{
+	template class MultigridGPU<float>;
+	template class MultigridGPU<double>;
 }

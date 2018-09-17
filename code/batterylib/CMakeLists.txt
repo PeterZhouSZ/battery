@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.10)
 project(batterylib LANGUAGES CXX CUDA)
 
 find_library(CUDART_LIBRARY cudart ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+message("Cudart lib: " ${CUDART_LIBRARY})
+message("Cud impl. link dir: " ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
 
 #Opengl
 find_package(OpenGL REQUIRED)
@@ -73,10 +75,18 @@ INCLUDE_DIRECTORIES ( "${EIGEN3_INCLUDE_DIR}" )
 add_library(${PROJECT_NAME} SHARED ${_SRCS})
 
 #CUDA options
-#target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_11)
+#target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_11)
+
+set(CMAKE_CUDA_STANDARD 11)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
+
+
+
 set_target_properties( ${PROJECT_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -w" )                       
+#set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -w" )                       
+#set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11" )   
+set(CMAKE_CUDA_FLAGS  "${CMAKE_CUDA_FLAGS} -std=c++11 -w")
 
-
-#set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
+set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 

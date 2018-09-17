@@ -18,11 +18,6 @@
 
 using namespace blib;
 
-namespace blib{
-	template class DiffusionSolver<float>;
-	template class DiffusionSolver<double>;
-}
-
 
 
 enum NeighType {
@@ -873,3 +868,7 @@ BLIB_EXPORT T blib::DiffusionSolver<T>::tortuosity(const VolumeChannel & mask, D
 }
 
 
+namespace blib{
+template class DiffusionSolver<float>;
+template class DiffusionSolver<double>;
+}

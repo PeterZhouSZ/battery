@@ -74,7 +74,7 @@ find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 INCLUDE_DIRECTORIES ( "${EIGEN3_INCLUDE_DIR}" )
 
 
-#add_definitions(${batterylib_DEFINITIONS})
+add_definitions(${batterylib_DEFINITIONS})
 
 add_executable(${PROJECT_NAME} ${_SRCS})
 

@@ -1,5 +1,3 @@
-#pragma once
-
 #include "BatteryApp.h"
 #include <iostream>
 #include <string>

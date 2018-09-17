@@ -1,11 +1,6 @@
 #include "VertexBuffer.h"
 
 
-/*
-	Explicit instantiation
-*/
-template class VertexBuffer<VertexData>;
-template class VertexBuffer<VertexDataExtended>;
 
 //template class IndexedBuffer<VertexData>;
 //template class IndexedBuffer<VertexDataExtended>;
@@ -427,3 +422,11 @@ const VertexAttribArray VertexDataExtended::vertexAttribArray = [] {
 	addAttrib(vao, GL_FLOAT, 3); //bitangent
 	return vao;
 }();
+
+
+
+/*
+	Explicit instantiation
+*/
+template class VertexBuffer<VertexData>;
+template class VertexBuffer<VertexDataExtended>;

@@ -16,21 +16,21 @@
 
 namespace blib {
 
-	bool cudaCheck(
+	BLIB_EXPORT bool cudaCheck(
 		cudaError_t result,
 		const char * function,
 		const char * file,
 		int line,
 		bool abort = true);
 
-	bool cusolverCheck(
+	BLIB_EXPORT bool cusolverCheck(
 		cusolverStatus_t result,
 		const char * function,
 		const char * file,
 		int line,
 		bool abort = true);
 
-	bool cusparseCheck(
+	BLIB_EXPORT bool cusparseCheck(
 		cusparseStatus_t result,
 		const char * function,
 		const char * file,
@@ -42,6 +42,8 @@ namespace blib {
 	BLIB_EXPORT void cudaOccupiedMemory(size_t * total, size_t * occupied, int device = 0);
 
 	BLIB_EXPORT void cudaPrintMemInfo(int device = 0);
+
+	BLIB_EXPORT bool cudaVerify();
 
 
 	class CUDATimer {		

@@ -42,6 +42,8 @@ using MGGPU_RestrictKernel = MGGPU_Kernel3D<RESTR_SIZE>;
 using MGGPU_DomainRestrictKernel = MGGPU_Kernel3D<DOMAIN_RESTR_SIZE>;
 using MGGPU_KernelPtr = double *;
 
+
+
 //Construction params
 struct MGGPU_SysParams {	
 	double highConc;
