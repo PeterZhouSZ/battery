@@ -12,11 +12,6 @@
 //#endif
 
 
-bool blib::verifyCuda(){
-
-
-	
-}
 
 
 blib::DataPtr::DataPtr()

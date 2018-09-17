@@ -24,6 +24,8 @@ bool blib::cudaVerify(){
 	_CUDA(cudaMemcpy(arr.data(),ptr, N * sizeof(double), cudaMemcpyDeviceToHost));
 
 	_CUDA(cudaFree(ptr));
+
+	return true;
 	
 }
 

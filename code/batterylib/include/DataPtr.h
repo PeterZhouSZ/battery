@@ -10,7 +10,7 @@
 namespace blib {
 
 	
-	BLIB_EXPORT bool verifyCuda();
+	
 
 	struct DataPtr {
 		void * cpu;

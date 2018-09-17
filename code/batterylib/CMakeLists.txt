@@ -2,9 +2,19 @@ cmake_minimum_required(VERSION 3.10)
 
 project(batterylib LANGUAGES CXX CUDA)
 
-find_library(CUDART_LIBRARY cudart ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
-message("Cudart lib: " ${CUDART_LIBRARY})
-message("Cud impl. link dir: " ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+find_library(CUDART_LIBRARY cudart 
+    ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} $ENV{CUDA_PATH}\\lib\\x64
+)
+
+find_library(CUSPARSE_LIBRARY cusparse 
+    ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} $ENV{CUDA_PATH}\\lib\\x64
+)
+
+if(WIN32)
+    set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES $ENV{CUDA_PATH}\\include)
+endif()
+
+
 
 #Opengl
 find_package(OpenGL REQUIRED)
@@ -13,8 +23,11 @@ link_libraries(${OPENGL_LIBRARIES})
 
 #Glew 
 find_package(GLEW REQUIRED)
-include_directories(${GLEW_INCLUDE_DIRS})
-link_libraries(${GLEW_LIBRARIES})
+if(GLEW_FOUND)
+    include_directories(${GLEW_INCLUDE_DIRS})
+    link_libraries(${GLEW_LIBRARIES})
+endif()
+
 
 
 #Set main directories
@@ -60,10 +73,14 @@ include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_EXTERNAL_DIR}")
 include_directories(${PROJECT_SOURCE_DIR}/cuda)
 include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+include_directories("${GLM_INCLUDE_DIR}")
 
 include_directories(../batterylib/include)
 
-find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+if (NOT WIN32)
+find_package (Eigen3 3.3 REQUIRED)
+endif()
+
 INCLUDE_DIRECTORIES ( "${EIGEN3_INCLUDE_DIR}" )
 
 #Output external dependencies
@@ -80,7 +97,10 @@ add_library(${PROJECT_NAME} SHARED ${_SRCS})
 set(CMAKE_CUDA_STANDARD 11)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
+add_definitions(-DBATTERYLIB_EXPORT)
 
+target_link_libraries(${PROJECT_NAME} ${CUDART_LIBRARY})
+target_link_libraries(${PROJECT_NAME} ${CUSPARSE_LIBRARY})
 
 
 set_target_properties( ${PROJECT_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
@@ -89,4 +109,6 @@ set_target_properties( ${PROJECT_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 set(CMAKE_CUDA_FLAGS  "${CMAKE_CUDA_FLAGS} -std=c++11 -w")
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
+
+
 
