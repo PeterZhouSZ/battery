@@ -2,7 +2,7 @@
 #include <fstream>
 #include <regex>
 #include <sstream>
-
+#include <iostream>
 
 
 
@@ -50,6 +50,8 @@ string readFileToString(const string & filepath)
 	return str;
 }
 
+
+
 string readFileWithIncludes(const string & filepath)
 {
 	const auto path = getBaseAndFile(filepath);
@@ -58,7 +60,7 @@ string readFileWithIncludes(const string & filepath)
 
 	auto str = readFileToString(filepath);
 
-	regex rxInclude("^ *#include +\"(.*)\" *$");
+	regex rxInclude("#include +\"(.*)\"");
 
 	auto rxBegin = sregex_iterator(str.begin(), str.end(), rxInclude);
 	auto rxEnd = sregex_iterator();
@@ -66,8 +68,15 @@ string readFileWithIncludes(const string & filepath)
 	for (auto i = rxBegin; i != rxEnd; ) {
 		if (i->size() > 1) {
 			auto includeFilename = (*i)[1].str();
+			#ifdef _WIN32
 			auto includeFilepath = baseDir + "\\" + includeFilename;
+			#else 
+			auto includeFilepath = baseDir + "/" + includeFilename;
+			#endif			
 			string newSrc = move(readFileToString(includeFilepath));
+			if(newSrc.length() == 0){
+				std::cerr << "Warning: Couldn't read " << includeFilepath << std::endl;
+			}			
 			str.replace(i->position(), i->length(), newSrc);
 			i = sregex_iterator(str.begin(), str.end(), rxInclude);
 		}

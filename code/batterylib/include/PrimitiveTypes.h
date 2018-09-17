@@ -96,8 +96,10 @@ inline uint getDirIndex(Dir dir) {
 		case Z_POS:
 		case Z_NEG:
 			return 2;
+		default:
+			return uint(-1);
 	}
-	return uint(-1);
+	
 }
 
 inline int getDirSgn(Dir dir) {

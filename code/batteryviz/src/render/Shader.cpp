@@ -23,16 +23,23 @@ const static unordered_map<GLenum, string> shaderEnumToString = {
 
 unordered_map<GLenum, string> preprocessShaderCode(string code) {
 
+	
+	//std::replace(code.begin(), code.end(), '\r', ' ');
+	//std::replace(code.begin(), code.end(), '\n', ' ');
+	//std::cout << code << std::endl;
 
 	const unordered_map<GLenum, regex> regexes = {
-		{ GL_VERTEX_SHADER, regex("^ *#pragma +VERTEX *$") },
-		{ GL_FRAGMENT_SHADER, regex("^ *#pragma +FRAGMENT *$") },
-		{ GL_GEOMETRY_SHADER, regex("^ *#pragma +GEOMETRY *$") },
-		{ GL_TESS_CONTROL_SHADER, regex("^ *#pragma +TCS *$") },
-		{ GL_TESS_EVALUATION_SHADER, regex("^ *#pragma +TES *$") },
+		{ GL_VERTEX_SHADER, regex("#pragma +VERTEX") },
+		{ GL_FRAGMENT_SHADER, regex("#pragma +FRAGMENT") },
+		{ GL_GEOMETRY_SHADER, regex("#pragma +GEOMETRY") },
+		{ GL_TESS_CONTROL_SHADER, regex("#pragma +TCS") },
+		{ GL_TESS_EVALUATION_SHADER, regex("#pragma +TES") },
 	};
 
-	const regex pragmaRegex = regex("^ *#pragma(.*)$");
+	//const regex pragmaRegex = regex("^.*#pragma(.*)$.$");
+	//const regex toLF = regex(" \\r\\n | \\r(?!\\n) ");
+
+
 
 	bool hasVertex = false;
 	bool hasFragment = false;
@@ -45,7 +52,9 @@ unordered_map<GLenum, string> preprocessShaderCode(string code) {
 			matches.push_back(make_pair(it.first, std::move(match)));
 			if (it.first == GL_VERTEX_SHADER) hasVertex = true;
 			if (it.first == GL_FRAGMENT_SHADER) hasFragment = true;
+			//std::cout << "Matched " << it.first << std::endl;
 		}
+		
 	}
 
 	//Invalid if less than two shaders found, or missing vertex and fragment
@@ -104,8 +113,12 @@ compileShader(const string & code)
 	
 	auto shaderSources = preprocessShaderCode(code);
 	if (shaderSources.size() == 0) {		
-		return { false,{}, "Could not find vertex and fragment shaders." };
+		return { false,{}, string("Could not find vertex and fragment sub shaders.") };
 	}
+
+	/*for(auto & it : shaderSources){
+		std::cout << it.second;
+	}*/
 
 		
 	GLuint programID = glCreateProgram();	
@@ -127,9 +140,11 @@ compileShader(const string & code)
 	/*
 		Compile individual shaders
 	*/
+	string wholeShader = "";
 	for (auto it : shaderSources) {
 		GLuint id = glCreateShader(it.first);
 		
+		wholeShader.append(it.second);
 		//Send source
 		{
 			GLint sourceLength = static_cast<GLint>(it.second.length());
@@ -161,6 +176,8 @@ compileShader(const string & code)
 	}
 
 
+
+
 	/*
 		Link program
 	*/
@@ -175,7 +192,7 @@ compileShader(const string & code)
 		glGetProgramInfoLog(programID, maxLength, &maxLength, reinterpret_cast<GLchar *>(buf.data()));
 		
 		
-		return failFun(buf.data());
+		return failFun(annotateLines(wholeShader) + "\n" + buf.data());
 	}
 
 	for (auto it : shaderIDs)

@@ -3,6 +3,7 @@
 #include "CudaUtility.h"
 #include "GLGlobal.h"
 
+
 #include <assert.h>
 #include <cuda_gl_interop.h>
 
@@ -18,7 +19,7 @@ blib::DataPtr::DataPtr()
 blib::DataPtr::~DataPtr()
 {
 	if (cpu) {
-		delete[] cpu;		
+		delete[] ((uchar*)cpu);		
 	}
 	if (gpu) {
 		_CUDA(cudaFree(gpu));		
@@ -66,7 +67,7 @@ bool blib::DataPtr::allocHost()
 	assert(gpu != nullptr);
 
 	if (cpu) {
-		delete[] cpu;
+		delete[] ((uchar*)cpu);
 		cpu = nullptr;
 	}
 	

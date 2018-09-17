@@ -6,7 +6,7 @@
 
 #include <array>
 
-#include "../src/cuda/MGGPU.cuh"
+#include "MGGPU_Types.h"
 
 #include <Eigen/Eigen>
 

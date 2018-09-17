@@ -9,6 +9,7 @@ set (PROJECT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set (BATTERYLIB_INCLUDE PROJECT_INCLUDE_DIR)
 set (PROJECT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set (PROJECT_EXTERNAL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external)
+set (TINYTIFF_DIR ${PROJECT_EXTERNAL_DIR}/tinytiff)
  
 set(_SRCS 
     ${PROJECT_SOURCE_DIR}/AABB.cpp
@@ -35,7 +36,10 @@ set(_SRCS
     ${PROJECT_SOURCE_DIR}/cuda/MultigridGPU.cu    
     ${PROJECT_SOURCE_DIR}/cuda/MultigridGPUNew.cu    
     ${PROJECT_SOURCE_DIR}/cuda/Volume.cu    
+    ${TINYTIFF_DIR}/tinytiffreader.cpp
 )
+
+
 
 #Include directories
 include_directories("${PROJECT_INCLUDE_DIR}")
@@ -49,12 +53,19 @@ include_directories(../batterylib/include)
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 INCLUDE_DIRECTORIES ( "${EIGEN3_INCLUDE_DIR}" )
 
+#Output external dependencies
+#message(STATUS "TinyTiff directory: " ${TINYTIFF_DIR})
+#message(STATUS "CUDA RT directory: " ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+#message(STATUS "EIGEN directory: " ${EIGEN3_INCLUDE_DIR})
+
 
 add_library(${PROJECT_NAME} SHARED ${_SRCS})
 
 #CUDA options
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_11)
+#target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_11)
 set_target_properties( ${PROJECT_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -w" )                       
 
+
+#set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 

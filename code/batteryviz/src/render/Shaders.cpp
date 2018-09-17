@@ -26,7 +26,9 @@ std::string loadShaders(ShaderDB & targetDB)
 		if (ok)
 			*targetDB[i] = shader;
 		else {			
+			errString.append(path + ":\n");			
 			errString.append(error);				
+			errString.append("\n");			
 		}
 	}
 
