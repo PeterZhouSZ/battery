@@ -1846,8 +1846,36 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 
 	//cudaPrintProperties();
 
-	alloc(1);
+	//alloc(1);
+	{
 
+		auto label = [](const std::string & prefix, int i) {
+			char buf[16];
+			sprintf(buf, "%d", i);
+			return prefix + std::string(buf);
+		};
+		
+		_levels.resize(1);
+		const auto origDim = _mask->dim();
+		const size_t origTotal = origDim.x * origDim.y * origDim.z;
+		_levels[0].dim = origDim;
+
+		int domain = _volume->addChannel(_levels[0].dim, TYPE_DOUBLE, false, label("domain", 0));
+		_levels[0].domain = toMGGPUVolume(_volume->getChannel(domain), domain);
+
+		int f = _volume->addChannel(_levels[0].dim, TYPE_DOUBLE, false, label("f", 0));
+		_levels[0].f = toMGGPUVolume(_volume->getChannel(f), f);
+
+
+		//Auxiliary buffer for reduction
+		{
+			const size_t maxN = _levels[0].N();
+			const size_t reduceN = maxN / VOLUME_REDUCTION_BLOCKSIZE;
+			_auxReduceBuffer.allocDevice(reduceN, sizeof(double));
+			_auxReduceBuffer.allocHost();
+		}
+
+	}
 
 
 
@@ -1911,6 +1939,9 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 	//BICGStab prep
 	{
 
+
+
+
 		auto label = [](const std::string & prefix, int i) {
 			char buf[16];
 			itoa(i, buf, 10);
@@ -1927,15 +1958,13 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 		int rhat0 = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("rhat0", i));
 		int r = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("r", i));
 		int p = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("p", i));
-		int v = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("v", i));
-		int h = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("h", i));
+		int v = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("v", i));		
 		int s = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("s", i));
 		int t = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("t", i));
 
 		int y = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("y", i));
 		int z = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("z", i));
-		int kt = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("kt", i));
-		int ks = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("ks", i));
+		
 
 		int ainvert = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("ainvert", i));
 
@@ -1946,7 +1975,7 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 		_r = toMGGPUVolume(_volume->getChannel(r), r);
 		_p = toMGGPUVolume(_volume->getChannel(p), p);
 		_v = toMGGPUVolume(_volume->getChannel(v), v);
-		_h = toMGGPUVolume(_volume->getChannel(h), h);
+		
 		_s = toMGGPUVolume(_volume->getChannel(s), s);
 		_t = toMGGPUVolume(_volume->getChannel(t), t);
 
@@ -1955,6 +1984,8 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 		
 
 		_ainvert = toMGGPUVolume(_volume->getChannel(ainvert), ainvert);
+
+		//TODO: memory optimization -> do not remember domain, just slice in computed dir
 	}
 
 	//Preinverted A0 diagonal
@@ -2105,9 +2136,10 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 		
 		CUDA_TIMER(alpha = rho / DotProduct(r0, v),"dot",profiler);
 		
+		
 
 		if(verbose) std::cout << "\t" << " alpha: " << alpha  << " = " << rho << "/" << DotProduct(r0, v) << std::endl;
-		
+				
 		//s = r - alpha * v;
 		
 		CUDA_TIMER(launchAddAPlusBetaB(TYPE_DOUBLE, res, r.surf, v.surf, s.surf, -alpha),"launchAddAPlusBetaB",profiler);

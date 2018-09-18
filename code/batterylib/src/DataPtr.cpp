@@ -12,6 +12,8 @@
 //#endif
 
 
+#define GPU_MEMORY_TRACE
+
 
 
 blib::DataPtr::DataPtr()
@@ -82,7 +84,7 @@ bool blib::DataPtr::allocHost()
 
 bool blib::DataPtr::allocDevice(size_t num, size_t stride)
 {	
-//#ifdef DEBUG
+#ifdef GPU_MEMORY_TRACE
 	{
 		size_t bytes = num*stride;
 		float MB = bytes / (1024.0f*1024.0f);
@@ -91,7 +93,7 @@ bool blib::DataPtr::allocDevice(size_t num, size_t stride)
 		std::cout << "|| DataPtr::allocDevice " << MB << "MB" << std::endl;
 		
 	}
-//#endif
+#endif
 
 	if (gpu) {
 		if (num == this->num && stride == this->stride) 
@@ -197,6 +199,17 @@ blib::Texture3DPtr::~Texture3DPtr()
 bool blib::Texture3DPtr::alloc(PrimitiveType type, ivec3 dim, bool alsoOnCPU)
 {
 	
+	#ifdef GPU_MEMORY_TRACE
+	{
+		size_t bytes = dim.x*dim.y*dim.z*primitiveSizeof(type);
+		float MB = bytes / (1024.0f*1024.0f);
+		size_t total, occupied;
+		cudaPrintMemInfo();
+		std::cout << "|| Texture3DPtr::alloc " << MB << "MB" << std::endl;
+
+	}
+	#endif
+
 	assert(dim.x > 0 && dim.y > 0 && dim.z > 0);
 
 	_extent = make_cudaExtent(dim.x, dim.y, dim.z);
@@ -221,6 +234,15 @@ bool blib::Texture3DPtr::allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnC
 {
 	assert(dim.x > 0 && dim.y > 0 && dim.z > 0);
 	
+#ifdef GPU_MEMORY_TRACE
+	{
+		size_t bytes = dim.x*dim.y*dim.z*primitiveSizeof(type);
+		float MB = bytes / (1024.0f*1024.0f);
+		size_t total, occupied;
+		cudaPrintMemInfo();
+		std::cout << "|| Texture3DPtr::allocOpenGL " << MB << "MB" << std::endl;
+	}
+#endif
 	
 
 	if (_gpu != nullptr && _type == type) {
