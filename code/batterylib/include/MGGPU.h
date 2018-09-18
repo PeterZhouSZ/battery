@@ -50,7 +50,7 @@ namespace blib {
 			T tolerance = 1e-6;
 			size_t maxIter = 1024;
 			bool verbose = false;
-			
+			bool verboseDebug = false;			
 		};
 
 

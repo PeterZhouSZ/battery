@@ -81,7 +81,17 @@ namespace blib {
 
 		std::string summary() {
 			std::stringstream ss;
+
+			using pair_t = std::pair<std::string, Event>;
+			std::vector<pair_t> sortedEvents;
 			for (auto & it : _events) {
+				sortedEvents.push_back({ it.first, it.second });
+			}
+
+			std::sort(sortedEvents.begin(), sortedEvents.end(), [](const pair_t & a, const pair_t & b) { return a.second.avg() > b.second.avg(); });
+			
+			
+			for (auto & it : sortedEvents) {
 				auto & ev = it.second;
 				ss << it.first << ": \n";
 				ss << "\tN:\t\t" << ev.n << "\n";
@@ -107,6 +117,17 @@ namespace blib {
 
 	};
 
+
+#define CUDA_TIMER(expr,name,prof)		\
+	{CUDATimer _localTimer(true); expr; prof.add(name, _localTimer.time());} \
+
+
+/*	{											\ 
+		CUDATimer _localTimer(true);				\
+		expr;									\
+		prof.add(name, _localTimer.time());		\
+	}											\
+	*/
 
 	
 	

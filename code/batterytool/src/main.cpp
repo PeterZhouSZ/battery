@@ -157,12 +157,38 @@ bool tortuosity() {
 	const bool bicg = true;
 	const bool runAllSolvers = false;
 	const size_t maxIterations = argMaxIterations.Get();
-
 	
 
-	//blib::DiffusionSolver<T> solverEigen(argVerbose);
-	blib::DiffusionSolver<T> solverEigen(true);
+	const bool verbose = argVerbose.Get();
+	const bool verboseDebug = false;
+	
+	blib::DiffusionSolver<T> solverEigen(verbose);
 	blib::MGGPU<T> solverMGGPU;
+
+
+//#define KERNEL_PROFILE
+
+
+#ifdef KERNEL_PROFILE
+	{
+		typename blib::MGGPU<T>::PrepareParams p;
+		{
+			p.dir = dirs[0];
+			p.d0 = d0;
+			p.d1 = d1;
+			auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
+			auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
+			auto exactSolveDim = 4;
+			p.cellDim = blib::vec3(1.0 / maxDim);
+			p.levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
+		}	
+		solverMGGPU.bicgPrep(c, p, volume);
+
+		typename blib::MGGPU<T>::SolveParams sp;
+		solverMGGPU.profile();
+		exit(0);		
+	}
+#endif
 
 
 	for (auto i = 0; i < dirs.size(); i++) {
@@ -210,7 +236,8 @@ bool tortuosity() {
 
 			typename blib::MGGPU<T>::SolveParams sp;
 			sp.tolerance = tol;
-			sp.verbose = argVerbose;
+			sp.verbose = verbose;
+			sp.verboseDebug = verboseDebug;
 			sp.maxIter = maxIterations;
 			
 			if (bicg) {

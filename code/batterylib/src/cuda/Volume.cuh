@@ -22,6 +22,13 @@ int3 ivox = make_int3(			\
 		blockIdx.z * blockDim.z		\
 	) + make_int3(threadIdx);					\
 
+#define VOLUME_BLOCK_IVOX					\
+int3 blockIvox = make_int3(			\
+		blockIdx.x * blockDim.x,	\
+		blockIdx.y * blockDim.y,	\
+		blockIdx.z * blockDim.z		\
+	);					\
+
 
 #define VOLUME_VOX_GUARD(res)					\
 	VOLUME_VOX									\
@@ -99,6 +106,12 @@ inline __device__ uint _getDirIndex(Dir dir) {
 	return uint(-1);
 }
 
+
+template<typename D, typename P>
+inline __device__ __host__ size_t _linearIndex(const D & dim, const P & pos) {
+	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
+}
+/*
 inline __device__ __host__ size_t _linearIndex(const uint3 & dim, const uint3 & pos) {
 	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
 }
@@ -107,6 +120,14 @@ inline __device__ __host__ size_t _linearIndex(const uint3 & dim, const int3 & p
 	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
 }
 
+inline __device__ __host__ size_t _linearIndex(const int3 & dim, const int3 & pos) {
+	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
+}
+
+inline __device__ __host__ size_t _linearIndex(const int3 & dim, const uint3 & pos) {
+	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
+}
+*/
 inline __device__ __host__ size_t _linearIndexXFirst(const uint3 & dim, const int3 & pos) {
 	return pos.z + dim.z * pos.y + dim.z * dim.y * pos.x;
 }
@@ -120,6 +141,15 @@ inline __device__ __host__ bool _isValidPos(const uint3 & dim, const int3 & pos)
 		pos.x < int(dim.x) && pos.y < int(dim.y) && pos.z < int(dim.z);
 }
 
+inline __device__ __host__ int3 posFromLinear(const int3 & dim, int index) {
+
+	int3 pos;
+	pos.x = (index % dim.x);
+	index = (index - pos.x) / dim.x;
+	pos.y = (index % dim.y);
+	pos.z = (index / dim.y);
+	return pos;
+}
 
 
 inline __device__ __host__ int _getDirSgn(Dir dir) {

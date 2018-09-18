@@ -1967,13 +1967,109 @@ __global__ void ___matrixVectorProductKernel(
 	const double Axval = convolve3D_SystemTop(ivox, A[I], x);
 	write<double>(b.surf, ivox, Axval);
 }
+
+
+
+template<int blockSize, int apronSize>
+double __device__  convolve3D_SystemTop_Shared(
+	const int3 & relVox, //in block relative voxel
+	const MGGPU_SystemTopKernel & k,
+	double * x
+) {
+	double sum = 0.0;		
+
+	//Index in apron
+	const int index = _linearIndex(make_int3(apronSize), relVox + make_int3(1));
+
+	const int3 stride = make_int3(1, apronSize, apronSize*apronSize);	
+	sum += k.v[X_POS] * x[index + stride.x];
+	sum += k.v[X_NEG] * x[index - stride.x];
+	sum += k.v[Y_POS] * x[index + stride.y];
+	sum += k.v[Y_NEG] * x[index - stride.y];
+	sum += k.v[Z_POS] * x[index + stride.z];
+	sum += k.v[Z_NEG] * x[index - stride.z];	
+	sum += k.v[DIR_NONE] * x[index];		
+	
+	return sum;
+}
+
+template <int blockSize>
+__global__ void ___matrixVectorProductKernelShared(
+	const MGGPU_SystemTopKernel * A,
+	const MGGPU_Volume x,
+	MGGPU_Volume b
+) {
+	
+	
+	const int apronSize = blockSize + 2;
+	const int totalBlockSize = blockSize*blockSize*blockSize;	
+	const int totalApronSize = apronSize * apronSize * apronSize;
+	const int perThread = (totalApronSize + totalBlockSize -1) / totalBlockSize;
+
+	__shared__ double _s[totalApronSize];
+	
+	VOLUME_BLOCK_IVOX; //defines blockIvox
+
+	//Position of apron
+	const int3 apronIvox = blockIvox - make_int3(1);
+
+	//Load apron to shared memory
+	int tid = _linearIndex(blockDim, threadIdx);
+
+	/*size_t blockIndex = _linearIndex(gridDim, blockIdx);
+	if (blockIndex == 1) {
+		printf("tid: %d, <%d, %d)\n", tid, min(tid*perThread, totalApronSize), min((tid+1)*perThread, totalApronSize));
+	}*/
+	
+//	int3 relativeLoadVoxel = apronIvox + 
+	for (int i = 0; i < perThread; i++) {
+		const int targetIndex = tid + i*totalBlockSize;
+		//const int targetIndex = tid*perThread + i;
+		if (targetIndex >= totalApronSize)
+			break;
+
+		const int3 targetPos = apronIvox + posFromLinear(make_int3(apronSize), targetIndex);
+		if (_isValidPos(x.res, targetPos))
+			_s[targetIndex] = read<double>(x.surf, targetPos);
+		else
+			_s[targetIndex] = 0.0;
+	}
+
+	__syncthreads();
+
+
+
+	//VOLUME_IVOX_GUARD(x.res);
+	//write<double>(b.surf, ivox, 1.0);
+
+	VOLUME_IVOX_GUARD(x.res);
+	const size_t I = _linearIndex(x.res, ivox);
+	MGGPU_SystemTopKernel a = A[I];
+	const double Axval = convolve3D_SystemTop_Shared<blockSize, apronSize>(make_int3(threadIdx.x, threadIdx.y, threadIdx.z), a, _s);
+	
+	//const double Axval = convolve3D_SystemTop(ivox, A[I], x);
+	write<double>(b.surf, ivox, Axval);
+
+}
+
+
+
 void MGGPU_MatrixVectorProduct(
 	const MGGPU_SystemTopKernel * A,
 	const MGGPU_Volume & x,
 	MGGPU_Volume & b
 ) {
-	BLOCKS3D(4, x.res);
-	___matrixVectorProductKernel << < numBlocks, block >> >(A, x, b);
+
+	const bool optimized = true;
+	if (!optimized) {
+		BLOCKS3D(8, x.res);
+		___matrixVectorProductKernel << < numBlocks, block >> > (A, x, b);
+	}
+	else {
+		const int blockSize = 8;
+		BLOCKS3D(blockSize, x.res);	
+		___matrixVectorProductKernelShared<blockSize><< < numBlocks, block >> > (A, x, b);
+	}
 }
 
 

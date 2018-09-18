@@ -1274,9 +1274,13 @@ template <typename T>
 void blib::MGGPU<T>::profile()
 {
 
+	MGGPU_SystemTopKernel * A = (MGGPU_SystemTopKernel *)_levels[0].A.gpu;
+	
+	MGGPU_MatrixVectorProduct(A, _y, _v);
+	
 
 	//Profile Gauss seidel
-	{
+	/*{
 		double tolerance = 1e-6;
 		int preN = 1;
 		Profiler profiler;
@@ -1307,7 +1311,7 @@ void blib::MGGPU<T>::profile()
 		std::cout << profiler.summary();
 
 		
-	}
+	}*/
 
 }
 
@@ -1767,6 +1771,13 @@ T blib::MGGPU<T>::tortuosity()
 
 	_porosity = porosity;
 
+	if (true) {
+		std::cout << "dc: " << dc << std::endl;
+		std::cout << "porosity: " << _porosity << std::endl;
+		std::cout << "tau: " << tau << std::endl;
+	}
+
+
 	return tau;
 
 	/*
@@ -1941,8 +1952,7 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 
 		_y = toMGGPUVolume(_volume->getChannel(y), y);
 		_z = toMGGPUVolume(_volume->getChannel(z), z);
-		_kt = toMGGPUVolume(_volume->getChannel(kt), kt);
-		_ks = toMGGPUVolume(_volume->getChannel(ks), ks);
+		
 
 		_ainvert = toMGGPUVolume(_volume->getChannel(ainvert), ainvert);
 	}
@@ -2018,8 +2028,7 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 	auto & y = _y;
 	auto & z = _z;
 	
-	auto & kt = _kt;
-	auto & ks = _ks;
+	
 
 	auto & s = _s;
 	auto & t = _t;
@@ -2030,10 +2039,16 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 	size_t i = 0;
 	size_t restarts = 0;
 
-	const bool verbose = false;
+	const bool verbose = solveParams.verboseDebug;
+	
+	Profiler profiler;
+
 	
 
-	while (SqNorm(r) > tol2 && i < maxIters)
+	T rsqNorm = 0;
+	CUDA_TIMER(rsqNorm = SqNorm(r),"sqNorm",profiler);
+
+	while (rsqNorm > tol2 && i < maxIters)
 	{
 		if(verbose) std::cout << i << std::endl;
 		if(verbose) std::cout << "\t" << "sq r: " << SqNorm(r) << std::endl;
@@ -2041,8 +2056,9 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 		T rho_old = rho;
 
 		
-
-		rho = DotProduct(r0,r); //r0.dot(r);
+		
+		CUDA_TIMER(rho = DotProduct(r0,r),"dot",profiler); //r0.dot(r);
+		
 
 		if(verbose) std::cout << "\t" << " rho: " << rho << std::endl;
 		if (abs(rho) < eps2*r0_sqnorm)
@@ -2050,9 +2066,13 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 			if(verbose) std::cout << "\t" << " restart " << std::endl;
 			// The new residual vector became too orthogonal to the arbitrarily chosen direction r0
 			// Let's restart with a new r0:
-			MGGPU_Residual_TopLevel(res, A, x, rhs, r); //r = rhs - mat * x;
-			launchCopyKernel(TYPE_DOUBLE, res, r.surf, r0.surf); //r0 = r;
-			rho = r0_sqnorm = SqNorm(r); //r.squaredNorm();
+			
+			CUDA_TIMER(MGGPU_Residual_TopLevel(res, A, x, rhs, r), "residual", profiler); //r = rhs - mat * x;
+			
+			
+			
+			CUDA_TIMER(launchCopyKernel(TYPE_DOUBLE, res, r.surf, r0.surf),"copy",profiler); //r0 = r;			
+			CUDA_TIMER(rho = r0_sqnorm = SqNorm(r),"sqNorm",profiler); //r.squaredNorm();
 			if (restarts++ == 0)
 				i = 0;
 		}
@@ -2060,30 +2080,38 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 		if(verbose) std::cout << "\t" << " beta: " << beta << std::endl;
 		
 		//p = beta * (p + -w * v ) + r
-		launchAPlusBetaBGammaPlusC(TYPE_DOUBLE, res, p.surf, v.surf, r.surf , -w, beta);
 		//p = r + beta * (p - w * v);
+		CUDA_TIMER(launchAPlusBetaBGammaPlusC(TYPE_DOUBLE, res, p.surf, v.surf, r.surf , -w, beta),"launchAPlusBetaBGammaPlusC",profiler);
+				
 
 		if(verbose) std::cout << "\t" << " psq: " << SqNorm(p) << std::endl;
 		
 		{
 			//y = precond.solve(p);
 			//v.noalias() = mat * y;
-			launchMultiplyKernel(TYPE_DOUBLE, res, _ainvert.surf, p.surf, y.surf);
+			
+			CUDA_TIMER(launchMultiplyKernel(TYPE_DOUBLE, res, _ainvert.surf, p.surf, y.surf),"multiply",profiler);
+			
 			if(verbose) std::cout << "\t" << " ysq: " << SqNorm(y) << std::endl;
 
-			MGGPU_MatrixVectorProduct(A, y, v);
+			CUDA_TIMER(MGGPU_MatrixVectorProduct(A, y, v),"matvec",profiler);
+			
 
 			if(verbose) std::cout << "\t" << " vsq: " << SqNorm(v) << std::endl;
 		}
 
 
 		//alpha = rho / r0.dot(v);
-		alpha = rho / DotProduct(r0, v);		
+		
+		CUDA_TIMER(alpha = rho / DotProduct(r0, v),"dot",profiler);
+		
 
 		if(verbose) std::cout << "\t" << " alpha: " << alpha  << " = " << rho << "/" << DotProduct(r0, v) << std::endl;
 		
 		//s = r - alpha * v;
-		launchAddAPlusBetaB(TYPE_DOUBLE, res, r.surf, v.surf, s.surf, -alpha);
+		
+		CUDA_TIMER(launchAddAPlusBetaB(TYPE_DOUBLE, res, r.surf, v.surf, s.surf, -alpha),"launchAddAPlusBetaB",profiler);
+		
 		
 		if(verbose) std::cout << "\t" << " ssq: " << SqNorm(s) << std::endl;
 
@@ -2091,21 +2119,28 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 			//z = precond.solve(s);
 			//t.noalias() = mat * z;
 			//DOUBLE CHECK
-			launchMultiplyKernel(TYPE_DOUBLE, res, _ainvert.surf, s.surf, z.surf);
+			
+			CUDA_TIMER(launchMultiplyKernel(TYPE_DOUBLE, res, _ainvert.surf, s.surf, z.surf), "multiply",profiler);
+			
 			if(verbose) std::cout << "\t" << " zsq: " << SqNorm(z) << std::endl;
 
-			MGGPU_MatrixVectorProduct(A, z, t);
+			
+			CUDA_TIMER(MGGPU_MatrixVectorProduct(A, z, t),"matvec",profiler);
+			
 
 			if(verbose) std::cout << "\t" << " tsq: " << SqNorm(t) << std::endl;
 		}
 		
 
 		//RealScalar tmp = t.squaredNorm();
-		T tmp = SqNorm(t);
+		
+		T tmp;
+		CUDA_TIMER(tmp = SqNorm(t), "sqNorm", profiler);
+		
 
 		if (tmp > T(0)) {
-			//w = t.dot(s) / tmp;
-			w = DotProduct(t, s) / tmp;
+			//w = t.dot(s) / tmp;			
+			CUDA_TIMER(w = DotProduct(t, s) / tmp,"dot",profiler);			
 		}
 		else {
 			w = T(0);
@@ -2115,20 +2150,33 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 
 		//x = x + alpha*y + omega * z
 		//x += alpha * y + w * z;
-		launchABC_BetaGamma(TYPE_DOUBLE, res, x.surf, y.surf, z.surf, alpha, w);
+		
+		CUDA_TIMER(launchABC_BetaGamma(TYPE_DOUBLE, res, x.surf, y.surf, z.surf, alpha, w),"launchABC_BetaGamma",profiler);
+		
 
 		if(verbose) std::cout << "\t" << " xsq: " << SqNorm(x) << std::endl;
 		
 
 		//r = s - w * t; C = A + beta * B
-		launchAddAPlusBetaB(TYPE_DOUBLE, res, s.surf, t.surf, r.surf, -w);
+		
+		CUDA_TIMER(launchAddAPlusBetaB(TYPE_DOUBLE, res, s.surf, t.surf, r.surf, -w),"launchAddAPlusBetaB", profiler);		
+
+		CUDA_TIMER(rsqNorm = SqNorm(r), "sqNorm", profiler);
 
 		if(verbose) std::cout << "\t" << " rsq: " << SqNorm(r) << std::endl;
 		++i;
 	}
 	//tol_error = sqrt(r.squaredNorm() / rhs_sqnorm);
-	tol_error = sqrt(SqNorm(r) / rhs_sqnorm);
+	CUDA_TIMER(tol_error = sqrt(SqNorm(r) / rhs_sqnorm),"sqNorm",profiler);
 	_iterations = i;
+
+	profiler.stop();
+
+
+	if (solveParams.verbose) {
+		std::cout << "Iterations: " << _iterations << " / " << solveParams.maxIter << std::endl;
+		std::cout << profiler.summary();
+	}
 
 	return tol_error;
 	
