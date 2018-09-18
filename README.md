@@ -6,10 +6,13 @@
 - [GLEW](http://glew.sourceforge.net/) *>= 2.0.0*
 - [GLM](https://glm.g-truc.net/0.9.8/index.html) *>= 0.9.8.x*
 - [EIGEN](http://eigen.tuxfamily.org/index.php?title=Main_Page) *>= 3.3.4*
-- [CUDA](https://developer.nvidia.com/cuda-downloads) (tested on 9.0)
+- [CUDA](https://developer.nvidia.com/cuda-downloads) (tested on 9.0+, 9.2 recommended)
+
+### Compiler requirements
+- C++17 compatible (Tested on VS 2017, Clang 6, GCC 7)
 
 
-### Environment variables
+### Environment variables (Windows only)
 
 - **GLFW_PATH** to GLFW root directory
 - **GLEW_PATH** to GLEW root directory, **static** build
@@ -17,18 +20,13 @@
 - **EIGEN_PATH** to EIGEN root directory
 
 ## Build tools:
-- [Premake5](https://premake.github.io/download.html)
-- [premake-cuda](https://github.com/krsvojte/premake-cuda) script (included)
+- CMake 3.10+
 
 
-## Build steps (Windows):
+## Build steps:
 - Download & compile libraries
-- Set environment variables 
-- In case of different version of CUDA than 9.0, change "cuda_version" variable in premake5.lua to your version.
-- Run commmand 
-```/build/premake5(.exe) vs2017```  
-  - or use provided .bat files
-
+- Set environment variables (Windows only)
+- Run cmake or cmake-gui
 
 # Projects
 - **batterylib** | core data types and functionality, including tortuosity calculator
