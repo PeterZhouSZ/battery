@@ -73,6 +73,28 @@ set(_SRCS
     ${PROJECT_EXTERNAL_DIR}/imgui/imgui_impl_glfw_gl3.cpp
 )
 
+set(_HEADERS
+	${PROJECT_INCLUDE_DIR}/App.h
+    ${PROJECT_INCLUDE_DIR}/BatteryApp.h    
+    ${PROJECT_INCLUDE_DIR}/Ui.h
+    ${PROJECT_INCLUDE_DIR}/render/Camera.h
+    ${PROJECT_INCLUDE_DIR}/render/Framebuffer.h
+    ${PROJECT_INCLUDE_DIR}/render/GLRenderer.h
+    ${PROJECT_INCLUDE_DIR}/render/Light.h
+    ${PROJECT_INCLUDE_DIR}/render/MeshObject.h
+    ${PROJECT_INCLUDE_DIR}/render/PrimitivesVBO.h
+    ${PROJECT_INCLUDE_DIR}/render/RenderList.h
+    ${PROJECT_INCLUDE_DIR}/render/Scene.h
+    ${PROJECT_INCLUDE_DIR}/render/Shader.h
+    ${PROJECT_INCLUDE_DIR}/render/ShaderResource.h
+    ${PROJECT_INCLUDE_DIR}/render/Shaders.h
+    ${PROJECT_INCLUDE_DIR}/render/Texture.h
+    ${PROJECT_INCLUDE_DIR}/render/VertexBuffer.h
+    ${PROJECT_INCLUDE_DIR}/render/VolumeRaycaster.h
+    ${PROJECT_INCLUDE_DIR}/utility/IOUtility.h
+    ${PROJECT_INCLUDE_DIR}/utility/Options.h
+)
+
 #Include directories
 include_directories("${PROJECT_INCLUDE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}")
@@ -94,7 +116,7 @@ INCLUDE_DIRECTORIES ( "${EIGEN3_INCLUDE_DIR}" )
 
 add_definitions(${batterylib_DEFINITIONS})
 
-add_executable(${PROJECT_NAME} ${_SRCS})
+add_executable(${PROJECT_NAME} ${_SRCS} ${_HEADERS})
 
 add_dependencies(${PROJECT_NAME} batterylib)
 target_link_libraries(${PROJECT_NAME} batterylib)

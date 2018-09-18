@@ -55,15 +55,49 @@ set(_SRCS
     ${PROJECT_SOURCE_DIR}/TriangleMesh.cpp
     ${PROJECT_SOURCE_DIR}/Types.cpp
     ${PROJECT_SOURCE_DIR}/Volume.cpp
-    ${PROJECT_SOURCE_DIR}/VolumeIO.cpp
-    ${PROJECT_SOURCE_DIR}/cuda/CudaMath.h
+    ${PROJECT_SOURCE_DIR}/VolumeIO.cpp    
+    
+    ${TINYTIFF_DIR}/tinytiffreader.cpp
+
     ${PROJECT_SOURCE_DIR}/cuda/CudaUtility.cpp    
     ${PROJECT_SOURCE_DIR}/cuda/MGGPU.cu    
     ${PROJECT_SOURCE_DIR}/cuda/MultigridGPU.cu    
     ${PROJECT_SOURCE_DIR}/cuda/MultigridGPUNew.cu    
     ${PROJECT_SOURCE_DIR}/cuda/Volume.cu    
-    ${TINYTIFF_DIR}/tinytiffreader.cpp
+    
 )
+
+set(_HEADERS 
+    ${PROJECT_INCLUDE_DIR}/AABB.h
+    ${PROJECT_INCLUDE_DIR}/DataPtr.h
+    ${PROJECT_INCLUDE_DIR}/DiffusionSolver.h
+    ${PROJECT_INCLUDE_DIR}/Ellipsoid.h
+    ${PROJECT_INCLUDE_DIR}/GLGlobal.h
+    ${PROJECT_INCLUDE_DIR}/MGGPU.h
+    ${PROJECT_INCLUDE_DIR}/MultigridGPU.h
+    ${PROJECT_INCLUDE_DIR}/MultigridSolver.h
+    ${PROJECT_INCLUDE_DIR}/OrientationHistogram.h
+    ${PROJECT_INCLUDE_DIR}/RandomGenerator.h
+    ${PROJECT_INCLUDE_DIR}/SimulatedAnnealing.h
+    ${PROJECT_INCLUDE_DIR}/Timer.h
+    ${PROJECT_INCLUDE_DIR}/Transform.h
+    ${PROJECT_INCLUDE_DIR}/Triangle.h
+    ${PROJECT_INCLUDE_DIR}/TriangleMesh.h
+    ${PROJECT_INCLUDE_DIR}/Types.h
+    ${PROJECT_INCLUDE_DIR}/Volume.h
+    ${PROJECT_INCLUDE_DIR}/VolumeIO.h
+    
+    ${TINYTIFF_DIR}/tinytiffreader.h
+
+    ${PROJECT_SOURCE_DIR}/cuda/CudaMath.h
+    ${PROJECT_SOURCE_DIR}/cuda/CudaUtility.h    
+    ${PROJECT_SOURCE_DIR}/cuda/MGGPU.cuh    
+    ${PROJECT_SOURCE_DIR}/cuda/MultigridGPU.cuh    
+    ${PROJECT_SOURCE_DIR}/cuda/MultigridGPUNew.cuh    
+    ${PROJECT_SOURCE_DIR}/cuda/Volume.cuh    
+    
+)
+
 
 
 
@@ -89,7 +123,7 @@ INCLUDE_DIRECTORIES ( "${EIGEN3_INCLUDE_DIR}" )
 #message(STATUS "EIGEN directory: " ${EIGEN3_INCLUDE_DIR})
 
 
-add_library(${PROJECT_NAME} SHARED ${_SRCS})
+add_library(${PROJECT_NAME} SHARED ${_SRCS} ${_HEADERS})
 
 #CUDA options
 #target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_11)
