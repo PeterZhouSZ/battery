@@ -557,6 +557,8 @@ void BatteryApp::solveMGGPU()
 	/*
 		Prepare
 	*/
+
+	bool bicg = _options["Diffusion"].get<bool>("BICG");
 	
 	while (_volume->numChannels() > 2) {
 		_volume->removeChannel(_volume->numChannels() - 1);
@@ -581,8 +583,16 @@ void BatteryApp::solveMGGPU()
 	std::cout << "Multigrid solver levels " << p.levels << std::endl;
 
 	auto t0 = std::chrono::system_clock::now();
-	bool resPrep = _mggpu.prepare(_volume->getChannel(CHANNEL_BATTERY), p, *_volume);
+	bool resPrep = false;
+	if (bicg) {
+		resPrep = _mggpu.bicgPrep(_volume->getChannel(CHANNEL_BATTERY), p, *_volume);
+	}
+	else {
+		resPrep = _mggpu.prepare(_volume->getChannel(CHANNEL_BATTERY), p, *_volume);
+	}
 	auto t1 = std::chrono::system_clock::now();
+
+	
 
 	std::chrono::duration<double> prepTime = t1 - t0;
 	std::cout << "Prep time: " << prepTime.count() << "s" << std::endl;
@@ -613,9 +623,17 @@ void BatteryApp::solveMGGPU()
 		
 
 		auto ts0 = std::chrono::system_clock::now();
-		double err = _mggpu.solve(
-			sp
-		);
+		double err;
+		if (bicg) {
+			err = _mggpu.bicgSolve(
+				sp
+			);
+		}
+		else {
+			err = _mggpu.solve(
+				sp
+			);		
+		}
 		auto ts1 = std::chrono::system_clock::now();
 
 		if (err < 0.0) {

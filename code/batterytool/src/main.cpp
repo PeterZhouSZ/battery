@@ -154,11 +154,14 @@ bool tortuosity() {
 	T d1 = 0.001f;
 
 	
-	
+	const bool bicg = true;
+	const bool runAllSolvers = false;
+	const size_t maxIterations = argMaxIterations.Get();
 
 	
 
-	blib::DiffusionSolver<T> solverEigen(argVerbose);
+	//blib::DiffusionSolver<T> solverEigen(argVerbose);
+	blib::DiffusionSolver<T> solverEigen(true);
 	blib::MGGPU<T> solverMGGPU;
 
 
@@ -173,7 +176,7 @@ bool tortuosity() {
 		T tol = T(pow(10.0, -argTol.Get()));
 
 		//Prepare linear system
-		if (argSolver.Get() == "Eigen") {			
+		if (argSolver.Get() == "Eigen" || runAllSolvers) {			
 			solverEigen.prepare(
 				c,
 				dir,
@@ -182,12 +185,13 @@ bool tortuosity() {
 				true
 			);
 
-			solverEigen.solve(tol, argMaxIterations.Get(), argStep.Get());
+			solverEigen.solve(tol, maxIterations,  argStep.Get());
 
 			taus[i] = solverEigen.tortuosity(c, dir);
 			porosity = solverEigen.porosity();
 		}
-		else {
+
+		if (argSolver.Get() == "MGGPU" || runAllSolvers) {
 			typename blib::MGGPU<T>::PrepareParams p;
 			{
 				p.dir = dir;
@@ -199,13 +203,22 @@ bool tortuosity() {
 				p.cellDim = blib::vec3(1.0 / maxDim);
 				p.levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;								
 			}			
-			solverMGGPU.prepare(c, p, volume);
+			if(bicg)
+				solverMGGPU.bicgPrep(c, p, volume);
+			else
+				solverMGGPU.prepare(c, p, volume);
 
 			typename blib::MGGPU<T>::SolveParams sp;
 			sp.tolerance = tol;
 			sp.verbose = argVerbose;
-			sp.maxIter = argMaxIterations.Get();			
-			solverMGGPU.solve(sp);
+			sp.maxIter = maxIterations;
+			
+			if (bicg) {
+				T err = solverMGGPU.bicgSolve(sp);
+				std::cout << err << std::endl;
+			}
+			else
+				solverMGGPU.solve(sp);
 
 			taus[i] = solverMGGPU.tortuosity();
 			porosity = solverMGGPU.porosity();
@@ -301,7 +314,7 @@ int main(int argc, char **argv){
 		res &= tortuosity<double>();*/
 
 
-	cudaVerify();
+	//cudaVerify();
 
 	res &= tortuosity<double>();
 

@@ -1957,6 +1957,47 @@ void MGGPU_InterpolateAndAdd(
 }
 
 
+__global__ void ___matrixVectorProductKernel(
+	const MGGPU_SystemTopKernel * A,
+	const MGGPU_Volume x,
+	MGGPU_Volume b
+) {
+	VOLUME_IVOX_GUARD(x.res);
+	const size_t I = _linearIndex(x.res, ivox);
+	const double Axval = convolve3D_SystemTop(ivox, A[I], x);
+	write<double>(b.surf, ivox, Axval);
+}
+void MGGPU_MatrixVectorProduct(
+	const MGGPU_SystemTopKernel * A,
+	const MGGPU_Volume & x,
+	MGGPU_Volume & b
+) {
+	BLOCKS3D(4, x.res);
+	___matrixVectorProductKernel << < numBlocks, block >> >(A, x, b);
+}
+
+
+
+
+__global__ void ___inverta0diagtoKernel(
+	const MGGPU_SystemTopKernel * A,
+	MGGPU_Volume ainvert
+) {
+	VOLUME_IVOX_GUARD(ainvert.res);
+	const size_t I = _linearIndex(ainvert.res, ivox);
+	const double iadiag = 1.0 / A[I].v[DIR_NONE];
+	write<double>(ainvert.surf, ivox, iadiag);
+}
+
+
+void MGGPU_InvertA0DiagTo(
+	const MGGPU_SystemTopKernel * A,
+	MGGPU_Volume & ainvert
+) {
+	BLOCKS3D(4, ainvert.res);
+	___inverta0diagtoKernel << < numBlocks, block >> >(A, ainvert);
+}
+
 
 #ifdef ____OLD
 

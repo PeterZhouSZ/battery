@@ -317,3 +317,60 @@ void launchClearKernel(
 void launchNormalizeKernel(
 	PrimitiveType type, cudaSurfaceObject_t surf, uint3 res, double low, double high
 );
+
+/////////////////////////////////////////////
+
+//Copies A to B
+void launchCopyKernel(PrimitiveType type, uint3 res, cudaSurfaceObject_t A, cudaSurfaceObject_t B);
+
+//C = A*B element wise
+void launchMultiplyKernel(
+	PrimitiveType type,
+	uint3 res,
+	cudaSurfaceObject_t A,
+	cudaSurfaceObject_t B,
+	cudaSurfaceObject_t C
+);
+
+void launchDotProductKernel(
+	PrimitiveType type,
+	uint3 res,
+	cudaSurfaceObject_t A,
+	cudaSurfaceObject_t B,
+	cudaSurfaceObject_t C, //holds temporary product, TODO: direct reduction
+	void * auxBufferGPU,
+	void * auxBufferCPU,
+	void * result
+);
+
+//C = A + beta * B
+void launchAddAPlusBetaB(
+	PrimitiveType type,
+	uint3 res,
+	cudaSurfaceObject_t A,
+	cudaSurfaceObject_t B,
+	cudaSurfaceObject_t C,
+	double beta
+);
+
+//A = gamma * (A + beta * B) + C
+void launchAPlusBetaBGammaPlusC(
+	PrimitiveType type,
+	uint3 res,
+	cudaSurfaceObject_t A,
+	cudaSurfaceObject_t B,
+	cudaSurfaceObject_t C,
+	double beta,
+	double gamma
+);
+
+//A = A + beta * B + gamma * C
+void launchABC_BetaGamma(
+	PrimitiveType type,
+	uint3 res,
+	cudaSurfaceObject_t A,
+	cudaSurfaceObject_t B,
+	cudaSurfaceObject_t C,
+	double beta,
+	double gamma
+);

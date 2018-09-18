@@ -1208,16 +1208,18 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 
 
 template <typename T>
-bool MGGPU<T>::alloc()
+bool MGGPU<T>::alloc(int levelLimit)
 {
 
 	const auto origDim = _mask->dim();
 	const size_t origTotal = origDim.x * origDim.y * origDim.z;
 
-	_levels.resize(numLevels());
+	const int LEVEL_NUM = levelLimit == -1 ? numLevels() : levelLimit;
+
+	_levels.resize(LEVEL_NUM);
 	_levels[0].dim = origDim;
 	std::cout << "Level 0: " << origDim.x << " X " << origDim.y << " X " << origDim.z << std::endl;
-	for (auto i = 1; i < numLevels(); i++) {
+	for (auto i = 1; i < LEVEL_NUM; i++) {
 		
 		const auto prevDim = _levels[i - 1].dim;
 		_levels[i].dim = { 
@@ -1237,7 +1239,7 @@ bool MGGPU<T>::alloc()
 
 	//Domain & vector allocation
 	//Automatically allocated on CPU as well.
-	for (auto i = 0; i < numLevels(); i++) {
+	for (auto i = 0; i < LEVEL_NUM; i++) {
 		int domain = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("domain", i));
 		int x = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("x", i));
 		int tmpx = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("tmpx", i));
@@ -1820,6 +1822,438 @@ T blib::MGGPU<T>::tortuosity()
 	
 
 }
+
+
+
+
+template <typename T>
+bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume & volume)
+{
+	_params = params;
+	_mask = &mask;
+	_volume = &volume;
+
+	//cudaPrintProperties();
+
+	alloc(1);
+
+
+
+
+	/*
+	Generate continous domain at first level
+	*/
+	{
+		MGGPU_Volume MGmask = toMGGPUVolume(mask, 0);
+		CUDATimer tGenDomain(true);
+		MGGPU_GenerateDomain(MGmask, _params.d0, _params.d1, _levels[0].domain);
+		std::cout << "Gen domain " << tGenDomain.time() << "s" << std::endl;
+
+		/*#ifdef SAVE_TO_FILE
+		auto & D0ptr = volume.getChannel(_levels[0].domain.volID).getCurrentPtr();
+		D0ptr.retrieve();
+		saveVector<double>(D0ptr.getCPU(), _levels[0].N(), "MGGPU_D", 0);
+		#endif*/
+	}
+
+
+	//Send system params to gpu
+	MGGPU_SysParams sysp;
+	sysp.highConc = double(1.0);
+	sysp.lowConc = double(0.0);
+	sysp.concetrationBegin = (getDirSgn(params.dir) == 1) ? sysp.highConc : sysp.lowConc;
+	sysp.concetrationEnd = (getDirSgn(params.dir) == 1) ? sysp.lowConc : sysp.highConc;
+
+	sysp.cellDim[0] = params.cellDim.x;
+	sysp.cellDim[1] = params.cellDim.y;
+	sysp.cellDim[2] = params.cellDim.z;
+	sysp.faceArea[0] = sysp.cellDim[1] * sysp.cellDim[2];
+	sysp.faceArea[1] = sysp.cellDim[0] * sysp.cellDim[2];
+	sysp.faceArea[2] = sysp.cellDim[0] * sysp.cellDim[1];
+
+	sysp.dirPrimary = getDirIndex(params.dir);
+	sysp.dirSecondary = make_uint2((sysp.dirPrimary + 1) % 3, (sysp.dirPrimary + 2) % 3);
+
+	sysp.dir = params.dir;
+
+	if (!commitSysParams(sysp)) {
+		return false;
+	}
+
+
+
+
+	/*
+	Generate A0 - top level kernels
+	*/
+	{
+		auto & sysTop = _levels[0].A;
+		std::cout << "Alloc A0" << std::endl;
+		sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));
+		CUDATimer t(true);
+		MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f);
+		std::cout << "Gen A0: " << t.time() << "s" << std::endl;
+	}
+
+
+
+	//BICGStab prep
+	{
+
+		auto label = [](const std::string & prefix, int i) {
+			char buf[16];
+			itoa(i, buf, 10);
+			return prefix + std::string(buf);
+		};
+
+		const auto origDim = _mask->dim();
+
+		int i = 0;
+
+
+		int temp = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("temp", i));
+		int x = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("_x", i));
+		int rhat0 = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("rhat0", i));
+		int r = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("r", i));
+		int p = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("p", i));
+		int v = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("v", i));
+		int h = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("h", i));
+		int s = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("s", i));
+		int t = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("t", i));
+
+		int y = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("y", i));
+		int z = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("z", i));
+		int kt = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("kt", i));
+		int ks = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("ks", i));
+
+		int ainvert = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("ainvert", i));
+
+
+		_temp = toMGGPUVolume(_volume->getChannel(temp), temp);
+		_x = toMGGPUVolume(_volume->getChannel(x), x);
+		_rhat0 = toMGGPUVolume(_volume->getChannel(rhat0), rhat0);
+		_r = toMGGPUVolume(_volume->getChannel(r), r);
+		_p = toMGGPUVolume(_volume->getChannel(p), p);
+		_v = toMGGPUVolume(_volume->getChannel(v), v);
+		_h = toMGGPUVolume(_volume->getChannel(h), h);
+		_s = toMGGPUVolume(_volume->getChannel(s), s);
+		_t = toMGGPUVolume(_volume->getChannel(t), t);
+
+		_y = toMGGPUVolume(_volume->getChannel(y), y);
+		_z = toMGGPUVolume(_volume->getChannel(z), z);
+		_kt = toMGGPUVolume(_volume->getChannel(kt), kt);
+		_ks = toMGGPUVolume(_volume->getChannel(ks), ks);
+
+		_ainvert = toMGGPUVolume(_volume->getChannel(ainvert), ainvert);
+	}
+
+	//Preinverted A0 diagonal
+	{
+		MGGPU_InvertA0DiagTo((MGGPU_SystemTopKernel*)_levels[0].A.gpu, _ainvert);	
+	}
+
+
+	_levels[0].x = _x;
+
+	return true;
+}
+
+
+#define EIGEN_COPY
+template <typename T>
+T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
+{
+
+#ifdef EIGEN_COPY
+	const uint3 res = _x.res;
+	auto SqNorm = [&](MGGPU_Volume & vol) {
+		return MGGPU_SquareNorm(res, vol, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+	};
+	auto DotProduct = [&](MGGPU_Volume & vol0, MGGPU_Volume & vol1) {
+		double result;
+		launchDotProductKernel(TYPE_DOUBLE, res, vol0.surf, vol1.surf, _temp.surf, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu, &result);
+		return result;
+	};
+
+	MGGPU_SystemTopKernel * A = (MGGPU_SystemTopKernel *)_levels[0].A.gpu;
+
+	auto & r = _r;
+	auto & r0 = _rhat0;
+	auto & rhs = _levels[0].f;
+	auto & x = _x;
+	
+
+	double zero = 0.0;
+	launchClearKernel(TYPE_DOUBLE, x.surf, res, &zero);
+
+	T tol = solveParams.tolerance;
+	T tol_error = 1.0;
+
+	size_t maxIters = solveParams.maxIter;
+
+	size_t n = _levels[0].N();
+
+	
+	//1. Residual r
+	MGGPU_Residual_TopLevel(res, A, x, rhs, r);
+
+	//2. Choose rhat0 ..
+	launchCopyKernel(TYPE_DOUBLE, res, r.surf, r0.surf);
+
+	T r0_sqnorm = SqNorm(r0);
+	T rhs_sqnorm = SqNorm(rhs);
+	if (rhs_sqnorm == 0) {
+		return 0.0;
+	}
+
+	T rho = 1;
+	T alpha = 1;
+	T w = 1;
+
+	auto & p = _p;
+	auto & v = _v;
+	launchClearKernel(TYPE_DOUBLE, v.surf, res, &zero);
+	launchClearKernel(TYPE_DOUBLE, p.surf, res, &zero);
+
+	auto & y = _y;
+	auto & z = _z;
+	
+	auto & kt = _kt;
+	auto & ks = _ks;
+
+	auto & s = _s;
+	auto & t = _t;
+
+	T tol2 = tol*tol*rhs_sqnorm;
+	T eps2 = Eigen::NumTraits<T>::epsilon() * Eigen::NumTraits<T>::epsilon();
+
+	size_t i = 0;
+	size_t restarts = 0;
+
+	const bool verbose = false;
+	
+
+	while (SqNorm(r) > tol2 && i < maxIters)
+	{
+		if(verbose) std::cout << i << std::endl;
+		if(verbose) std::cout << "\t" << "sq r: " << SqNorm(r) << std::endl;
+
+		T rho_old = rho;
+
+		
+
+		rho = DotProduct(r0,r); //r0.dot(r);
+
+		if(verbose) std::cout << "\t" << " rho: " << rho << std::endl;
+		if (abs(rho) < eps2*r0_sqnorm)
+		{
+			if(verbose) std::cout << "\t" << " restart " << std::endl;
+			// The new residual vector became too orthogonal to the arbitrarily chosen direction r0
+			// Let's restart with a new r0:
+			MGGPU_Residual_TopLevel(res, A, x, rhs, r); //r = rhs - mat * x;
+			launchCopyKernel(TYPE_DOUBLE, res, r.surf, r0.surf); //r0 = r;
+			rho = r0_sqnorm = SqNorm(r); //r.squaredNorm();
+			if (restarts++ == 0)
+				i = 0;
+		}
+		T beta = (rho / rho_old) * (alpha / w);
+		if(verbose) std::cout << "\t" << " beta: " << beta << std::endl;
+		
+		//p = beta * (p + -w * v ) + r
+		launchAPlusBetaBGammaPlusC(TYPE_DOUBLE, res, p.surf, v.surf, r.surf , -w, beta);
+		//p = r + beta * (p - w * v);
+
+		if(verbose) std::cout << "\t" << " psq: " << SqNorm(p) << std::endl;
+		
+		{
+			//y = precond.solve(p);
+			//v.noalias() = mat * y;
+			launchMultiplyKernel(TYPE_DOUBLE, res, _ainvert.surf, p.surf, y.surf);
+			if(verbose) std::cout << "\t" << " ysq: " << SqNorm(y) << std::endl;
+
+			MGGPU_MatrixVectorProduct(A, y, v);
+
+			if(verbose) std::cout << "\t" << " vsq: " << SqNorm(v) << std::endl;
+		}
+
+
+		//alpha = rho / r0.dot(v);
+		alpha = rho / DotProduct(r0, v);		
+
+		if(verbose) std::cout << "\t" << " alpha: " << alpha  << " = " << rho << "/" << DotProduct(r0, v) << std::endl;
+		
+		//s = r - alpha * v;
+		launchAddAPlusBetaB(TYPE_DOUBLE, res, r.surf, v.surf, s.surf, -alpha);
+		
+		if(verbose) std::cout << "\t" << " ssq: " << SqNorm(s) << std::endl;
+
+		{
+			//z = precond.solve(s);
+			//t.noalias() = mat * z;
+			//DOUBLE CHECK
+			launchMultiplyKernel(TYPE_DOUBLE, res, _ainvert.surf, s.surf, z.surf);
+			if(verbose) std::cout << "\t" << " zsq: " << SqNorm(z) << std::endl;
+
+			MGGPU_MatrixVectorProduct(A, z, t);
+
+			if(verbose) std::cout << "\t" << " tsq: " << SqNorm(t) << std::endl;
+		}
+		
+
+		//RealScalar tmp = t.squaredNorm();
+		T tmp = SqNorm(t);
+
+		if (tmp > T(0)) {
+			//w = t.dot(s) / tmp;
+			w = DotProduct(t, s) / tmp;
+		}
+		else {
+			w = T(0);
+		}
+
+		if(verbose) std::cout << "\t" << " w: " << w << std::endl;
+
+		//x = x + alpha*y + omega * z
+		//x += alpha * y + w * z;
+		launchABC_BetaGamma(TYPE_DOUBLE, res, x.surf, y.surf, z.surf, alpha, w);
+
+		if(verbose) std::cout << "\t" << " xsq: " << SqNorm(x) << std::endl;
+		
+
+		//r = s - w * t; C = A + beta * B
+		launchAddAPlusBetaB(TYPE_DOUBLE, res, s.surf, t.surf, r.surf, -w);
+
+		if(verbose) std::cout << "\t" << " rsq: " << SqNorm(r) << std::endl;
+		++i;
+	}
+	//tol_error = sqrt(r.squaredNorm() / rhs_sqnorm);
+	tol_error = sqrt(SqNorm(r) / rhs_sqnorm);
+	_iterations = i;
+
+	return tol_error;
+	
+	
+
+	
+
+
+
+
+#else
+
+	///test bigstab
+	MGGPU_SystemTopKernel * A = (MGGPU_SystemTopKernel *)_levels[0].A.gpu;
+	MGGPU_Volume & b = _levels[0].f;
+
+	uint3 res = _x.res;
+
+	auto SqNorm = [&](MGGPU_Volume & vol){		
+		return MGGPU_SquareNorm(res, vol, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+	};
+
+	auto DotProduct = [&](MGGPU_Volume & vol0, MGGPU_Volume & vol1) {
+		double result;
+		launchDotProductKernel(TYPE_DOUBLE, res, vol0.surf, vol1.surf, _temp.surf, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu, &result);
+		return result;
+	};
+
+		
+
+
+	//Initial guess
+	double zero = 0.0;
+	launchClearKernel(TYPE_DOUBLE, _x.surf, res, &zero);
+
+	double bSqNorm = SqNorm(b);
+
+
+
+	//1. Residual r
+	MGGPU_Residual_TopLevel(res, A, _x, b, _r);
+
+	//2. Choose rhat0
+	launchCopyKernel(TYPE_DOUBLE, res, _r.surf, _rhat0.surf);
+
+	//3. Set scalars
+	_rho = 1.0;
+	_alpha = 1.0;
+	_omega = 1.0;
+
+	//4. Set vectors
+	launchClearKernel(TYPE_DOUBLE, _v.surf, res, &zero);
+	launchClearKernel(TYPE_DOUBLE, _p.surf, res, &zero);
+
+	double dotRes = 0.0;
+
+	for (auto i = 0; i < solveParams.maxIter; i++) {
+
+
+		//1. 		
+		double rhoPrev = _rho;
+		_rho = DotProduct(_rhat0, _r);
+
+		//2. 
+		_beta = (_rho / rhoPrev) * (_alpha / _omega);
+
+		//3. pi = (pi-1 - omega*v) * beta + r-1
+		launchAPlusBetaBGammaPlusC(TYPE_DOUBLE, res, _p.surf, _v.surf, _r.surf, -_omega, _beta);
+
+		//4. v = Ap
+		MGGPU_MatrixVectorProduct(A, _p, _v);
+
+		//5. alpha = rho/dot(r0hat, v)
+		_alpha = _rho / DotProduct(_rhat0, _v);
+
+		//6. h = x-1 + alpha p
+		launchAddAPlusBetaB(TYPE_DOUBLE, res, _x.surf, _p.surf, _h.surf, _alpha);
+
+		//7. Check
+		{
+			MGGPU_Residual_TopLevel(res, A, _h, b, _temp);
+			double rSqNorm = SqNorm(_temp);
+			double err = sqrt(rSqNorm / bSqNorm);
+			std::cout << "h error " << err << std::endl;
+			if (err < solveParams.tolerance) {
+				//result is in h
+				return err;
+			}
+		}
+
+
+
+		//8. s = ri - alpha v
+		launchAddAPlusBetaB(TYPE_DOUBLE, res, _r.surf, _v.surf, _s.surf, _alpha);
+
+		//9. As = t
+		MGGPU_MatrixVectorProduct(A, _s, _t);
+
+		//10. omega = (t,s)/(t,t)		
+		double tNorm = SqNorm(_t);
+		_omega = DotProduct(_t, _s) / tNorm;
+
+		//11. x = h + omega s
+		launchAddAPlusBetaB(TYPE_DOUBLE, res, _h.surf, _s.surf, _x.surf, _omega);
+
+		// 12. check
+		{
+			MGGPU_Residual_TopLevel(res, A, _x, b, _temp);
+			double rSqNorm = SqNorm(_temp);
+			double err = sqrt(rSqNorm / bSqNorm);
+			std::cout << "x error " << err << std::endl;
+			if (err < solveParams.tolerance) {
+				//result is in x
+				return err;
+			}
+		}
+
+
+		//13. r = s - omega*t
+		launchAddAPlusBetaB(TYPE_DOUBLE, res, _s.surf, _t.surf, _r.surf, _omega);
+	}
+
+#endif
+}
+
 
 
 namespace blib{

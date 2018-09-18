@@ -72,6 +72,16 @@ namespace blib {
 			T alpha = 1.0 //Smoothing over/under relaxation*/
 		);
 
+		BLIB_EXPORT bool bicgPrep(
+			VolumeChannel & mask,
+			PrepareParams params,
+			Volume & volume
+		);
+
+		BLIB_EXPORT T bicgSolve(
+			const SolveParams & solveParams			
+		);
+
 		BLIB_EXPORT T tortuosity();
 		
 
@@ -91,7 +101,7 @@ namespace blib {
 	private:
 
 
-		bool alloc();
+		bool alloc(int levelLimit = -1);
 		
 		int numLevels() const { return _params.levels; }
 
@@ -130,6 +140,8 @@ namespace blib {
 			
 		};
 
+
+
 		std::vector<Level> _levels;
 		
 		SparseMat _lastLevelA;
@@ -140,8 +152,18 @@ namespace blib {
 		size_t _iterations;
 
 		T _porosity;
+
+
+		//BICGStab
+		MGGPU_Volume _temp;
+		MGGPU_Volume _x;
+		MGGPU_Volume _rhat0;
+		MGGPU_Volume _r, _p, _v, _h, _s, _t, _y,_z,_kt,_ks,_ainvert;
+		double _rho, _alpha, _omega, _beta;
 	};
 
+	
+	
 	
 	
 	

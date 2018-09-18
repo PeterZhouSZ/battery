@@ -153,6 +153,7 @@ bool ::MultigridGPU<T>::prepare(
 
 
 	//Prepare cusolver to directly solve last level 
+#ifdef MULTIGRIDGPU_CUSPARSE
 	if(false){
 
 		//Handle to cusolver lib
@@ -232,7 +233,7 @@ bool ::MultigridGPU<T>::prepare(
 		
 	}
 	
-
+#endif
 
 	return true;
 }

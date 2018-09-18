@@ -1,5 +1,9 @@
 {
     "Diffusion": {
+        "BICG": {
+            "data": true,
+            "type": 5
+        },
         "C_high": {
             "data": 1.0,
             "type": 3

@@ -532,6 +532,8 @@ T DiffusionSolver<T>::solve(T tolerance, size_t maxIterations, size_t iterPerSte
 	_solver.setMaxIterations(iterPerStep);
 
 	T err = std::numeric_limits<T>::max();
+		
+	_x.setZero();
 
 	for (auto i = 0; i < maxIterations; i += iterPerStep) {
 

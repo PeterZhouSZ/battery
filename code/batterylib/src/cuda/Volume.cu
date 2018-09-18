@@ -926,18 +926,25 @@ void launchReduceKernel(
 
 		if (type == TYPE_FLOAT) {
 			if (opType == REDUCE_OP_SQUARESUM)
-				reduce3DSurfaceToBuffer<float, blockSize, opSum, opSquare> << <numBlocks, block, sharedSize>> > (
+				reduce3DSurfaceToBuffer<float, blockSize, opSum, opSquare> << <numBlocks, block, sharedSize >> > (
 					res, surf, (float*)auxBufferGPU, n
-					);	
+					);
 
-			if (opType == REDUCE_OP_MIN)
+			else if (opType == REDUCE_OP_MIN)
 				reduce3DSurfaceToBuffer<float, blockSize, opMin, opIdentity> << <numBlocks, block, sharedSize >> > (
 					res, surf, (float*)auxBufferGPU, n
 					);
-			if (opType == REDUCE_OP_MAX)
+			else if (opType == REDUCE_OP_MAX)
 				reduce3DSurfaceToBuffer<float, blockSize, opMax, opIdentity> << <numBlocks, block, sharedSize >> > (
 					res, surf, (float*)auxBufferGPU, n
 					);
+			else if (opType == REDUCE_OP_SUM)
+				reduce3DSurfaceToBuffer<float, blockSize, opSum, opIdentity> << <numBlocks, block, sharedSize >> > (
+					res, surf, (float*)auxBufferGPU, n
+					);
+			else
+				exit(0);
+			
 		}
 		else if (type == TYPE_DOUBLE) {
 			if (opType == REDUCE_OP_SQUARESUM) {
@@ -945,15 +952,20 @@ void launchReduceKernel(
 					res, surf, (double*)auxBufferGPU, n
 					);
 			}		
-
-			if (opType == REDUCE_OP_MIN)
+			else if (opType == REDUCE_OP_MIN)
 				reduce3DSurfaceToBuffer<double, blockSize, opMin, opIdentity> << <numBlocks, block, sharedSize >> > (
 					res, surf, (double*)auxBufferGPU, n
 					);
-			if (opType == REDUCE_OP_MAX)
+			else if (opType == REDUCE_OP_MAX)
 				reduce3DSurfaceToBuffer<double, blockSize, opMax, opIdentity> << <numBlocks, block, sharedSize >> > (
 					res, surf, (double*)auxBufferGPU, n
 					);
+			else if (opType == REDUCE_OP_SUM)
+				reduce3DSurfaceToBuffer<double, blockSize, opSum, opIdentity> << <numBlocks, block, sharedSize >> > (
+					res, surf, (double*)auxBufferGPU, n
+					);
+			else
+				exit(0);
 			
 		}
 
@@ -972,12 +984,24 @@ void launchReduceKernel(
 			);
 
 		if (type == TYPE_FLOAT) {
-			if (opType == REDUCE_OP_SQUARESUM)
-				reduceBuffer<float, blockSize, opSum><<<numBlocks,block, sharedSize>>>((float*)auxBufferGPU, n);				
+			if (opType == REDUCE_OP_SQUARESUM || opType == REDUCE_OP_SUM)
+				reduceBuffer<float, blockSize, opSum> << <numBlocks, block, sharedSize >> > ((float*)auxBufferGPU, n);
+			else if (opType == REDUCE_OP_MIN)
+				reduceBuffer<float, blockSize, opMin> << <numBlocks, block, sharedSize >> > ((float*)auxBufferGPU, n);
+			else if (opType == REDUCE_OP_MAX)
+				reduceBuffer<float, blockSize, opMax> << <numBlocks, block, sharedSize >> > ((float*)auxBufferGPU, n);			
+			else
+				exit(0);
 		}
 		if (type == TYPE_DOUBLE) {
-			if (opType == REDUCE_OP_SQUARESUM)
+			if (opType == REDUCE_OP_SQUARESUM || opType == REDUCE_OP_SUM)
 				reduceBuffer<double, blockSize, opSum> << <numBlocks, block, sharedSize >> >((double*)auxBufferGPU, n);
+			else if (opType == REDUCE_OP_MIN)
+				reduceBuffer<double, blockSize, opMin> << <numBlocks, block, sharedSize >> >((double*)auxBufferGPU, n);
+			else if (opType == REDUCE_OP_MAX)
+				reduceBuffer<double, blockSize, opMax> << <numBlocks, block, sharedSize >> >((double*)auxBufferGPU, n);			
+			else
+				exit(0);
 		}
 
 
@@ -1097,4 +1121,152 @@ void launchNormalizeKernel(
 	else if (type == TYPE_DOUBLE)
 		__normalizeKernel<double> << < numBlocks, block >> >(surf, res,low, high);
 
+}
+
+/////////////////////////////////////////////
+
+template <typename T>
+__global__ void __copyKernel(uint3 res, cudaSurfaceObject_t A, cudaSurfaceObject_t B) {
+	VOLUME_VOX_GUARD(res)
+		write<T>(B, vox, read<T>(A, vox));
+}
+
+
+void launchCopyKernel(PrimitiveType type, uint3 res, cudaSurfaceObject_t A, cudaSurfaceObject_t B) {
+	BLOCKS3D(8, res);
+	if (type == TYPE_FLOAT) {
+		__copyKernel<float> << < numBlocks, block >> >(res, A, B);
+	}
+	else if (type == TYPE_DOUBLE)
+		__copyKernel<double> << < numBlocks, block >> >(res, A, B);
+}
+
+
+
+
+template <typename T>
+__global__ void __multiplyKernel(uint3 res, cudaSurfaceObject_t A, cudaSurfaceObject_t B, cudaSurfaceObject_t C) {
+	VOLUME_VOX_GUARD(res)
+		write<T>(C, vox,
+			read<T>(A, vox) * read<T>(B, vox)
+			);
+}
+
+void launchMultiplyKernel(PrimitiveType type, uint3 res, cudaSurfaceObject_t A, cudaSurfaceObject_t B, cudaSurfaceObject_t C) {
+	BLOCKS3D(8, res);
+	if (type == TYPE_FLOAT) {
+		__multiplyKernel<float> << < numBlocks, block >> >(res, A, B, C);
+	}
+	else if (type == TYPE_DOUBLE)
+		__multiplyKernel<double> << < numBlocks, block >> >(res, A, B, C);
+}
+
+
+void launchDotProductKernel(
+	PrimitiveType type,
+	uint3 res,
+	cudaSurfaceObject_t A,
+	cudaSurfaceObject_t B,
+	cudaSurfaceObject_t C, //holds temporary product, TODO: direct reduction
+	void * auxBufferGPU,
+	void * auxBufferCPU,
+	void * result
+) {
+	launchMultiplyKernel(type, res, A, B, C);
+	launchReduceKernel(type, REDUCE_OP_SUM, res, C, auxBufferGPU, auxBufferCPU, result);
+}
+
+
+
+
+
+template <typename T>
+__global__ void __addAPlusBetaBKernel(uint3 res, cudaSurfaceObject_t A, cudaSurfaceObject_t B, cudaSurfaceObject_t C, T beta) {
+	VOLUME_VOX_GUARD(res)		
+		write<T>(C, vox,
+			read<T>(A, vox) + beta  * read<T>(B, vox)
+			);
+}
+
+
+
+
+void launchAddAPlusBetaB(
+	PrimitiveType type,
+	uint3 res,
+	cudaSurfaceObject_t A,
+	cudaSurfaceObject_t B,
+	cudaSurfaceObject_t C,
+	double beta
+) {
+
+	BLOCKS3D(8, res);
+	if (type == TYPE_FLOAT) {
+		__addAPlusBetaBKernel<float> << < numBlocks, block >> >(res, A, B, C, float(beta));
+	}
+	else if (type == TYPE_DOUBLE)
+		__addAPlusBetaBKernel<double> << < numBlocks, block >> >(res, A, B, C, beta);
+}
+
+
+
+
+template <typename T>
+__global__ void __aPlusBetaBGammaPlusC(uint3 res, cudaSurfaceObject_t A, cudaSurfaceObject_t B, cudaSurfaceObject_t C, T beta, T gamma) {
+	VOLUME_VOX_GUARD(res)
+
+		//A = gamma * (A + beta * B) + C
+		write<T>(A, vox,
+			gamma * (read<T>(A, vox) + beta  * read<T>(B, vox)) + read<T>(C, vox)
+			);
+}
+
+
+void launchAPlusBetaBGammaPlusC(
+	PrimitiveType type,
+	uint3 res,
+	cudaSurfaceObject_t A,
+	cudaSurfaceObject_t B,
+	cudaSurfaceObject_t C,
+	double beta,
+	double gamma
+) {
+
+	BLOCKS3D(8, res);
+	if (type == TYPE_FLOAT) {
+		__aPlusBetaBGammaPlusC<float> << < numBlocks, block >> >(res, A, B, C, float(beta), float(gamma));
+	}
+	else if (type == TYPE_DOUBLE)
+		__aPlusBetaBGammaPlusC<double> << < numBlocks, block >> >(res, A, B, C, beta, gamma);
+}
+
+
+
+template <typename T>
+__global__ void ___ABCBetaGamma(uint3 res, cudaSurfaceObject_t A, cudaSurfaceObject_t B, cudaSurfaceObject_t C, T beta, T gamma) {
+	VOLUME_VOX_GUARD(res)
+
+		//A = A + beta * B + gamma * C
+		write<T>(A, vox,
+			read<T>(A, vox) + beta  * read<T>(B, vox) + gamma * read<T>(C, vox)
+			);
+}
+
+//A = A + beta * B + gamma * C
+void launchABC_BetaGamma(
+	PrimitiveType type,
+	uint3 res,
+	cudaSurfaceObject_t A,
+	cudaSurfaceObject_t B,
+	cudaSurfaceObject_t C,
+	double beta,
+	double gamma
+) {
+
+	BLOCKS3D(8, res);
+	if (type == TYPE_FLOAT) {
+		___ABCBetaGamma<float> << < numBlocks, block >> >(res, A, B, C, float(beta), float(gamma));
+	}
+	else if (type == TYPE_DOUBLE)
+		___ABCBetaGamma<double> << < numBlocks, block >> >(res, A, B, C, beta, gamma);
 }

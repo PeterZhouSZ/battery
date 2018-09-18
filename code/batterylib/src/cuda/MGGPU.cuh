@@ -455,6 +455,18 @@ void MGGPU_InterpolateAndAdd(
 	MGGPU_InterpKernel * I
 );
 
+void MGGPU_MatrixVectorProduct(
+	const MGGPU_SystemTopKernel * A,
+	const MGGPU_Volume & x,
+	MGGPU_Volume & b
+);
+
+
+void MGGPU_InvertA0DiagTo(
+	const MGGPU_SystemTopKernel * A,
+	MGGPU_Volume & ainvert
+);
+
 #ifdef ___OLD
 
 
