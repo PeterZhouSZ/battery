@@ -172,7 +172,8 @@ __device__ void MGGPU_GetSystemTopKernel(
 	const MGGPU_Volume & domain,
 	const uint3 & vox,
 	MGGPU_SystemTopKernel * out,
-	T * f = nullptr
+	T * f = nullptr,
+	T * x = nullptr
 ) {
 	
 	T Di = read<T>(domain.surf, vox);
@@ -218,20 +219,32 @@ __device__ void MGGPU_GetSystemTopKernel(
 	}
 
 
-	if (f != nullptr) {
-		const uint primaryRes = ((uint*)&domain.res)[const_sys_params.dirPrimary];
-		T rhs = T(0);
-		if (_at<uint>(vox, const_sys_params.dirPrimary) == 0) {
-			Dir dir = _getDir(const_sys_params.dirPrimary, -1);
-			rhs -= coeffs[dir] * const_sys_params.concetrationBegin;
-		}
-		else if (_at<uint>(vox, const_sys_params.dirPrimary) == primaryRes - 1) {
-			Dir dir = _getDir(const_sys_params.dirPrimary, 1);
-			rhs -= coeffs[dir] * const_sys_params.concetrationEnd;
-		}
-
-		*f = rhs;
+	/*
+		Calculate right hand side
+	*/
+	const uint primaryRes = ((uint*)&domain.res)[const_sys_params.dirPrimary];
+	T rhs = T(0);
+	if (_at<uint>(vox, const_sys_params.dirPrimary) == 0) {
+		Dir dir = _getDir(const_sys_params.dirPrimary, -1);
+		rhs -= coeffs[dir] * const_sys_params.concetrationBegin;
 	}
+	else if (_at<uint>(vox, const_sys_params.dirPrimary) == primaryRes - 1) {
+		Dir dir = _getDir(const_sys_params.dirPrimary, 1);
+		rhs -= coeffs[dir] * const_sys_params.concetrationEnd;
+	}
+
+	*f = rhs;
+
+	/*
+		Initial guess
+	*/
+	uint primaryVox = _at<uint>(vox, const_sys_params.dirPrimary);
+	if (_getDirSgn(const_sys_params.dir) == 1)
+		*x = 1.0f - (primaryVox / T(primaryRes + 1));
+	else
+		*x = (primaryVox / T(primaryRes + 1));
+
+		
 
 	#pragma unroll
 	for (uint j = 0; j < DIR_NONE; j++) {
@@ -263,23 +276,53 @@ void __global__ ___systemTopKernel(
 	size_t i = _linearIndex(domain.res, vox);
 
 	double fval = 0.0;
-	MGGPU_GetSystemTopKernel<double>(domain, vox, &A0[i], &fval);	
+	double xval = 0.0;
+	MGGPU_GetSystemTopKernel<double>(domain, vox, &A0[i], &fval, &xval);	
 	write<double>(f.surf, vox, fval);
+
+}
+
+void __global__ ___systemTopKernelWithGuess(
+	MGGPU_Volume domain,
+	MGGPU_SystemTopKernel * A0,
+	MGGPU_Volume f,
+	MGGPU_Volume x
+) {
+	VOLUME_VOX_GUARD(domain.res);
+
+	size_t i = _linearIndex(domain.res, vox);
+
+	double fval = 0.0;
+	double xval = 0.0;
+	MGGPU_GetSystemTopKernel<double>(domain, vox, &A0[i], &fval, &xval);
+	write<double>(f.surf, vox, fval);
+	write<double>(x.surf, vox, xval);
 
 }
 
 void MGGPU_GenerateSystemTopKernel(
 	const MGGPU_Volume & domain,
 	MGGPU_SystemTopKernel * A0,
-	MGGPU_Volume & f
+	MGGPU_Volume & f,
+	MGGPU_Volume * x
 ) {
 
 	BLOCKS3D(2, domain.res);
-	___systemTopKernel << < numBlocks, block >> > (
-		domain,
-		A0,
-		f
-		);
+	if (x == nullptr) {
+		___systemTopKernel << < numBlocks, block >> > (
+			domain,
+			A0,
+			f
+			);
+	}
+	else {
+		___systemTopKernelWithGuess << < numBlocks, block >> > (
+			domain,
+			A0,
+			f,
+			*x
+			);
+	}
 	
 
 

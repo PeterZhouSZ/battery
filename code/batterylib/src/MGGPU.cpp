@@ -1920,22 +1920,6 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 	}
 
 
-
-
-	/*
-	Generate A0 - top level kernels
-	*/
-	{
-		auto & sysTop = _levels[0].A;
-		std::cout << "Alloc A0" << std::endl;
-		sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));
-		CUDATimer t(true);
-		MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f);
-		std::cout << "Gen A0: " << t.time() << "s" << std::endl;
-	}
-
-
-
 	//BICGStab prep
 	{
 
@@ -1958,13 +1942,13 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 		int rhat0 = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("rhat0", i));
 		int r = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("r", i));
 		int p = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("p", i));
-		int v = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("v", i));		
+		int v = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("v", i));
 		int s = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("s", i));
 		int t = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("t", i));
 
 		int y = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("y", i));
 		int z = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("z", i));
-		
+
 
 		int ainvert = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("ainvert", i));
 
@@ -1975,18 +1959,34 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 		_r = toMGGPUVolume(_volume->getChannel(r), r);
 		_p = toMGGPUVolume(_volume->getChannel(p), p);
 		_v = toMGGPUVolume(_volume->getChannel(v), v);
-		
+
 		_s = toMGGPUVolume(_volume->getChannel(s), s);
 		_t = toMGGPUVolume(_volume->getChannel(t), t);
 
 		_y = toMGGPUVolume(_volume->getChannel(y), y);
 		_z = toMGGPUVolume(_volume->getChannel(z), z);
-		
+
 
 		_ainvert = toMGGPUVolume(_volume->getChannel(ainvert), ainvert);
 
 		//TODO: memory optimization -> do not remember domain, just slice in computed dir
 	}
+
+	/*
+	Generate A0 - top level kernels
+	*/
+	{
+		auto & sysTop = _levels[0].A;
+		std::cout << "Alloc A0" << std::endl;
+		sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));
+		CUDATimer t(true);
+		MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f, &_x);
+		std::cout << "Gen A0: " << t.time() << "s" << std::endl;
+	}
+
+
+
+	
 
 	//Preinverted A0 diagonal
 	{
@@ -2004,7 +2004,7 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 template <typename T>
 T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 {
-
+	
 #ifdef EIGEN_COPY
 	const uint3 res = _x.res;
 	auto SqNorm = [&](MGGPU_Volume & vol) {
@@ -2025,7 +2025,7 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 	
 
 	double zero = 0.0;
-	launchClearKernel(TYPE_DOUBLE, x.surf, res, &zero);
+	//launchClearKernel(TYPE_DOUBLE, x.surf, res, &zero);
 
 	T tol = solveParams.tolerance;
 	T tol_error = 1.0;

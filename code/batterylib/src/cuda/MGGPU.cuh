@@ -372,7 +372,8 @@ Preparation
 void MGGPU_GenerateSystemTopKernel(
 	const MGGPU_Volume & domain,
 	MGGPU_SystemTopKernel * A0,
-	MGGPU_Volume & f //rhs of lin sys
+	MGGPU_Volume & f, //rhs of lin sys,
+	MGGPU_Volume * x = nullptr //optional guess
 );
 
 /*

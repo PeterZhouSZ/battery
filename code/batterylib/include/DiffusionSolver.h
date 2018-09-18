@@ -79,7 +79,9 @@ namespace blib {
 		Eigen::Matrix<T, Eigen::Dynamic, 1> _x;
 		Eigen::SparseMatrix<T, Eigen::RowMajor> _A;
 
-		Eigen::BiCGSTAB<Eigen::SparseMatrix<T, Eigen::RowMajor>> _solver;
+		Eigen::BiCGSTAB<Eigen::SparseMatrix<T, Eigen::RowMajor>
+			/*,Eigen::IncompleteLUT<T>*/
+		> _solver;
 
 
 		T _porosity;
