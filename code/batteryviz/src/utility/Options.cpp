@@ -8,6 +8,9 @@
 using json = nlohmann::json;
 using namespace std;
 
+json toJson(const std::shared_ptr<OptionSet> & optSet);
+json toJson(const OptionSet & optSet);
+
 OptionSet & OptionSet::operator[](const std::string & childName)
 {
 	auto & ptr = children[childName];
@@ -72,91 +75,39 @@ json toJson(const std::string &v) {
 	return json(v);
 }
 
-json toJson(const std::unique_ptr<OptionSet> & optSet) {
-		
+
+json toJson(const OptionSet & optSet) {
+	
 	json j;
 
-	for (auto & it : optSet->children) {
+	for (auto & it : optSet.children) {
 		j[it.first] = toJson(it.second);		
 	}
 
-	#if defined(NO_VARIANT)
-		for (auto & it : optSet->options) {
+	
+	for (auto & it : optSet.options) {
+		std::visit(
+			[&](auto&& arg) {
 
-			json v;
-			switch(it.second.type){
-				case OT_STRING:
-					v = toJson(it.value._string);
-					break;
-				case OT_CHAR:
-					v = toJson(it.value._char);
-					break;
-				case OT_INT:
-					v = toJson(it.value._int);
-					break;
-				case OT_FLOAT:
-					v = toJson(it.value._float);
-					break;
-				case OT_DOUBLE:
-					v = toJson(it.value._double);
-					break;
-				case OT_BOOL:
-					v = toJson(it.value._bool);
-					break;
-				case OT_VEC2:
-					v = toJson(it.value._vec2);
-					break;
-				case OT_VEC3:
-					v = toJson(it.value._vec3);
-					break;
-				case OT_VEC4:
-					v = toJson(it.value._vec4);
-					break;
-				case OT_IVEC2:
-					v = toJson(it.value._ivec2);
-					break;
-				case OT_IVEC3:
-					v = toJson(it.value._ivec3);
-					break;
-				case OT_IVEC4:
-					v = toJson(it.value._ivec4);
-					break;
-				case OT_MAT2:
-					v = toJson(it.value._mat2);
-					break;
-				case OT_MAT3:
-					v = toJson(it.value._mat3);
-					break;
-				case OT_MAT4:
-					v = toJson(it.value._mat4);
-					break;				
-			};
-
-			j[it.first] == {
-				{ "type", static_cast<int>(it.second.type) },
-				{ "data", v }
-			};		
-		}
-	#else 
-		for (auto & it : optSet->options) {
-			std::visit(
-				[&](auto&& arg) {
-
-					j[it.first] = {
-						{ "type", it.second.value.index() },
-						{ "data", toJson(arg) }
-					};				
-				},
-				it.second.value
-			);
-		}
-	#endif
+				j[it.first] = {
+					{ "type", it.second.value.index() },
+					{ "data", toJson(arg) }
+				};				
+			},
+			it.second.value
+		);
+	}
+	
 
 	return j;
 
 }
 
-std::ostream & operator<<(std::ostream & os, const std::unique_ptr<OptionSet> & optSet)
+json toJson(const std::shared_ptr<OptionSet> & optSet) {
+	return toJson(*optSet);
+}
+
+std::ostream & operator<<(std::ostream & os, const std::shared_ptr<OptionSet> & optSet)
 {
 	os << toJson(optSet).dump(4);
 	return os;
@@ -165,10 +116,10 @@ std::ostream & operator<<(std::ostream & os, const std::unique_ptr<OptionSet> & 
 
 std::ostream & operator<<(std::ostream & os, const OptionSet & optSet)
 {
-	/*auto x = std::make_unique<OptionSet>();
-	*x = optSet;
-	os << toJson(x).dump(4);//awful*/
-	std::cout << "NOT IMPLEMENTED" << std::endl;
+	//auto x = std::make_shared<OptionSet>(optSet);		
+	//os << toJson(x).dump(4);
+	//std::cout << "NOT IMPLEMENTED" << std::endl;
+	os << toJson(optSet).dump(4);
 	return os;
 }
 
@@ -299,7 +250,7 @@ OptionSet fromJson(const json & j) {
 }
 
 
-std::istream & operator>>(std::istream & is, std::unique_ptr<OptionSet> & opt)
+std::istream & operator>>(std::istream & is, std::shared_ptr<OptionSet> & opt)
 {
 	json j;
 	is >> j;
