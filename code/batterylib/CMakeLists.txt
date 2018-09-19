@@ -64,6 +64,7 @@ set(_SRCS
     ${PROJECT_SOURCE_DIR}/cuda/MultigridGPU.cu    
     ${PROJECT_SOURCE_DIR}/cuda/MultigridGPUNew.cu    
     ${PROJECT_SOURCE_DIR}/cuda/Volume.cu    
+    ${PROJECT_SOURCE_DIR}/cuda/VolumeSurface.cu
     
 )
 
@@ -74,6 +75,7 @@ set(_HEADERS
     ${PROJECT_INCLUDE_DIR}/Ellipsoid.h
     ${PROJECT_INCLUDE_DIR}/GLGlobal.h
     ${PROJECT_INCLUDE_DIR}/MGGPU.h
+    ${PROJECT_INCLUDE_DIR}/MGGPU_Types.h
     ${PROJECT_INCLUDE_DIR}/MultigridGPU.h
     ${PROJECT_INCLUDE_DIR}/MultigridSolver.h
     ${PROJECT_INCLUDE_DIR}/OrientationHistogram.h
@@ -95,7 +97,9 @@ set(_HEADERS
     ${PROJECT_SOURCE_DIR}/cuda/MultigridGPU.cuh    
     ${PROJECT_SOURCE_DIR}/cuda/MultigridGPUNew.cuh    
     ${PROJECT_SOURCE_DIR}/cuda/Volume.cuh    
-    
+    ${PROJECT_SOURCE_DIR}/cuda/VolumeSurface.cuh
+    ${PROJECT_SOURCE_DIR}/cuda/VolumeTypes.cuh
+
 )
 
 

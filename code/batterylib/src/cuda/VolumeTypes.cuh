@@ -1,9 +1,18 @@
-#include <cuda_runtime.h>
-#include <surface_functions.h>
-#include <surface_indirect_functions.h>
+#pragma once
 
-#include "CudaMath.h"
-#include "PrimitiveTypes.h"
+#include <cuda_runtime.h>
+
+//https://stackoverflow.com/questions/12778949/cuda-memory-alignment
+#if defined(__CUDACC__) // NVCC
+#define MY_ALIGN(n) __align__(n)
+#elif defined(__GNUC__) // GCC
+#define MY_ALIGN(n) __attribute__((aligned(n)))
+#elif defined(_MSC_VER) // MSVC
+#define MY_ALIGN(n) __declspec(align(n))
+#else
+#error "Please provide a definition for MY_ALIGN macro for your host compiler!"
+#endif
+
 
 #define VOLUME_VOX					\
 uint3 vox = make_uint3(			\
@@ -63,7 +72,7 @@ int3 blockIvox = make_int3(			\
 		((res.z + (block.z-1)) / block.z)		\
 	);
 
-\
+								\
 
 __host__ __device__ inline uint roundDiv(uint a, uint b) {
 	return (a + (b - 1)) / b;
@@ -110,23 +119,7 @@ template<typename D, typename P>
 inline __device__ __host__ size_t _linearIndex(const D & dim, const P & pos) {
 	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
 }
-/*
-inline __device__ __host__ size_t _linearIndex(const uint3 & dim, const uint3 & pos) {
-	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
-}
 
-inline __device__ __host__ size_t _linearIndex(const uint3 & dim, const int3 & pos) {
-	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
-}
-
-inline __device__ __host__ size_t _linearIndex(const int3 & dim, const int3 & pos) {
-	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
-}
-
-inline __device__ __host__ size_t _linearIndex(const int3 & dim, const uint3 & pos) {
-	return pos.x + dim.x * pos.y + dim.x * dim.y * pos.z;
-}
-*/
 inline __device__ __host__ size_t _linearIndexXFirst(const uint3 & dim, const int3 & pos) {
 	return pos.z + dim.z * pos.y + dim.z * dim.y * pos.x;
 }
@@ -280,126 +273,25 @@ inline __device__ double read(cudaSurfaceObject_t surf, const int3 & vox) {
 }
 
 
-
-
-void launchErodeKernel(uint3 res, cudaSurfaceObject_t surfIn, cudaSurfaceObject_t surfOut);
-
-void launchHeatKernel(uint3 res, cudaSurfaceObject_t surfIn, cudaSurfaceObject_t surfOut);
-
-void launchBinarizeKernel(uint3 res, 
-	cudaSurfaceObject_t surfInOut, 
-	PrimitiveType type,
-	float threshold //between 0 to 1
-);
-
-#define BOUNDARY_ZERO_GRADIENT 1e37f
-struct DiffuseParams {
+struct CUDA_Volume {	
 	uint3 res;
-	float voxelSize; 
-	cudaSurfaceObject_t mask;
-	cudaSurfaceObject_t concetrationIn;
-	cudaSurfaceObject_t concetrationOut;
-	float zeroDiff;
-	float oneDiff;
-		
-	float boundaryValues[6];
+	PrimitiveType type;
+	cudaSurfaceObject_t surf;
+
+	//ID given by Host code
+	int ID;
 };
 
-void launchDiffuseKernel(DiffuseParams params);
-
-
-
-//Subtracts B from A (result in A) ... A = A -B
-void launchSubtractKernel(uint3 res, cudaSurfaceObject_t A, cudaSurfaceObject_t B);
-
-//Inplace reduce sum
-float launchReduceSumKernel(uint3 res, cudaSurfaceObject_t surf);
-
-
-float launchReduceSumSlice(uint3 res, cudaSurfaceObject_t surf, Dir dir, void * output);
-
-enum ReduceOpType {
-	REDUCE_OP_SUM,
-	REDUCE_OP_PROD,
-	REDUCE_OP_SQUARESUM,
-	REDUCE_OP_MIN,
-	REDUCE_OP_MAX
+template <size_t T, size_t size>
+struct CUDA_Kernel3D {
+	double v[size][size][size];
 };
 
-#define VOLUME_REDUCTION_BLOCKSIZE 512
-void launchReduceKernel(
-	PrimitiveType type,
-	ReduceOpType opType,
-	uint3 res,
-	cudaSurfaceObject_t surf,
-	void * auxBufferGPU,
-	void * auxBufferCPU,
-	void * result
-);
+template <size_t size>
+using CUDA_Kernel3Dd = CUDA_Kernel3D<double, size>;
+using CUDA_Kernel3Df = CUDA_Kernel3D<float, size>;
 
-
-
-void launchClearKernel(
-	PrimitiveType type, cudaSurfaceObject_t surf, uint3 res, void * val
-);
-
-void launchNormalizeKernel(
-	PrimitiveType type, cudaSurfaceObject_t surf, uint3 res, double low, double high
-);
-
-/////////////////////////////////////////////
-
-//Copies A to B
-void launchCopyKernel(PrimitiveType type, uint3 res, cudaSurfaceObject_t A, cudaSurfaceObject_t B);
-
-//C = A*B element wise
-void launchMultiplyKernel(
-	PrimitiveType type,
-	uint3 res,
-	cudaSurfaceObject_t A,
-	cudaSurfaceObject_t B,
-	cudaSurfaceObject_t C
-);
-
-void launchDotProductKernel(
-	PrimitiveType type,
-	uint3 res,
-	cudaSurfaceObject_t A,
-	cudaSurfaceObject_t B,
-	cudaSurfaceObject_t C, //holds temporary product, TODO: direct reduction
-	void * auxBufferGPU,
-	void * auxBufferCPU,
-	void * result
-);
-
-//C = A + beta * B
-void launchAddAPlusBetaB(
-	PrimitiveType type,
-	uint3 res,
-	cudaSurfaceObject_t A,
-	cudaSurfaceObject_t B,
-	cudaSurfaceObject_t C,
-	double beta
-);
-
-//A = gamma * (A + beta * B) + C
-void launchAPlusBetaBGammaPlusC(
-	PrimitiveType type,
-	uint3 res,
-	cudaSurfaceObject_t A,
-	cudaSurfaceObject_t B,
-	cudaSurfaceObject_t C,
-	double beta,
-	double gamma
-);
-
-//A = A + beta * B + gamma * C
-void launchABC_BetaGamma(
-	PrimitiveType type,
-	uint3 res,
-	cudaSurfaceObject_t A,
-	cudaSurfaceObject_t B,
-	cudaSurfaceObject_t C,
-	double beta,
-	double gamma
-);
+template <size_t T>
+using CUDA_KernelPtr = T *;
+using CUDA_KernelPtrD = CUDA_KernelPtr<double>;
+using CUDA_KernelPtrF = CUDA_KernelPtr<float>;
