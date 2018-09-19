@@ -11,7 +11,7 @@ find_library(CUSPARSE_LIBRARY cusparse
 )
 
 if(WIN32)
-    set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES $ENV{CUDA_PATH}\\include)
+    set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES $ENV{CUDA_PATH}/include)
 endif()
 
 
