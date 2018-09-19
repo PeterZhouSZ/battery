@@ -1,0 +1,10 @@
+path,porosity,dir,tau,t,dimx,dimy,dimz,solver
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.540771,	X_POS,	1.44867,	0.0061396,	16,	16,	16,	BICGSTABCPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.573822,	X_POS,	1.22456,	0.0613408,	32,	32,	32,	BICGSTABCPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.612639,	X_POS,	1.27568,	0.570591,	48,	48,	48,	BICGSTABCPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.637154,	X_POS,	1.26034,	1.60453,	64,	64,	64,	BICGSTABCPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.602981,	X_POS,	1.26525,	16.9335,	128,	128,	128,	BICGSTABCPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.603049,	X_POS,	1.32399,	156.428,	256,	256,	184,	BICGSTABCPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.609192,	X_POS,	1.31405,	214.52,	320,	320,	184,	BICGSTABCPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.61108,	X_POS,	1.31887,	310.634,	384,	384,	184,	BICGSTABCPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.613003,	X_POS,	1.31463,	403.298,	448,	448,	184,	BICGSTABCPU

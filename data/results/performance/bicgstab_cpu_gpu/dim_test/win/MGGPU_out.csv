@@ -1,0 +1,19 @@
+path,porosity,dir,tau,t,dimx,dimy,dimz,solver
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.497559,	X_POS,	1.02765,	0.0833982,	16,	16,	16,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.356537,	X_POS,	1.24461,	0.127759,	32,	32,	32,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.393401,	X_POS,	1.35638,	0.246777,	48,	48,	48,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.385708,	X_POS,	1.55553,	0.397485,	64,	64,	64,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.449107,	X_POS,	1.47852,	0.647294,	80,	80,	80,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.523961,	X_POS,	0.202756,	0.116104,	96,	96,	96,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.530392,	X_POS,	1.38697,	1.27078,	112,	112,	112,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.553594,	X_POS,	1.32909,	1.99628,	128,	128,	128,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.589278,	X_POS,	1.30453,	2.93993,	144,	144,	144,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.616306,	X_POS,	1.28824,	3.91484,	160,	160,	155,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.624574,	X_POS,	1.27072,	4.80687,	176,	176,	155,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.618979,	X_POS,	1.27575,	5.49469,	192,	192,	155,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.62334,	X_POS,	1.27665,	7.68407,	208,	208,	155,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.622878,	X_POS,	1.27226,	8.29493,	224,	224,	155,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.61575,	X_POS,	1.27815,	9.87354,	240,	240,	155,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.611114,	X_POS,	1.28151,	11.5229,	256,	256,	155,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.611986,	X_POS,	1.27963,	12.6868,	272,	272,	155,	MGGPU
+'D:\!battery\datasetNMC\SL47_NMC5_1c5bar_section001',	0.604553,	X_POS,	1.28916,	13.6542,	288,	288,	155,	MGGPU

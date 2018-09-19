@@ -1,0 +1,9 @@
+path,porosity,dir,tau,t,dimx,dimy,dimz,solver
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.540771,	X_POS,	1.4487,	0.158021,	16,	16,	16,	MGGPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.573822,	X_POS,	1.22469,	0.241353,	32,	32,	32,	MGGPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.612639,	X_POS,	1.27571,	0.516493,	48,	48,	48,	MGGPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.637154,	X_POS,	1.26036,	0.830408,	64,	64,	64,	MGGPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.602981,	X_POS,	1.2651,	6.4585,	128,	128,	128,	MGGPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.603049,	X_POS,	1.31951,	31.7207,	256,	256,	184,	MGGPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.607587,	X_POS,	1.32091,	41.6102,	284,	284,	184,	MGGPU
+'C:\!\battery\battery\code\python\..\..\data\graphite\SL43_C5_1c5bar_Data',	0.608994,	X_POS,	1.3185,	47.648,	296,	296,	184,	MGGPU

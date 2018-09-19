@@ -53,7 +53,7 @@ args::ValueFlag<std::string> argTauDir(group, "string", "Direction (x|y|z)|all|p
 args::ValueFlag<int> argTol(group, "tolerance", "Tolerance 1e-{tol}", { "tol" }, 6);
 args::ValueFlag<int> argMaxIterations(group, "maxIterations", "Max Iterations", { "iter" }, 10000);
 args::ValueFlag<int> argStep(group, "step", "Step", { "step" }, 250);
-args::ValueFlag<std::string> argSolver(group, "string", "Solver (MGGPU|Eigen)", { "solver" }, "MGGPU");
+args::ValueFlag<std::string> argSolver(group, "string", "Solver (BICGSTABGPU|BICGSTABCPU|MGGPU)", { "solver" }, "BICGSTABGPU");
 args::Flag argVolumeExport(group, "Volume export", "Concetration volume export", { "volExport" });
 args::Flag argVerbose(group, "v", "Verbose", { 'v', "verbose" });
 
@@ -169,7 +169,7 @@ bool tortuosity() {
 	T d1 = 0.001f;
 
 	
-	const bool bicg = true;
+	
 	const bool runAllSolvers = false;
 	const size_t maxIterations = argMaxIterations.Get();
 	
@@ -217,7 +217,7 @@ bool tortuosity() {
 		T tol = T(pow(10.0, -argTol.Get()));
 
 		//Prepare linear system
-		if (argSolver.Get() == "Eigen" || runAllSolvers) {			
+		if (argSolver.Get() == "BICGSTABCPU" || runAllSolvers) {			
 			solverEigen.prepare(
 				c,
 				dir,
@@ -232,7 +232,7 @@ bool tortuosity() {
 			porosity = solverEigen.porosity();
 		}
 
-		if (argSolver.Get() == "MGGPU" || runAllSolvers) {
+		if (argSolver.Get() == "BICGSTABGPU" || argSolver.Get() == "MGGPU" || runAllSolvers) {
 			typename blib::MGGPU<T>::PrepareParams p;
 			{
 				p.dir = dir;
@@ -244,7 +244,7 @@ bool tortuosity() {
 				p.cellDim = blib::vec3(1.0 / maxDim);
 				p.levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;								
 			}			
-			if(bicg)
+			if(argSolver.Get() == "BICGSTABGPU")
 				solverMGGPU.bicgPrep(c, p, volume);
 			else
 				solverMGGPU.prepare(c, p, volume);
@@ -255,7 +255,7 @@ bool tortuosity() {
 			sp.verboseDebug = verboseDebug;
 			sp.maxIter = maxIterations;
 			
-			if (bicg) {
+			if (argSolver.Get() == "BICGSTABGPU") {
 				T err = solverMGGPU.bicgSolve(sp);
 				std::cout << err << std::endl;
 			}
