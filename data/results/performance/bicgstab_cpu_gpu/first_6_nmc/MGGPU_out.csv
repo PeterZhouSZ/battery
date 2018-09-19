@@ -1,0 +1,22 @@
+path,porosity,dir,tau,t,dimx,dimy,dimz,solver
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.59871,	X_NEG,	1.28611,	15.4096,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.59871,	Y_NEG,	1.28441,	16.3872,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.59871,	Z_NEG,	1.4792,	9.88309,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section002"',	0.595429,	X_NEG,	1.29131,	16.5153,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section002"',	0.595429,	Y_NEG,	1.30614,	15.2674,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section002"',	0.595429,	Z_NEG,	1.43723,	10.2475,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section003"',	0.609158,	X_NEG,	1.26343,	15.6965,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section003"',	0.609158,	Y_NEG,	1.27418,	13.4952,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section003"',	0.609158,	Z_NEG,	1.45069,	11.5174,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section004"',	0.607397,	X_NEG,	1.28486,	13.4562,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section004"',	0.607397,	Y_NEG,	1.28855,	15.8346,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section004"',	0.607397,	Z_NEG,	1.49955,	11.6426,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section005"',	0.638912,	X_NEG,	1.2518,	14.0708,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section005"',	0.638912,	Y_NEG,	1.27292,	15.3794,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section005"',	0.638912,	Z_NEG,	1.36044,	12.1159,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section006"',	0.608311,	X_NEG,	1.30097,	14.5891,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section006"',	0.608311,	Y_NEG,	1.26779,	11.4278,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section006"',	0.608311,	Z_NEG,	1.43638,	11.9598,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section007"',	0.619907,	X_NEG,	1.29628,	15.1676,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section007"',	0.619907,	Y_NEG,	1.28173,	14.6452,	296,	296,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section007"',	0.619907,	Z_NEG,	1.4392,	10.7321,	296,	296,	155,	MGGPU

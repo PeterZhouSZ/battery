@@ -1,0 +1,19 @@
+path,porosity,dir,tau,t,dimx,dimy,dimz,solver
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.59871,	X_NEG,	1.28534,	197.011,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.59871,	Y_NEG,	1.28069,	255.015,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.59871,	Z_NEG,	1.47778,	163.203,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section002"',	0.595429,	X_NEG,	1.29013,	249.442,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section002"',	0.595429,	Y_NEG,	1.30674,	215.41,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section002"',	0.595429,	Z_NEG,	1.43644,	152.944,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section003"',	0.609158,	X_NEG,	1.26756,	201.755,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section003"',	0.609158,	Y_NEG,	1.27939,	210.946,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section003"',	0.609158,	Z_NEG,	1.44912,	158.841,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section004"',	0.607397,	X_NEG,	1.28445,	207.52,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section004"',	0.607397,	Y_NEG,	1.28529,	226.405,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section004"',	0.607397,	Z_NEG,	1.49706,	171.093,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section005"',	0.638912,	X_NEG,	1.25352,	195.927,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section005"',	0.638912,	Y_NEG,	1.27227,	230.182,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section005"',	0.638912,	Z_NEG,	1.35949,	164.119,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section006"',	0.608311,	X_NEG,	1.30033,	180.807,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section006"',	0.608311,	Y_NEG,	1.26674,	180.946,	296,	296,	155,	Eigen
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section006"',	0.608311,	Z_NEG,	1.43724,	174.929,	296,	296,	155,	Eigen

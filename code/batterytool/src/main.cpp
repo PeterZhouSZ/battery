@@ -89,6 +89,21 @@ std::vector<Dir> getDirs(std::string & flagStr) {
 	return arr;
 }
 
+
+std::string dirString(Dir d){
+	switch(d){
+		case X_POS: return "X_POS";
+		case X_NEG: return "X_NEG";
+		case Y_POS: return "Y_POS";
+		case Y_NEG: return "Y_NEG";
+		case Z_POS: return "Z_POS";
+		case Z_NEG: return "Z_NEG";
+		case DIR_NONE: return "DIR_NONE";
+	}
+
+	return "Undefined direction";
+}
+
 template <typename T>
 bool tortuosity() {
 
@@ -282,31 +297,51 @@ bool tortuosity() {
 	Output result
 	*/
 	{
+		bool isNewFile = true;
+
+		//Check if output file exists
+		if(argOutput){
+			std::ifstream f(argOutput.Get());	
+			if(f.is_open())
+				isNewFile = false;
+		}
+
 		//If output file, open it
 		std::ofstream outFile;
+
 		if (argOutput) {
 			outFile.open(argOutput.Get(), std::ios::app);
 		}
 		//Choose output stream
 		std::ostream & os = (outFile.is_open()) ? outFile : std::cout;
 
-		os << "'" << fs::absolute(fs::path(argInput.Get())) << "'" << ",\t";
-
-		os << porosity << ",\t";
-		for (auto & tau : taus) {
-			os << tau << ",\t";
+		//Header 
+		if(isNewFile){
+			os << "path,porosity,dir,tau,t,dimx,dimy,dimz,solver" << '\n';
 		}
 
-		double avgTime = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
-		os << avgTime << ",\t";
+		for(auto i =0 ; i < taus.size(); i++){
+			os << "'" << fs::absolute(fs::path(argInput.Get())) << "'" << ",\t";
 
-		auto dim = c.dim();
-		os << dim.x << ",\t" << dim.y << ",\t" << dim.z;
+			os << porosity << ",\t";
+
+			os << dirString(dirs[i]) << ",\t";
+			
+			os << taus[i] << ",\t";
+			
+
+			//double avgTime = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
+			os << times[i] << ",\t";
+			//os << avgTime << ",\t";
+
+			auto dim = c.dim();
+			os << dim.x << ",\t" << dim.y << ",\t" << dim.z;
 
 
-		os << ",\t" << argSolver.Get();
+			os << ",\t" << argSolver.Get();
 
-		os << "\n";
+			os << "\n";
+		}
 	}
 
 	return true;
