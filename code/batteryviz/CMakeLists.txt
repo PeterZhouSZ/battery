@@ -11,14 +11,14 @@ find_library(CUSPARSE_LIBRARY cusparse
 )
 
 if(WIN32)
-    set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES $ENV{CUDA_PATH}\\include)
+    set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES $ENV{CUDA_PATH}/include)
 endif()
 
 #GLFW 
 if (NOT WIN32)
 	find_package(glfw3 REQUIRED)
 else()
-	find_library(GLFW_LIBRARY glfw)   
+	find_library(GLFW_LIBRARY glfw3 glfw)   
 endif()
 #message(${GLFW3_INCLUDE_DIRS})
 include_directories(${GLFW3_INCLUDE_DIRS})
