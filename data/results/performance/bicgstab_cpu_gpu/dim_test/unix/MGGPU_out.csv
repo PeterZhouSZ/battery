@@ -1,0 +1,19 @@
+path,porosity,dir,tau,t,dimx,dimy,dimz,solver
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.49707,	X_POS,	1.02695,	0.0193414,	16,	16,	16,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.344208,	X_POS,	1.24575,	0.0360519,	32,	32,	32,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.382803,	X_POS,	1.37899,	0.0747219,	48,	48,	48,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.406742,	X_POS,	1.42526,	0.137421,	64,	64,	64,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.445906,	X_POS,	1.43269,	0.335006,	80,	80,	80,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.5239,	X_POS,	0.202061,	0.0546487,	96,	96,	96,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.533154,	X_POS,	1.34887,	0.958082,	112,	112,	112,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.553658,	X_POS,	1.30734,	1.69819,	128,	128,	128,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.589278,	X_POS,	1.28561,	2.36365,	144,	144,	144,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.616306,	X_POS,	1.27353,	3.50879,	160,	160,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.624574,	X_POS,	1.25551,	4.48123,	176,	176,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.618979,	X_POS,	1.26013,	4.94338,	192,	192,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.62334,	X_POS,	1.25784,	6.07562,	208,	208,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.622878,	X_POS,	1.25648,	7.91449,	224,	224,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.61575,	X_POS,	1.26002,	8.82192,	240,	240,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.611114,	X_POS,	1.2645,	10.0366,	256,	256,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.611986,	X_POS,	1.26644,	13.6556,	272,	272,	155,	MGGPU
+'"/media/vkrs/DATA/!battery/datasetNMC/SL47_NMC5_1c5bar_section001"',	0.604553,	X_POS,	1.2739,	13.9258,	288,	288,	155,	MGGPU
