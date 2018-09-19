@@ -20,7 +20,7 @@ if (NOT WIN32)
 else()
 	find_library(GLFW_LIBRARY glfw)   
 endif()
-message(${GLFW3_INCLUDE_DIRS})
+#message(${GLFW3_INCLUDE_DIRS})
 include_directories(${GLFW3_INCLUDE_DIRS})
 
 
@@ -101,7 +101,9 @@ include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_EXTERNAL_DIR}")
 include_directories("${IMGUI_DIR}")
 include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+if(WIN32)
 include_directories("${GLM_INCLUDE_DIR}")
+endif()
 
 
 #include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
@@ -111,7 +113,8 @@ include_directories("${GLM_INCLUDE_DIR}")
 if (NOT WIN32)
 find_package (Eigen3 3.3 REQUIRED)
 endif()
-INCLUDE_DIRECTORIES ( "${EIGEN3_INCLUDE_DIR}" )
+
+include_directories ( "${EIGEN3_INCLUDE_DIR}" )
 
 
 add_definitions(${batterylib_DEFINITIONS})

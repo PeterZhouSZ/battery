@@ -1927,8 +1927,8 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 
 
 		auto label = [](const std::string & prefix, int i) {
-			char buf[16];
-			itoa(i, buf, 10);
+			char buf[16];			
+			sprintf(buf, "%d", i);	
 			return prefix + std::string(buf);
 		};
 

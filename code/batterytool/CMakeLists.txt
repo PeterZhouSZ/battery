@@ -44,7 +44,9 @@ include_directories("${PROJECT_INCLUDE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_EXTERNAL_DIR}")
 include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+if (WIN32)
 include_directories("${GLM_INCLUDE_DIR}")
+endif()
 
 
 

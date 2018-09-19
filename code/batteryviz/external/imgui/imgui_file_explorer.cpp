@@ -23,7 +23,7 @@ std::string filesizeString(uintmax_t size) {
 		ss << size/1024 << " kB";
 	else if (size < 1024 * 1024 * 1024)
 		ss << size / (1024*1024) << " MB";
-	else if (size < 1024 * 1024 * 1024 * 1024)
+	else if (size < uintmax_t(1024) * 1024 * 1024 * 1024)
 		ss << size / (1024 * 1024 * 1024) << " GB";
 
 	return ss.str();
