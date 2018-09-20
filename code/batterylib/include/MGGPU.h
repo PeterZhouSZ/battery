@@ -3,16 +3,18 @@
 #include "BatteryLibDef.h"
 #include "Types.h"
 #include "Volume.h"
+#include "DataPtr.h"
 
 #include <array>
-
-#include "MGGPU_Types.h"
-
 #include <Eigen/Eigen>
 
-//#define MGGPU_CPU_TEST
+//Forward declare cuda type holding the volume
+struct MGGPU_Volume; //TODO move to blib namespace
+
 
 namespace blib {
+
+	
 
 
 	template <typename T>
@@ -26,20 +28,12 @@ namespace blib {
 			V_CYCLE_SINGLE
 		};
 
-		using Vector = Eigen::VectorXd;
-		using SparseMat = Eigen::SparseMatrix<double, Eigen::RowMajor>;
-		using DenseMat = Eigen::MatrixXd;
-		using DirectSolver = Eigen::SparseLU<SparseMat>;
-
-
-		BLIB_EXPORT MGGPU();
-
 		struct PrepareParams {
 			Dir dir;
 			T d0;
 			T d1;
 			uint levels;
-			vec3 cellDim;			
+			vec3 cellDim;
 		};
 
 		struct SolveParams {
@@ -50,11 +44,17 @@ namespace blib {
 			T tolerance = 1e-6;
 			size_t maxIter = 1024;
 			bool verbose = false;
-			bool verboseDebug = false;			
+			bool verboseDebug = false;
 		};
 
+		using Vector = Eigen::VectorXd;
+		using SparseMat = Eigen::SparseMatrix<double, Eigen::RowMajor>;
+		using DenseMat = Eigen::MatrixXd;
+		using DirectSolver = Eigen::SparseLU<SparseMat>;
 
 
+		BLIB_EXPORT MGGPU();
+		
 		BLIB_EXPORT bool prepare(
 			VolumeChannel & mask,
 			PrepareParams params,
@@ -65,11 +65,7 @@ namespace blib {
 
 		//Returns error
 		BLIB_EXPORT T solve(
-			const SolveParams & solveParams
-			/*T tolerance, 
-			size_t maxIter, 
-			CycleType cycleType = W_CYCLE,
-			T alpha = 1.0 //Smoothing over/under relaxation*/
+			const SolveParams & solveParams			
 		);
 
 		BLIB_EXPORT bool bicgPrep(
@@ -122,12 +118,12 @@ namespace blib {
 
 		struct Level {			
 			ivec3 dim;
-			MGGPU_Volume domain;
-
-			MGGPU_Volume x;
-			MGGPU_Volume tmpx;
-			MGGPU_Volume r;
-			MGGPU_Volume f;
+			 
+			std::shared_ptr<MGGPU_Volume> domain;
+			std::shared_ptr<MGGPU_Volume> x;
+			std::shared_ptr<MGGPU_Volume> tmpx;
+			std::shared_ptr<MGGPU_Volume> r;
+			std::shared_ptr<MGGPU_Volume> f;
 
 			DataPtr A;
 			DataPtr I;
@@ -155,10 +151,10 @@ namespace blib {
 
 
 		//BICGStab
-		MGGPU_Volume _temp;
-		MGGPU_Volume _x;
-		MGGPU_Volume _rhat0;
-		MGGPU_Volume _r, _p, _v, _h, _s, _t, _y,_z,_kt,_ks,_ainvert;
+		std::shared_ptr<MGGPU_Volume> _temp;
+		std::shared_ptr<MGGPU_Volume> _x;
+		std::shared_ptr<MGGPU_Volume> _rhat0;
+		std::shared_ptr<MGGPU_Volume> _r, _p, _v, _h, _s, _t, _y,_z,_kt,_ks,_ainvert;
 		double _rho, _alpha, _omega, _beta;
 	};
 

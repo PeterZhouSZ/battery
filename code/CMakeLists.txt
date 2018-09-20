@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.8)
 #SET (CMAKE_C_COMPILER "/usr/bin/clang")
 #SET (CMAKE_CXX_COMPILER "/usr/bin/clang++")
 
@@ -23,7 +23,7 @@ if (WIN32)
 	
 	#list(APPEND CMAKE_PREFIX_PATH $ENV{CUDA_PATH})
 	
-	set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES $ENV{CUDA_PATH}/include)
+	
 
 	set(GLM_INCLUDE_DIR $ENV{GLM_PATH})
 

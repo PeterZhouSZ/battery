@@ -22,7 +22,7 @@
 #include <fstream>
 
 #include "Timer.h"
-
+#include "../src/cuda/MGGPU_Types.cuh"
 
 
 
@@ -224,27 +224,29 @@ bool saveVector(void * vin, size_t N,  const std::string & name, int level) {
 
 
 
-MGGPU_Volume toMGGPUVolume(VolumeChannel & volchan, int id = -1) {
-	MGGPU_Volume mgvol;
+
+std::shared_ptr<MGGPU_Volume> toMGGPUVolume(VolumeChannel & volchan, int id = -1) {
+	
+	auto mgvol = std::make_shared<MGGPU_Volume>();
 
 	
-	mgvol.surf = volchan.getCurrentPtr().getSurface();
-	mgvol.res = make_uint3(volchan.dim().x, volchan.dim().y, volchan.dim().z);
-	mgvol.type = volchan.type();
-	mgvol.volID = id;
-	mgvol.cpu = volchan.getCurrentPtr().getCPU();
+	mgvol->surf = volchan.getCurrentPtr().getSurface();
+	mgvol->res = make_uint3(volchan.dim().x, volchan.dim().y, volchan.dim().z);
+	mgvol->type = volchan.type();
+	mgvol->volID = id;
+	mgvol->cpu = volchan.getCurrentPtr().getCPU();
 
 	return mgvol;
 }
 
-MGGPU_Volume toMGGPUVolume(const VolumeChannel & volchan, int id = -1) {
-	MGGPU_Volume mgvol;
+std::shared_ptr<MGGPU_Volume>  toMGGPUVolume(const VolumeChannel & volchan, int id = -1) {
+	auto mgvol = std::make_shared<MGGPU_Volume>();
 
-	mgvol.surf = volchan.getCurrentPtr().getSurface();
-	mgvol.res = make_uint3(volchan.dim().x, volchan.dim().y, volchan.dim().z);
-	mgvol.type = volchan.type();
-	mgvol.volID = id;
-	mgvol.cpu = nullptr;
+	mgvol->surf = volchan.getCurrentPtr().getSurface();
+	mgvol->res = make_uint3(volchan.dim().x, volchan.dim().y, volchan.dim().z);
+	mgvol->type = volchan.type();
+	mgvol->volID = id;
+	mgvol->cpu = nullptr;
 
 	return mgvol;
 }
@@ -302,9 +304,9 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 		Generate continous domain at first level
 	*/
 	{
-		MGGPU_Volume MGmask = toMGGPUVolume(mask, 0);
+		auto MGmask = toMGGPUVolume(mask, 0);
 		CUDATimer tGenDomain(true);
-		MGGPU_GenerateDomain(MGmask, _params.d0, _params.d1, _levels[0].domain);
+		MGGPU_GenerateDomain(*MGmask, _params.d0, _params.d1, *_levels[0].domain);
 		std::cout << "Gen domain " << tGenDomain.time() << "s" << std::endl;
 
 /*#ifdef SAVE_TO_FILE
@@ -323,7 +325,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 		MGGPU_KernelPtr domainRestrKernel = (double *)MGGPU_GetDomainRestrictionKernel().v;
 		CUDATimer tConvolveDomain(true);
 		for (int i = 1; i < _levels.size(); i++) {
-			MGGPU_Convolve(_levels[i - 1].domain, domainRestrKernel, 2, _levels[i].domain);
+			MGGPU_Convolve(*_levels[i - 1].domain, domainRestrKernel, 2, *_levels[i].domain);
 
 /*#ifdef SAVE_TO_FILE
 			auto & ptr = volume.getChannel(_levels[i].domain.volID).getCurrentPtr();
@@ -371,7 +373,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 		std::cout << "Alloc A0" << std::endl;
 		sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));
 		CUDATimer t(true);
-		MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f);
+		MGGPU_GenerateSystemTopKernel(*_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, *_levels[0].f);
 		std::cout << "Gen A0: " << t.time() << "s" << std::endl;
 	}
 
@@ -388,7 +390,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 		CUDATimer tI(true);
 		MGGPU_GenerateSystemInterpKernels(
 			make_uint3(_levels[0].dim.x, _levels[0].dim.y, _levels[0].dim.z),
-			_levels[1].domain,
+			*_levels[1].domain,
 			(MGGPU_Kernel3D<3> *)I.gpu
 		);
 		std::cout << "Gen I0: " << tI.time() << "s" << std::endl;
@@ -501,7 +503,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 		CUDATimer tI(true);
 		MGGPU_GenerateSystemInterpKernels(
 			make_uint3(_levels[i - 1].dim.x, _levels[i - 1].dim.y, _levels[i - 1].dim.z),
-			_levels[i].domain,
+			*_levels[i].domain,
 			(MGGPU_Kernel3D<3> *)I.gpu
 		);
 		std::cout << "Gen I" << i << ": " << tI.time() << "s" << std::endl;
@@ -1276,7 +1278,7 @@ void blib::MGGPU<T>::profile()
 
 	MGGPU_SystemTopKernel * A = (MGGPU_SystemTopKernel *)_levels[0].A.gpu;
 	
-	MGGPU_MatrixVectorProduct(A, _y, _v);
+	MGGPU_MatrixVectorProduct(A, *_y, *_v);
 	
 
 	//Profile Gauss seidel
@@ -1320,9 +1322,9 @@ void blib::MGGPU<T>::reset()
 {
 
 	for (auto lv = 0; lv < numLevels(); lv++) {
-		MGGPU_SetToZero(_levels[lv].x);
-		MGGPU_SetToZero(_levels[lv].r);
-		MGGPU_SetToZero(_levels[lv].tmpx);
+		MGGPU_SetToZero(*_levels[lv].x);
+		MGGPU_SetToZero(*_levels[lv].r);
+		MGGPU_SetToZero(*_levels[lv].tmpx);
 	}
 
 	_iterations = 0;
@@ -1343,19 +1345,19 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 	MGGPU_Residual_TopLevel(
 		make_uint3(_levels[0].dim),
 		(MGGPU_SystemTopKernel *)_levels[0].A.gpu,
-		_levels[0].x,
-		_levels[0].f,
-		_levels[0].r
+		*_levels[0].x,
+		*_levels[0].f,
+		*_levels[0].r
 	);
 
-	double f0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim), _levels[0].f, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
-	double r0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim), _levels[0].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);	
+	double f0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim), *_levels[0].f, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+	double r0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim),* _levels[0].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);	
 	double lastError = sqrt(r0SqNorm / f0SqNorm);
 
 
 	auto err = [&](int i){
-		double fiSqNorm = MGGPU_SquareNorm(make_uint3(_levels[i].dim), _levels[i].f, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
-		double riSqNorm = MGGPU_SquareNorm(make_uint3(_levels[i].dim), _levels[i].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+		double fiSqNorm = MGGPU_SquareNorm(make_uint3(_levels[i].dim), *_levels[i].f, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+		double riSqNorm = MGGPU_SquareNorm(make_uint3(_levels[i].dim), *_levels[i].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
 		return sqrt(riSqNorm / fiSqNorm);
 	};
 
@@ -1399,15 +1401,15 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 				
 				auto t = Timer(true);
 				
-				retrieveVolume(_levels[i].f);
+				retrieveVolume(*_levels[i].f);
 				//Convert F, solve, convert X
-				Vector F = volumeToVector(_levels[i].f);
+				Vector F = volumeToVector(*_levels[i].f);
 				Vector X = _lastLevelSolver.solve(F); //todo possible optimization: inplace x.cpu
 				//std::cout << "LASTLEVEL NORM " << X << std::endl;			
 
 				
-				vectorToVolume(X, _levels[i].x);
-				commitVolume(_levels[i].x);
+				vectorToVolume(X, *_levels[i].x);
+				commitVolume(*_levels[i].x);
 				
 				profiler.add("lastLevelExact", t.time());
 
@@ -1422,7 +1424,7 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 
 				//Zero out x
 				if (i > 0) {
-					MGGPU_SetToZero(_levels[i].x);
+					MGGPU_SetToZero(*_levels[i].x);
 				}
 
 
@@ -1440,10 +1442,10 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 					MGGPU_SmootherParams sp;
 					sp.A = (MGGPU_KernelPtr)_levels[i].A.gpu;
 					sp.isTopLevel = (i == 0);
-					sp.f = _levels[i].f;
-					sp.x = _levels[i].x;
-					sp.tmpx = _levels[i].tmpx;
-					sp.r = _levels[i].r;
+					sp.f = *_levels[i].f;
+					sp.x = *_levels[i].x;
+					sp.tmpx = *_levels[i].tmpx;
+					sp.r = *_levels[i].r;
 					sp.dir = _params.dir;
 
 					sp.res = make_uint3(_levels[i].dim);
@@ -1507,8 +1509,8 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 
 				auto t = CUDATimer(true);
 				MGGPU_Restrict(
-					_levels[i].r,
-					_levels[i + 1].f
+					*_levels[i].r,
+					*_levels[i + 1].f
 				);
 				profiler.add("restrict", t.time());
 
@@ -1524,8 +1526,8 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 				//interpolate
 				auto t = CUDATimer(true);
 				MGGPU_InterpolateAndAdd(
-					_levels[i + 1].x, //nhalf
-					_levels[i].x, //n
+					*_levels[i + 1].x, //nhalf
+					*_levels[i].x, //n
 					(MGGPU_InterpKernel *)_levels[i].I.gpu //n
 				);
 				profiler.add("interpolate", t.time());
@@ -1548,10 +1550,10 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 					MGGPU_SmootherParams sp;
 					sp.A = (MGGPU_KernelPtr)_levels[i].A.gpu;
 					sp.isTopLevel = (i == 0);
-					sp.f = _levels[i].f;
-					sp.x = _levels[i].x;
-					sp.tmpx = _levels[i].tmpx;
-					sp.r = _levels[i].r;
+					sp.f = *_levels[i].f;
+					sp.x = *_levels[i].x;
+					sp.tmpx = *_levels[i].tmpx;
+					sp.r = *_levels[i].r;
 
 					sp.res = make_uint3(_levels[i].dim);
 					sp.tolerance = solveParams.tolerance;
@@ -1612,14 +1614,14 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 		MGGPU_Residual_TopLevel(
 			make_uint3(_levels[0].dim),
 			(MGGPU_SystemTopKernel *)_levels[0].A.gpu,
-			_levels[0].x,
-			_levels[0].f,
-			_levels[0].r
+			*_levels[0].x,
+			*_levels[0].f,
+			*_levels[0].r
 		);
 
 
 		auto tresidualEnd = CUDATimer(true);
-		double r0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim), _levels[0].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+		double r0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim), *_levels[0].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
 		double err = sqrt(r0SqNorm / f0SqNorm);
 		profiler.add("residualEnd", tresidualEnd.time());
 		
@@ -1714,7 +1716,7 @@ T blib::MGGPU<T>::tortuosity()
 	const auto & topLevel = _levels[0];
 	const auto dim = topLevel.dim;
 
-	auto & xChannel = _volume->getChannel(topLevel.x.volID);
+	auto & xChannel = _volume->getChannel(topLevel.x->volID);
 	auto & maskChannel = *_mask;
 
 	xChannel.getCurrentPtr().retrieve();
@@ -1883,9 +1885,9 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 	Generate continous domain at first level
 	*/
 	{
-		MGGPU_Volume MGmask = toMGGPUVolume(mask, 0);
+		auto MGmask = toMGGPUVolume(mask, 0);
 		CUDATimer tGenDomain(true);
-		MGGPU_GenerateDomain(MGmask, _params.d0, _params.d1, _levels[0].domain);
+		MGGPU_GenerateDomain(*MGmask, _params.d0, _params.d1, *_levels[0].domain);
 		std::cout << "Gen domain " << tGenDomain.time() << "s" << std::endl;
 
 		/*#ifdef SAVE_TO_FILE
@@ -1980,7 +1982,7 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 		std::cout << "Alloc A0" << std::endl;
 		sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));
 		CUDATimer t(true);
-		MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f, &_x);
+		MGGPU_GenerateSystemTopKernel(*_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, *_levels[0].f, &(*_x));
 		std::cout << "Gen A0: " << t.time() << "s" << std::endl;
 	}
 
@@ -1990,7 +1992,7 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 
 	//Preinverted A0 diagonal
 	{
-		MGGPU_InvertA0DiagTo((MGGPU_SystemTopKernel*)_levels[0].A.gpu, _ainvert);	
+		MGGPU_InvertA0DiagTo((MGGPU_SystemTopKernel*)_levels[0].A.gpu, *_ainvert);	
 	}
 
 
@@ -2006,13 +2008,13 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 {
 	
 #ifdef EIGEN_COPY
-	const uint3 res = _x.res;
+	const uint3 res = _x->res;
 	auto SqNorm = [&](MGGPU_Volume & vol) {
 		return MGGPU_SquareNorm(res, vol, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
 	};
 	auto DotProduct = [&](MGGPU_Volume & vol0, MGGPU_Volume & vol1) {
 		double result;
-		launchDotProductKernel(TYPE_DOUBLE, res, vol0.surf, vol1.surf, _temp.surf, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu, &result);
+		launchDotProductKernel(TYPE_DOUBLE, res, vol0.surf, vol1.surf, _temp->surf, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu, &result);
 		return result;
 	};
 
@@ -2036,13 +2038,13 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 
 	
 	//1. Residual r
-	MGGPU_Residual_TopLevel(res, A, x, rhs, r);
+	MGGPU_Residual_TopLevel(res, A, *x, *rhs, *r);
 
 	//2. Choose rhat0 ..
-	launchCopyKernel(TYPE_DOUBLE, res, r.surf, r0.surf);
+	launchCopyKernel(TYPE_DOUBLE, res, r->surf, r0->surf);
 
-	T r0_sqnorm = SqNorm(r0);
-	T rhs_sqnorm = SqNorm(rhs);
+	T r0_sqnorm = SqNorm(*r0);
+	T rhs_sqnorm = SqNorm(*rhs);
 	if (rhs_sqnorm == 0) {
 		return 0.0;
 	}
@@ -2053,8 +2055,8 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 
 	auto & p = _p;
 	auto & v = _v;
-	launchClearKernel(TYPE_DOUBLE, v.surf, res, &zero);
-	launchClearKernel(TYPE_DOUBLE, p.surf, res, &zero);
+	launchClearKernel(TYPE_DOUBLE, v->surf, res, &zero);
+	launchClearKernel(TYPE_DOUBLE, p->surf, res, &zero);
 
 	auto & y = _y;
 	auto & z = _z;
@@ -2077,18 +2079,18 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 	
 
 	T rsqNorm = 0;
-	CUDA_TIMER(rsqNorm = SqNorm(r),"sqNorm",profiler);
+	CUDA_TIMER(rsqNorm = SqNorm(*r),"sqNorm",profiler);
 
 	while (rsqNorm > tol2 && i < maxIters)
 	{
 		if(verbose) std::cout << i << std::endl;
-		if(verbose) std::cout << "\t" << "sq r: " << SqNorm(r) << std::endl;
+		if(verbose) std::cout << "\t" << "sq r: " << SqNorm(*r) << std::endl;
 
 		T rho_old = rho;
 
 		
 		
-		CUDA_TIMER(rho = DotProduct(r0,r),"dot",profiler); //r0.dot(r);
+		CUDA_TIMER(rho = DotProduct(*r0,*r),"dot",profiler); //r0.dot(r);
 		
 
 		if(verbose) std::cout << "\t" << " rho: " << rho << std::endl;
@@ -2098,12 +2100,12 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 			// The new residual vector became too orthogonal to the arbitrarily chosen direction r0
 			// Let's restart with a new r0:
 			
-			CUDA_TIMER(MGGPU_Residual_TopLevel(res, A, x, rhs, r), "residual", profiler); //r = rhs - mat * x;
+			CUDA_TIMER(MGGPU_Residual_TopLevel(res, A, *x, *rhs, *r), "residual", profiler); //r = rhs - mat * x;
 			
 			
 			
-			CUDA_TIMER(launchCopyKernel(TYPE_DOUBLE, res, r.surf, r0.surf),"copy",profiler); //r0 = r;			
-			CUDA_TIMER(rho = r0_sqnorm = SqNorm(r),"sqNorm",profiler); //r.squaredNorm();
+			CUDA_TIMER(launchCopyKernel(TYPE_DOUBLE, res, r->surf, r0->surf),"copy",profiler); //r0 = r;			
+			CUDA_TIMER(rho = r0_sqnorm = SqNorm(*r),"sqNorm",profiler); //r.squaredNorm();
 			if (restarts++ == 0)
 				i = 0;
 		}
@@ -2112,67 +2114,67 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 		
 		//p = beta * (p + -w * v ) + r
 		//p = r + beta * (p - w * v);
-		CUDA_TIMER(launchAPlusBetaBGammaPlusC(TYPE_DOUBLE, res, p.surf, v.surf, r.surf , -w, beta),"launchAPlusBetaBGammaPlusC",profiler);
+		CUDA_TIMER(launchAPlusBetaBGammaPlusC(TYPE_DOUBLE, res, p->surf, v->surf, r->surf , -w, beta),"launchAPlusBetaBGammaPlusC",profiler);
 				
 
-		if(verbose) std::cout << "\t" << " psq: " << SqNorm(p) << std::endl;
+		if(verbose) std::cout << "\t" << " psq: " << SqNorm(*p) << std::endl;
 		
 		{
 			//y = precond.solve(p);
 			//v.noalias() = mat * y;
 			
-			CUDA_TIMER(launchMultiplyKernel(TYPE_DOUBLE, res, _ainvert.surf, p.surf, y.surf),"multiply",profiler);
+			CUDA_TIMER(launchMultiplyKernel(TYPE_DOUBLE, res, _ainvert->surf, p->surf, y->surf),"multiply",profiler);
 			
-			if(verbose) std::cout << "\t" << " ysq: " << SqNorm(y) << std::endl;
+			if(verbose) std::cout << "\t" << " ysq: " << SqNorm(*y) << std::endl;
 
-			CUDA_TIMER(MGGPU_MatrixVectorProduct(A, y, v),"matvec",profiler);
+			CUDA_TIMER(MGGPU_MatrixVectorProduct(A, *y, *v),"matvec",profiler);
 			
 
-			if(verbose) std::cout << "\t" << " vsq: " << SqNorm(v) << std::endl;
+			if(verbose) std::cout << "\t" << " vsq: " << SqNorm(*v) << std::endl;
 		}
 
 
 		//alpha = rho / r0.dot(v);
 		
-		CUDA_TIMER(alpha = rho / DotProduct(r0, v),"dot",profiler);
+		CUDA_TIMER(alpha = rho / DotProduct(*r0, *v),"dot",profiler);
 		
 		
 
-		if(verbose) std::cout << "\t" << " alpha: " << alpha  << " = " << rho << "/" << DotProduct(r0, v) << std::endl;
+		if(verbose) std::cout << "\t" << " alpha: " << alpha  << " = " << rho << "/" << DotProduct(*r0, *v) << std::endl;
 				
 		//s = r - alpha * v;
 		
-		CUDA_TIMER(launchAddAPlusBetaB(TYPE_DOUBLE, res, r.surf, v.surf, s.surf, -alpha),"launchAddAPlusBetaB",profiler);
+		CUDA_TIMER(launchAddAPlusBetaB(TYPE_DOUBLE, res, r->surf, v->surf, s->surf, -alpha),"launchAddAPlusBetaB",profiler);
 		
 		
-		if(verbose) std::cout << "\t" << " ssq: " << SqNorm(s) << std::endl;
+		if(verbose) std::cout << "\t" << " ssq: " << SqNorm(*s) << std::endl;
 
 		{
 			//z = precond.solve(s);
 			//t.noalias() = mat * z;
 			//DOUBLE CHECK
 			
-			CUDA_TIMER(launchMultiplyKernel(TYPE_DOUBLE, res, _ainvert.surf, s.surf, z.surf), "multiply",profiler);
+			CUDA_TIMER(launchMultiplyKernel(TYPE_DOUBLE, res, _ainvert->surf, s->surf, z->surf), "multiply",profiler);
 			
-			if(verbose) std::cout << "\t" << " zsq: " << SqNorm(z) << std::endl;
+			if(verbose) std::cout << "\t" << " zsq: " << SqNorm(*z) << std::endl;
 
 			
-			CUDA_TIMER(MGGPU_MatrixVectorProduct(A, z, t),"matvec",profiler);
+			CUDA_TIMER(MGGPU_MatrixVectorProduct(A, *z, *t),"matvec",profiler);
 			
 
-			if(verbose) std::cout << "\t" << " tsq: " << SqNorm(t) << std::endl;
+			if(verbose) std::cout << "\t" << " tsq: " << SqNorm(*t) << std::endl;
 		}
 		
 
 		//RealScalar tmp = t.squaredNorm();
 		
 		T tmp;
-		CUDA_TIMER(tmp = SqNorm(t), "sqNorm", profiler);
+		CUDA_TIMER(tmp = SqNorm(*t), "sqNorm", profiler);
 		
 
 		if (tmp > T(0)) {
 			//w = t.dot(s) / tmp;			
-			CUDA_TIMER(w = DotProduct(t, s) / tmp,"dot",profiler);			
+			CUDA_TIMER(w = DotProduct(*t, *s) / tmp,"dot",profiler);			
 		}
 		else {
 			w = T(0);
@@ -2183,23 +2185,23 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 		//x = x + alpha*y + omega * z
 		//x += alpha * y + w * z;
 		
-		CUDA_TIMER(launchABC_BetaGamma(TYPE_DOUBLE, res, x.surf, y.surf, z.surf, alpha, w),"launchABC_BetaGamma",profiler);
+		CUDA_TIMER(launchABC_BetaGamma(TYPE_DOUBLE, res, x->surf, y->surf, z->surf, alpha, w),"launchABC_BetaGamma",profiler);
 		
 
-		if(verbose) std::cout << "\t" << " xsq: " << SqNorm(x) << std::endl;
+		if(verbose) std::cout << "\t" << " xsq: " << SqNorm(*x) << std::endl;
 		
 
 		//r = s - w * t; C = A + beta * B
 		
-		CUDA_TIMER(launchAddAPlusBetaB(TYPE_DOUBLE, res, s.surf, t.surf, r.surf, -w),"launchAddAPlusBetaB", profiler);		
+		CUDA_TIMER(launchAddAPlusBetaB(TYPE_DOUBLE, res, s->surf, t->surf, r->surf, -w),"launchAddAPlusBetaB", profiler);
 
-		CUDA_TIMER(rsqNorm = SqNorm(r), "sqNorm", profiler);
+		CUDA_TIMER(rsqNorm = SqNorm(*r), "sqNorm", profiler);
 
-		if(verbose) std::cout << "\t" << " rsq: " << SqNorm(r) << std::endl;
+		if(verbose) std::cout << "\t" << " rsq: " << SqNorm(*r) << std::endl;
 		++i;
 	}
 	//tol_error = sqrt(r.squaredNorm() / rhs_sqnorm);
-	CUDA_TIMER(tol_error = sqrt(SqNorm(r) / rhs_sqnorm),"sqNorm",profiler);
+	CUDA_TIMER(tol_error = sqrt(SqNorm(*r) / rhs_sqnorm),"sqNorm",profiler);
 	_iterations = i;
 
 	profiler.stop();

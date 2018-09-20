@@ -5,7 +5,7 @@
 #include <surface_indirect_functions.h>
 
 #include "Volume.cuh"
-#include "MGGPU_Types.h"
+#include "MGGPU_Types.cuh"
 
 
 

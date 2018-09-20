@@ -7,13 +7,14 @@
 #include <assert.h>
 #include <cuda_gl_interop.h>
 
-//#ifdef DEBUG
-	#include <iostream>
-//#endif
 
 
-#define GPU_MEMORY_TRACE
 
+//#define GPU_MEMORY_TRACE
+
+#ifdef GPU_MEMORY_TRACE
+#include <iostream>
+#endif
 
 
 blib::DataPtr::DataPtr()
@@ -87,8 +88,7 @@ bool blib::DataPtr::allocDevice(size_t num, size_t stride)
 #ifdef GPU_MEMORY_TRACE
 	{
 		size_t bytes = num*stride;
-		float MB = bytes / (1024.0f*1024.0f);
-		size_t total, occupied;		
+		float MB = bytes / (1024.0f*1024.0f);		
 		cudaPrintMemInfo();
 		std::cout << "|| DataPtr::allocDevice " << MB << "MB" << std::endl;
 		
@@ -202,8 +202,7 @@ bool blib::Texture3DPtr::alloc(PrimitiveType type, ivec3 dim, bool alsoOnCPU)
 	#ifdef GPU_MEMORY_TRACE
 	{
 		size_t bytes = dim.x*dim.y*dim.z*primitiveSizeof(type);
-		float MB = bytes / (1024.0f*1024.0f);
-		size_t total, occupied;
+		float MB = bytes / (1024.0f*1024.0f);		
 		cudaPrintMemInfo();
 		std::cout << "|| Texture3DPtr::alloc " << MB << "MB" << std::endl;
 
@@ -237,8 +236,7 @@ bool blib::Texture3DPtr::allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnC
 #ifdef GPU_MEMORY_TRACE
 	{
 		size_t bytes = dim.x*dim.y*dim.z*primitiveSizeof(type);
-		float MB = bytes / (1024.0f*1024.0f);
-		size_t total, occupied;
+		float MB = bytes / (1024.0f*1024.0f);		
 		cudaPrintMemInfo();
 		std::cout << "|| Texture3DPtr::allocOpenGL " << MB << "MB" << std::endl;
 	}

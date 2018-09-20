@@ -1,17 +1,19 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.8)
 
 project(batteryviz LANGUAGES CXX CUDA)
 
+
+#Cuda paths
+set(CUDA_PATH $ENV{CUDA_PATH})
+string(REPLACE "\\" "/" CUDA_PATH ${CUDA_PATH})
 find_library(CUDART_LIBRARY cudart 
-    ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} $ENV{CUDA_PATH}\\lib\\x64
+    ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} ${CUDA_PATH}\\lib\\x64
 )
-
 find_library(CUSPARSE_LIBRARY cusparse 
-    ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} $ENV{CUDA_PATH}\\lib\\x64
+    ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} ${CUDA_PATH}\\lib\\x64
 )
-
 if(WIN32)
-    set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES $ENV{CUDA_PATH}/include)
+    set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES ${CUDA_PATH}\\include)
 endif()
 
 #GLFW 

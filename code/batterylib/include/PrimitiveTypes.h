@@ -49,11 +49,11 @@ inline float primitiveToFloat(PrimitiveType type, void * ptr) {
 	case TYPE_INT:
 		return float(*((int*)ptr));;		
 	case TYPE_FLOAT3:
-		return nan("");
+		return nanf("");
 	case TYPE_FLOAT4:
-		return nan("");
+		return nanf("");
 	}
-	return nan("");
+	return nanf("");
 }
 
 inline double primitiveToDouble(PrimitiveType type, void * ptr) {
@@ -69,12 +69,12 @@ inline double primitiveToDouble(PrimitiveType type, void * ptr) {
 	case TYPE_INT:
 		return double(*((int*)ptr));;
 	case TYPE_FLOAT3:
-		return nan("");
+		return nanf("");
 	case TYPE_FLOAT4:
-		return nan("");
+		return nanf("");
 	}
 
-	return nan("");
+	return nanf("");
 }
 
 
@@ -103,8 +103,6 @@ inline uint getDirIndex(Dir dir) {
 		default:
 			return uint(-1);
 	}
-	return uint(-1);
-	
 }
 
 inline int getDirSgn(Dir dir) {

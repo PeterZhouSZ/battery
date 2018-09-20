@@ -20,7 +20,6 @@
 #include "Ui.h"
 
 #include <memory>
-#include "batterylib/include/MultigridGPU.h"
 #include "batterylib/include/MGGPU.h"
 
 
@@ -47,8 +46,7 @@ protected:
 	virtual void callbackScroll(GLFWwindow * w, double xoffset, double yoffset) override;
 	virtual void callbackChar(GLFWwindow * w, unsigned int code) override;
 
-	void solveMultigridCPU();
-	void solveMultigridGPU();
+	void solveMultigridCPU();	
 	void solveMGGPU();
 
 	virtual void reset();
@@ -86,8 +84,7 @@ protected:
 
 
 	blib::DiffusionSolver<double> _diffSolver;
-	blib::MultigridSolver<double> _multiSolver;
-	blib::MultigridGPU<double> _multigridGPUSolver;
+	blib::MultigridSolver<double> _multiSolver;	
 	blib::MGGPU<double> _mggpu;
 
 

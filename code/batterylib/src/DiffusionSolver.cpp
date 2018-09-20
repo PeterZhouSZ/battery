@@ -142,16 +142,16 @@ void buildNodeList(std::vector<Node> & nodeList, std::vector<size_t> & indices, 
 
 						n->neigh[neighDir].type = NODE;
 
-						int ni = linearIndex(dim, n->pos + dirVec);
+						int ni = static_cast<int>(linearIndex(dim, n->pos + dirVec));
 						if (indices[ni] == NO_NODE) {
 							nodeList.push_back(Node(n->pos + dirVec));
 							indices[ni] = nodeList.size() - 1;
 							n = &nodeList[nodeIndex]; //refresh pointer if realloc happened
-							n->neigh[neighDir].index = indices[ni];							
+							n->neigh[neighDir].index = static_cast<int>(indices[ni]);
 							stackNodePos.push(n->pos + dirVec);
 						}
 						else {
-							n->neigh[neighDir].index = indices[ni];
+							n->neigh[neighDir].index = static_cast<int>(indices[ni]);
 						}
 
 
@@ -302,7 +302,7 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1
 
 	if (preserveAspectRatio) {
 
-		T maxDim = std::max(dim[0], std::max(dim[1], dim[2]));		
+		T maxDim = static_cast<T>(std::max(dim[0], std::max(dim[1], dim[2])));		
 		cellDim = { T(1) / maxDim,T(1) / maxDim ,T(1) / maxDim };		
 	}
 	
@@ -371,7 +371,7 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1
 					coeffs[k].val = T(0);
 					coeffs[k].useInMatrix = true;					
 				}
-				coeffs[DIR_NONE].col = i;
+				coeffs[DIR_NONE].col = static_cast<signed long>(i);
 
 				
 
@@ -399,7 +399,7 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1
 					}
 
 					c.val = (Dface * faceArea[k]) / cellDist[k];								
-					c.col = i + sgn * stride[k];
+					c.col = static_cast<signed long>(i + sgn * stride[k]);
 
 					//Add to diagonal
 					if(c.useInMatrix || k == dirPrimary)
@@ -498,7 +498,7 @@ bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1
 			}
 			T norm = sqrt(sum);
 
-			T d = 1.0 / norm;
+			T d = static_cast<T>(1.0) / norm;
 
 			for (typename Eigen::SparseMatrix<T, Eigen::RowMajor>::InnerIterator it(_A, i); it; ++it) {
 				auto  j = it.col();
@@ -535,7 +535,7 @@ T DiffusionSolver<T>::solve(T tolerance, size_t maxIterations, size_t iterPerSte
 		
 //	_x.setZero();
 
-	for (auto i = 0; i < maxIterations; i += iterPerStep) {
+	for (size_t i = 0; i < maxIterations; i += iterPerStep) {
 
 		_x = _solver.solveWithGuess(_rhs, _x);
 		
@@ -706,7 +706,7 @@ BLIB_EXPORT bool DiffusionSolver<T>::solveWithoutParticles(
 			float dval = (k % 2 == 0) ? Dpos[k / 2] : Dneg[k / 2];
 
 			if (neigh.type == NODE) {
-				triplets.push_back(Eigen::Triplet<T>(row, neigh.index, 
+				triplets.push_back(Eigen::Triplet<T>(static_cast<int>(row), neigh.index,
 					dval
 					));
 			}
@@ -724,7 +724,7 @@ BLIB_EXPORT bool DiffusionSolver<T>::solveWithoutParticles(
 		//initial guess
 		x[row] = 1.0f - (n.pos.x / float(dim.x + 1));
 		
-		triplets.push_back(Eigen::Triplet<T>(row, row, diagVal));
+		triplets.push_back(Eigen::Triplet<T>(static_cast<int>(row), row, diagVal));
 		
 		row++;
 	}
@@ -761,7 +761,7 @@ BLIB_EXPORT bool DiffusionSolver<T>::solveWithoutParticles(
 	for (i = 0; i < maxIter; i += iterPerStep) {
 		x = stab.solveWithGuess(b, x);		
 		//iter += stab.iterations();
-		float er = stab.error();		
+		float er = static_cast<float>(stab.error());
 		if (_verbose) {			
 			std::cout << "i:" << i << ", estimated error: " << er << std::endl;
 		}
@@ -770,7 +770,7 @@ BLIB_EXPORT bool DiffusionSolver<T>::solveWithoutParticles(
 	}	
 	
 
-	_iterations = stab.iterations();
+	_iterations = static_cast<uint>(stab.iterations());
 
 	auto end = std::chrono::system_clock::now();
 
@@ -793,7 +793,7 @@ BLIB_EXPORT bool DiffusionSolver<T>::solveWithoutParticles(
 		int nodeIndex = 0;
 		for (auto & n : nodeList) {
 			auto i = linearIndex(dim, n.pos);
-			concData[i] = x[nodeIndex];			
+			concData[i] = static_cast<float>(x[nodeIndex]);			
 			nodeIndex++;
 
 		}
@@ -821,7 +821,7 @@ BLIB_EXPORT T blib::DiffusionSolver<T>::tortuosity(const VolumeChannel & mask, D
 	bool preserveAspectRatio = true;
 	if (preserveAspectRatio) {
 
-		T maxDim = std::max(dim[0], std::max(dim[1], dim[2]));
+		T maxDim = static_cast<T>(std::max(dim[0], std::max(dim[1], dim[2])));
 		cellDim = { T(1) / maxDim,T(1) / maxDim ,T(1) / maxDim };
 	}
 	
@@ -862,7 +862,7 @@ BLIB_EXPORT T blib::DiffusionSolver<T>::tortuosity(const VolumeChannel & mask, D
 		std::cout << "tau: " << tau << std::endl;
 	}	
 
-	return tau;
+	return static_cast<T>(tau);
 
 	
 

@@ -275,8 +275,7 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 	uchar mask = 0;
 	surf3Dread(&mask, params.mask, vox.x * sizeof(uchar), vox.y, vox.z);
 
-	//Diffusion coeff
-	float D = (mask == 0) ? params.zeroDiff : params.oneDiff;	
+	
 
 
 
@@ -330,7 +329,7 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 		//}
 			//printf("c: %f, D: %.9f dc: %f %f %f, Dneg: %f %f %f\n",C.x, D, dc.x, dc.y, dc.z, Dneg.x, Dneg.y, Dneg.z);
 
-		float DX = 1.0f / res.x;
+		
 
 		float newVal = C.x + (dc.x + dc.y + dc.z);
 		
@@ -357,49 +356,7 @@ __global__ void kernelDiffuse(DiffuseParams params) {
 
 	}
 
-	/////////// Compute
-
-	float oldVal = ndx[tid.x][tid.y][tid.z];
-
-	//http://janroman.dhis.org/finance/Numerical%20Methods/adi.pdf
-	//float dt = 0.1f;
-	int minDim = min(res.x, min(res.y, res.z));
-	//float dt = 1.0f / (6.0f * minDim * D);
-	//float3 dX = make_float3(1.0f / (res.x), 1.0f / (res.y), 1.0f / (res.z));
-	float3 dX = make_float3(0.37e-6f);// , 1.0f / (res.y), 1.0f / (res.z));
-	float3 dX2 = make_float3(dX.x*dX.x, dX.y*dX.y, dX.z*dX.z);
-
-
-	float minD = max(params.zeroDiff, params.oneDiff);
-
-	float dt = 1.0f / (2.0f * minD * (1.0f / dX2.x +  1.0f / dX2.y + 1.0f / dX2.z));
 	
-	//dt *= 1.0f / 10.0f;
-	float3 v = D * make_float3(dt / dX2.x , dt / dX2.y, dt / dX2.z);
-
-	//D(dt / 1 + dt / 1 + dt / 1) <= 1/2 >>> dt <= 1/6*D
-	//3 * dt / (1/64)^2 <= 1/2 >>> dt <= 1/6 * 1/4096 >>> dt <= 1 / 24576*D 
-	//D * dt * (1 / resx^2 + 1 / resy^2 + 1 / resz^2) <= 1/2
-		//>>> dt <= 1/2 * 1/D * 1/ sum(dX.x^2)
-
-
-//	if (vox.x < 2 && vox.y == 10 && vox.z == 10)
-	//	printf("x %d, dt %.9f, vsum %.9f, val: %f dx: %f\n", vox.x ,dt , v.x+v.y+v.z, oldVal, oldVal - ndx[tid.x - 1][tid.y][tid.z]);
-
-	
-	float3 d2 = make_float3(
-		ndx[tid.x - 1][tid.y][tid.z] + 2.0f * oldVal + ndx[tid.x + 1][tid.y][tid.z],
-		ndx[tid.x][tid.y - 1][tid.z] + 2.0f * oldVal + ndx[tid.x][tid.y + 1][tid.z],
-		ndx[tid.x][tid.y][tid.z - 1] + 2.0f * oldVal + ndx[tid.x][tid.y][tid.z + 1]
-	);
-
-	float newVal = oldVal +  (v.x * d2.x + v.y * d2.y + v.z * d2.z);
-	
-	//newVal = oldVal + v.x;
-		
-
-	surf3Dwrite(newVal, params.concetrationOut, vox.x * sizeof(float), vox.y, vox.z);
-
 }
 
 void launchDiffuseKernel(DiffuseParams params) {
@@ -710,10 +667,10 @@ float launchReduceSumSlice(uint3 res, cudaSurfaceObject_t surf, Dir dir, void * 
 	cudaMemcpy(hostResult, deviceResult, size * sizeof(float), cudaMemcpyDeviceToHost);
 
 
-	for (auto sliceID = 0; sliceID < grid.z; sliceID++) {
+	for (uint sliceID = 0; sliceID < grid.z; sliceID++) {
 
 		((float *)output)[sliceID] = 0.0f;
-		for (auto k = 0; k < grid.x * grid.y; k++) {
+		for (uint k = 0; k < grid.x * grid.y; k++) {
 			((float *)output)[sliceID] += hostResult[grid.x * grid.y * sliceID + k];
 		}
 
@@ -919,7 +876,7 @@ void launchReduceKernel(
 	*/
 	{		
 		uint3 numBlocks = make_uint3(
-			(n / block.x) / 2, 1, 1
+			uint((n / block.x) / 2), 1, 1
 		);
 		if (numBlocks.x == 0)
 			numBlocks.x = 1;
@@ -980,7 +937,7 @@ void launchReduceKernel(
 		const uint blockSize = VOLUME_REDUCTION_BLOCKSIZE;
 		const uint3 block = make_uint3(blockSize, 1, 1);
 		uint3 numBlocks = make_uint3(
-				(n / block.x) / 2, 1, 1
+				uint((n / block.x) / 2), 1, 1
 			);
 
 		if (type == TYPE_FLOAT) {
@@ -1031,56 +988,11 @@ void launchReduceKernel(
 	}
 
 	
-	char b;
-	b = 0;
+	
 
 	return;
 
 
-	//float * deviceResult = nullptr;
-	//cudaMalloc(&deviceResult, finalSizeMax * sizeof(float));
-	//cudaMemset(deviceResult, 0, finalSizeMax * sizeof(float));
-
-
-	//while (n > finalSizeMax) {
-	//	uint3 numBlocks = make_uint3(
-	//		(n / block.x) / 2, 1, 1
-	//	);
-
-	//	//If not final stage of reduction -> reduce into  surface
-	//	if (numBlocks.x > finalSizeMax) {
-	//		reduce3D<float, blockSize, true>
-	//			<< <numBlocks, block, blockSize * sizeof(float) >> > (
-	//				res, surf, nullptr, n, make_uint3(0)
-	//				);
-	//	}
-	//	else {
-	//		reduce3D<float, blockSize, false>
-	//			<< <numBlocks, block, blockSize * sizeof(float) >> > (
-	//				res, surf, deviceResult, n, make_uint3(0)
-	//				);
-
-	//	}
-
-	//	//New N
-	//	n = numBlocks.x;
-	//}
-
-
-	//float * hostResult = new float[finalSizeMax];
-	//cudaMemcpy(hostResult, deviceResult, finalSizeMax * sizeof(float), cudaMemcpyDeviceToHost);
-
-
-	//float result = 0.0f;
-	//for (auto i = 0; i < finalSizeMax; i++) {
-	//	result += hostResult[i];
-	//}
-
-	//cudaFree(deviceResult);
-	//delete[] hostResult;
-
-
-	//return result;
 
 }
 

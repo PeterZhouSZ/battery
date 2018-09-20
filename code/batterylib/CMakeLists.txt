@@ -1,17 +1,18 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.8)
 
 project(batterylib LANGUAGES CXX CUDA)
 
+#Cuda paths
+set(CUDA_PATH $ENV{CUDA_PATH})
+string(REPLACE "\\" "/" CUDA_PATH ${CUDA_PATH})
 find_library(CUDART_LIBRARY cudart 
-    ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} $ENV{CUDA_PATH}\\lib\\x64
+    ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} ${CUDA_PATH}\\lib\\x64
 )
-
 find_library(CUSPARSE_LIBRARY cusparse 
-    ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} $ENV{CUDA_PATH}\\lib\\x64
+    ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES} ${CUDA_PATH}\\lib\\x64
 )
-
 if(WIN32)
-    set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES $ENV{CUDA_PATH}/include)
+    set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES ${CUDA_PATH}\\include)
 endif()
 
 
@@ -36,8 +37,30 @@ set (BATTERYLIB_INCLUDE PROJECT_INCLUDE_DIR)
 set (PROJECT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set (PROJECT_EXTERNAL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external)
 set (TINYTIFF_DIR ${PROJECT_EXTERNAL_DIR}/tinytiff)
- 
-set(_SRCS 
+
+
+file(GLOB_RECURSE SRC_CPP
+    "${PROJECT_SOURCE_DIR}/*.cpp"    
+)
+file(GLOB_RECURSE SRC_H
+    "${PROJECT_SOURCE_DIR}/*.h"    
+    "${PROJECT_INCLUDE_DIR}/*.h"
+)
+
+file(GLOB_RECURSE SRC_EXTERNAL
+    "${PROJECT_EXTERNAL_DIR}/*.cpp"    
+    "${PROJECT_EXTERNAL_DIR}/*.h"
+)
+
+file(GLOB_RECURSE SRC_CUDA_CU
+    "${PROJECT_SOURCE_DIR}/*.cu"    
+)
+file(GLOB_RECURSE SRC_CUDA_CUH
+    "${PROJECT_SOURCE_DIR}/*.cuh"    
+    "${PROJECT_SOURCE_DIR}/cuda/*.h"
+)
+
+#[[set(_SRCS 
     ${PROJECT_SOURCE_DIR}/AABB.cpp
     ${PROJECT_SOURCE_DIR}/DataPtr.cpp
     ${PROJECT_SOURCE_DIR}/DiffusionSolver.cpp
@@ -101,7 +124,7 @@ set(_HEADERS
     ${PROJECT_SOURCE_DIR}/cuda/VolumeTypes.cuh
 
 )
-
+]]
 
 
 
@@ -129,7 +152,16 @@ INCLUDE_DIRECTORIES ( "${EIGEN3_INCLUDE_DIR}" )
 #message(STATUS "EIGEN directory: " ${EIGEN3_INCLUDE_DIR})
 
 
-add_library(${PROJECT_NAME} SHARED ${_SRCS} ${_HEADERS})
+add_library(${PROJECT_NAME} SHARED 
+    ${SRC_CPP} ${SRC_H} ${SRC_EXTERNAL} ${SRC_CUDA_CU} ${SRC_CUDA_CUH}
+)
+
+source_group("Source"       FILES ${SRC_CPP})
+source_group("Headers"      FILES ${SRC_H})
+source_group("External"       FILES ${SRC_EXTERNAL})
+source_group("CUDA Source"       FILES ${SRC_CUDA_CU})
+source_group("CUDA Headers"      FILES ${SRC_CUDA_CUH})
+
 
 #CUDA options
 #target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_11)
@@ -146,7 +178,9 @@ target_link_libraries(${PROJECT_NAME} ${CUSPARSE_LIBRARY})
 set_target_properties( ${PROJECT_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 #set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -w" )                       
 #set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11" )   
-set(CMAKE_CUDA_FLAGS  "${CMAKE_CUDA_FLAGS} -std=c++11 -w")
+if(NOT WIN32)
+    set(CMAKE_CUDA_FLAGS  "${CMAKE_CUDA_FLAGS} -std=c++11 -w")
+endif()
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 

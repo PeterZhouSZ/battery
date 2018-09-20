@@ -287,11 +287,15 @@ struct CUDA_Kernel3D {
 	double v[size][size][size];
 };
 
-template <size_t size>
+/*template <size_t size>
 using CUDA_Kernel3Dd = CUDA_Kernel3D<double, size>;
+
+template <size_t size>
 using CUDA_Kernel3Df = CUDA_Kernel3D<float, size>;
 
-template <size_t T>
+template <typename T>
 using CUDA_KernelPtr = T *;
+
 using CUDA_KernelPtrD = CUDA_KernelPtr<double>;
 using CUDA_KernelPtrF = CUDA_KernelPtr<float>;
+*/

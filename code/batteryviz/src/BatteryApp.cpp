@@ -108,8 +108,7 @@ BatteryApp::BatteryApp()
 	_currentRenderChannel(0),
 	_simulationTime(0.0f),
 	_diffSolver(true),
-	_multiSolver(true),
-	_multigridGPUSolver(true)
+	_multiSolver(true)	
 {	
 
 
@@ -507,48 +506,6 @@ void BatteryApp::solveMultigridCPU()
 
 }
 
-void BatteryApp::solveMultigridGPU()
-{
-	auto & c = _volume->getChannel(CHANNEL_BATTERY);
-	auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
-	auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
-	auto exactSolveDim = 4;
-	int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
-
-	Dir dir = Dir(_options["Diffusion"].get<int>("direction"));
-
-	auto t0 = std::chrono::system_clock::now();
-	vec3 cellDim = vec3(1.0 / maxDim);
-
-
-	_multigridGPUSolver.prepare(
-		_volume->getChannel(CHANNEL_BATTERY),
-		_volume->getChannel(CHANNEL_CONCETRATION),
-		dir,
-		_options["Diffusion"].get<float>("D_zero"),
-		_options["Diffusion"].get<float>("D_one"),
-		levels,
-		cellDim
-	);
-	
-
-	auto t1 = std::chrono::system_clock::now();
-	std::chrono::duration<double> prepTime = t1 - t0;
-	std::cout << "GPU Prep time: " << prepTime.count() << std::endl;
-
-	t1 = std::chrono::system_clock::now();
-	_multigridGPUSolver.solve(
-		1e-6,
-		1024,//4096,
-		MultigridGPU<double>::CycleType::V_CYCLE
-	);
-	auto t2 = std::chrono::system_clock::now();
-
-
-	std::chrono::duration<double> solveTime = t2 - t1;
-	std::cout << "GPU Solve time: " << solveTime.count() <<
-		", iterations: " << _multigridGPUSolver.iterations() << std::endl;
-}
 
 void BatteryApp::solveMGGPU()
 {
@@ -856,15 +813,10 @@ void BatteryApp::reset()
 	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");	
 
 
-	//Startup tests
-	const bool multigridGPU = false;
+	//Startup tests	
 	const bool multigridTest = false;
 	const bool MGGPUTest = false;
 
-	if (multigridGPU){		
-		solveMultigridGPU();	
-	}
-	
 	if(multigridTest){
 		solveMultigridCPU();
 	}
