@@ -14,12 +14,12 @@ namespace blib {
 		}
 
 		struct PrepareParams {
-			Volume * volume;
-			int maskID;
-			Dir dir;
-			T d0;
-			T d1;
-			vec3 cellDim;					
+			Volume * volume = nullptr;
+			int maskID = 0;
+			Dir dir = X_NEG;
+			T d0 = 0.0;
+			T d1 = 1.0;
+			vec3 cellDim = vec3(1.0,1.0,1.0);					
 		};
 
 		struct SolveParams {

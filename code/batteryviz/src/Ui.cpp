@@ -404,14 +404,18 @@ void Ui::update(double dt)
 	Dir dir = Dir(_app._options["Diffusion"].get<int>("direction"));
 	
 
-	if (ImGui::Button("MGGPU")) {
+	if (ImGui::Button("MG GPU")) {
 		_app.solveMGGPU();
 	}
 
 	ImGui::SameLine();
 
-	if (ImGui::Button("Multigrid CPU")) {
+	if (ImGui::Button("MG CPU")) {
 		_app.solveMultigridCPU();
+	}
+
+	if (ImGui::Button("BICGSTAB GPU")) {
+		_app.solveBICGSTABGPU();
 	}
 
 	

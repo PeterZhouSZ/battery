@@ -31,6 +31,8 @@ namespace blib {
 	bool BICGSTABGPU<T>::prepare(const PrepareParams & params)
 	{
 		assert(params.volume);
+		if (!params.volume) return false;
+		if (params.maskID >= params.volume->numChannels()) return false;
 
 		_params = params;
 		
@@ -53,6 +55,7 @@ namespace blib {
 
 		{			
 			const size_t reduceN = N / VOLUME_REDUCTION_BLOCKSIZE;
+			_auxReduceBuffer = std::make_shared<DataPtr>();
 			_auxReduceBuffer->allocDevice(reduceN, sizeof(T));
 			_auxReduceBuffer->allocHost();
 
@@ -109,6 +112,7 @@ namespace blib {
 		Generate A
 		*/
 		{	
+			_A = std::make_shared<DataPtr>();
 			_A->allocDevice(N, sizeof(CUDA_Stencil_7));
 
 			CUDATimer t(true);
@@ -177,6 +181,8 @@ namespace blib {
 		};
 
 
+		Profiler profiler;
+
 		CUDA_Stencil_7 * A = static_cast<CUDA_Stencil_7 *>(_A->gpu);
 		auto & r = *_r;
 		auto & r0 = *_rhat0;
@@ -192,10 +198,10 @@ namespace blib {
 		size_t n = res.x*res.y*res.z;
 
 		//1. Residual r
-		LinearSys_Residual(A, x, rhs, r);
+		CUDA_TIMER(LinearSys_Residual(A, x, rhs, r),"residual",profiler);
 
 		//2. Choose rhat0 ..
-		launchCopyKernel(TYPE_DOUBLE, res, r.surf, r0.surf);
+		CUDA_TIMER(launchCopyKernel(TYPE_DOUBLE, res, r.surf, r0.surf),"copy", profiler);
 
 		T r0_sqnorm = SqNorm(r0);
 		T rhs_sqnorm = SqNorm(rhs);
@@ -228,7 +234,7 @@ namespace blib {
 		size_t i = 0;
 		size_t restarts = 0;		
 
-		Profiler profiler;
+		
 
 
 		T rsqNorm = 0;

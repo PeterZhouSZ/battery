@@ -18,12 +18,12 @@ namespace blib {
 	class BICGSTABGPU : public Solver<T> {
 
 	public:
-		BICGSTABGPU(bool verbose);
+		BLIB_EXPORT BICGSTABGPU(bool verbose);
 
 
 
-		bool prepare(const PrepareParams & params);
-		Solver<T>::Output solve(const SolveParams & solveParams);
+		BLIB_EXPORT bool prepare(const PrepareParams & params);
+		BLIB_EXPORT Solver<T>::Output solve(const SolveParams & solveParams);
 
 	private:
 

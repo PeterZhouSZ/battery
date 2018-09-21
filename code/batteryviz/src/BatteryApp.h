@@ -16,11 +16,14 @@
 #include <batterylib/include/SimulatedAnnealing.h>
 #include <batterylib/include/DiffusionSolver.h>
 #include <batterylib/include/MultigridSolver.h>
+#include <batterylib/include/MGGPU.h>
+#include <batterylib/include/BICGSTABGPU.h>
 
 #include "Ui.h"
 
 #include <memory>
-#include "batterylib/include/MGGPU.h"
+
+
 
 
 struct Shader;
@@ -48,6 +51,7 @@ protected:
 
 	void solveMultigridCPU();	
 	void solveMGGPU();
+	void solveBICGSTABGPU();
 
 	virtual void reset();
 
@@ -86,6 +90,7 @@ protected:
 	blib::DiffusionSolver<double> _diffSolver;
 	blib::MultigridSolver<double> _multiSolver;	
 	blib::MGGPU<double> _mggpu;
+	blib::BICGSTABGPU<double> _bicgstabgpu;
 
 
 	friend Ui;
