@@ -4,11 +4,11 @@
 
 //https://stackoverflow.com/questions/12778949/cuda-memory-alignment
 #if defined(__CUDACC__) // NVCC
-#define MY_ALIGN(n) __align__(n)
+#define STRUCT_ALIGN(n) __align__(n)
 #elif defined(__GNUC__) // GCC
-#define MY_ALIGN(n) __attribute__((aligned(n)))
+#define STRUCT_ALIGN(n) __attribute__((aligned(n)))
 #elif defined(_MSC_VER) // MSVC
-#define MY_ALIGN(n) __declspec(align(n))
+#define STRUCT_ALIGN(n) __declspec(align(n))
 #else
 #error "Please provide a definition for MY_ALIGN macro for your host compiler!"
 #endif
@@ -280,22 +280,25 @@ struct CUDA_Volume {
 
 	//ID given by Host code
 	int ID;
+	//CPU pointer
+	void * cpu;
 };
 
-template <size_t T, size_t size>
+template <typename T, size_t size>
 struct CUDA_Kernel3D {
 	double v[size][size][size];
 };
 
-/*template <size_t size>
-using CUDA_Kernel3Dd = CUDA_Kernel3D<double, size>;
+template <size_t size>
+using CUDA_Kernel3DD = CUDA_Kernel3D<double, size>;
 
 template <size_t size>
-using CUDA_Kernel3Df = CUDA_Kernel3D<float, size>;
+using CUDA_Kernel3DF = CUDA_Kernel3D<float, size>;
 
 template <typename T>
 using CUDA_KernelPtr = T *;
 
 using CUDA_KernelPtrD = CUDA_KernelPtr<double>;
 using CUDA_KernelPtrF = CUDA_KernelPtr<float>;
-*/
+
+

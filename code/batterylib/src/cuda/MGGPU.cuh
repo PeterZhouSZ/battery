@@ -6,10 +6,11 @@
 
 #include "Volume.cuh"
 #include "MGGPU_Types.cuh"
+#include "LinearSys.cuh"
 
 
 
-bool commitSysParams(const MGGPU_SysParams & sysparams);
+bool MGGPU_commitSysParams(const LinearSys_SysParams & sysparams);
 
 
 
@@ -23,7 +24,7 @@ inline  __device__ __host__ int MGGPU_outputKernelSize(
 }
 
  
-inline __device__ __host__ double MGGPU_GetTopLevelValue(const MGGPU_SystemTopKernel & k, const int3 & v) {
+inline __device__ __host__ double MGGPU_GetTopLevelValue(const CUDA_Stencil_7 & k, const int3 & v) {
 
 
 	if (v.x == -1) {
@@ -340,24 +341,15 @@ inline __device__ __host__ int MGGPU_KernelHalf(int kN) {
 }
 
 
-/*
-	Generates domain from mask and two double values
-*/
-void MGGPU_GenerateDomain(
-	const MGGPU_Volume & binaryMask,
-	double value_zero,
-	double value_one,
-	MGGPU_Volume & output
-);
 
 
 /*
 	Convolves using a single kernel (suports only 2^3 kernel, stride 2 at the moment)
 */
 void MGGPU_Convolve(
-	const MGGPU_Volume & in,
-	MGGPU_KernelPtr kernel, int kn,
-	const MGGPU_Volume & out
+	const CUDA_Volume & in,
+	CUDA_KernelPtrD kernel, int kn,
+	const CUDA_Volume & out
 );
 
 
@@ -366,22 +358,13 @@ Preparation
 */
 
 
-/*
-	Generates 7-point stencil of linear system as a function of the domain
-*/
-void MGGPU_GenerateSystemTopKernel(
-	const MGGPU_Volume & domain,
-	MGGPU_SystemTopKernel * A0,
-	MGGPU_Volume & f, //rhs of lin sys,
-	MGGPU_Volume * x = nullptr //optional guess
-);
 
 /*
 	Generates interpolation kernels
 */
 void MGGPU_GenerateSystemInterpKernels(
 	const uint3 & destRes,
-	const MGGPU_Volume & domain,
+	const CUDA_Volume & domain,
 	MGGPU_InterpKernel * I
 );
 
@@ -391,9 +374,9 @@ void MGGPU_GenerateSystemInterpKernels(
 */
 bool MGGPU_BuildA1(
 	const uint3 resA,
-	const MGGPU_SystemTopKernel * A0,
+	const CUDA_Stencil_7 * A0,
 	const MGGPU_InterpKernel * I,
-	MGGPU_Kernel3D<5> * A1,
+	CUDA_Kernel3DD<5> * A1,
 	bool onDevice
 );
 
@@ -402,40 +385,24 @@ bool MGGPU_BuildA1(
 */
 bool MGGPU_BuildAi(
 	const uint3 resA,
-	const MGGPU_Kernel3D<5> * Aprev,
+	const CUDA_Kernel3DD<5> * Aprev,
 	const MGGPU_InterpKernel * I,
-	MGGPU_Kernel3D<5> * Anext,
+	CUDA_Kernel3DD<5> * Anext,
 	bool onDevice
 );
 
 
-void MGGPU_Residual_TopLevel(
-	const uint3 res,
-	const MGGPU_SystemTopKernel * A0,
-	const MGGPU_Volume & x,
-	const MGGPU_Volume & f,
-	MGGPU_Volume & r
-);
+
 
 void MGGPU_Residual(
 	const uint3 res,
-	const MGGPU_Kernel3D<5> * A,
-	const MGGPU_Volume & x,
-	const MGGPU_Volume & f,
-	MGGPU_Volume & r
+	const CUDA_Kernel3DD<5> * A,
+	const CUDA_Volume & x,
+	const CUDA_Volume & f,
+	CUDA_Volume & r
 );
 
 
-double MGGPU_SquareNorm(
-	const uint3 res, 
-	MGGPU_Volume & x,
-	void * auxGPU,
-	void * auxCPU
-);
-
-void MGGPU_SetToZero(
-	MGGPU_Volume & x
-);
 
 
 double MGGPU_GaussSeidel(MGGPU_SmootherParams & p);
@@ -445,33 +412,26 @@ void MGGPU_Jacobi(MGGPU_SmootherParams & p);
 
 
 void MGGPU_Restrict(
-	MGGPU_Volume & xPrev,
-	MGGPU_Volume & xNext
+	CUDA_Volume & xPrev,
+	CUDA_Volume & xNext
 );
 
 
 void MGGPU_InterpolateAndAdd(
-	MGGPU_Volume & xPrev,
-	MGGPU_Volume & xNext,
+	CUDA_Volume & xPrev,
+	CUDA_Volume & xNext,
 	MGGPU_InterpKernel * I
 );
 
-void MGGPU_MatrixVectorProduct(
-	const MGGPU_SystemTopKernel * A,
-	const MGGPU_Volume & x,
-	MGGPU_Volume & b
-);
 
 
-void MGGPU_InvertA0DiagTo(
-	const MGGPU_SystemTopKernel * A,
-	MGGPU_Volume & ainvert
-);
+
+
 
 #ifdef ___OLD
 
 
-inline __device__ __host__ void MGGPU_A0(MGGPU_RestrictKernel & R, MGGPU_SystemTopKernel & A, MGGPU_InterpKernel & I) {
+inline __device__ __host__ void MGGPU_A0(MGGPU_RestrictKernel & R, CUDA_Stencil_7 & A, MGGPU_InterpKernel & I) {
 
 	//R*A
 
@@ -479,10 +439,10 @@ inline __device__ __host__ void MGGPU_A0(MGGPU_RestrictKernel & R, MGGPU_SystemT
 }
 
 inline __device__ __host__ void MGGPU_CombineKernels(
-	MGGPU_KernelPtr * a, int an,
-	MGGPU_KernelPtr * b, int bn,
+	CUDA_KernelPtrD * a, int an,
+	CUDA_KernelPtrD * b, int bn,
 	int stride,
-	MGGPU_KernelPtr * c
+	CUDA_KernelPtrD * c
 ) {
 	int cn = MGGPU_KernelProductSize(an, bn);
 
@@ -501,16 +461,16 @@ inline __device__ __host__ void MGGPU_CombineKernels(
 void MGGPU_GenerateTranposeInterpKernels(
 	const uint3 & Nres,
 	const uint3 & Nhalfres,
-	const MGGPU_Volume & domainHalf,
-	MGGPU_Kernel3D<4> * output
+	const CUDA_Volume & domainHalf,
+	CUDA_Kernel3DD<4> * output
 );
 
 void MGGPU_GenerateAI0(
 	const uint3 & Nres,
 	const uint3 & Nhalfres,	
-	const MGGPU_SystemTopKernel * A0,
-	const MGGPU_Kernel3D<4> * IT0,
-	MGGPU_Kernel3D<3> * output
+	const CUDA_Stencil_7 * A0,
+	const CUDA_Kernel3DD<4> * IT0,
+	CUDA_Kernel3DD<3> * output
 );
 
 
@@ -521,11 +481,11 @@ bool MGGPU_CombineKernelsGeneric(
 	const uint3 resAcol,
 	const uint3 resBrow,
 	const uint3 resBcol,
-	const MGGPU_KernelPtr A,
+	const CUDA_KernelPtrD A,
 	const int Adim,
-	const MGGPU_KernelPtr B,
+	const CUDA_KernelPtrD B,
 	const int Bdim,
-	MGGPU_KernelPtr C,
+	CUDA_KernelPtrD C,
 	const int Cdim,
 	bool onDevice = true
 );
@@ -535,12 +495,12 @@ bool MGGPU_CombineKernelsTopLevel(
 	const uint3 resA,
 	const uint3 resBrow,
 	const uint3 resBcol,
-	const MGGPU_KernelPtr A,
-	const MGGPU_KernelPtr B,
+	const CUDA_KernelPtrD A,
+	const CUDA_KernelPtrD B,
 	const int Bdim,
-	MGGPU_KernelPtr C,
+	CUDA_KernelPtrD C,
 	const int Cdim,
-	MGGPU_Volume interpDomain,
+	CUDA_Volume interpDomain,
 	bool onDevice = true
 );
 
@@ -549,9 +509,9 @@ bool MGGPU_CombineKernelsRestrict(
 	const uint3 resAcol,
 	const uint3 resBrow,
 	const uint3 resBcol,	
-	const MGGPU_KernelPtr B,
+	const CUDA_KernelPtrD B,
 	const int Bdim,
-	MGGPU_KernelPtr C,
+	CUDA_KernelPtrD C,
 	bool onDevice = true
 );
 

@@ -8,6 +8,8 @@
 #include <vector>
 #include <memory>
 
+struct CUDA_Volume;
+
 namespace blib{
 
 	
@@ -33,6 +35,8 @@ namespace blib{
 		BLIB_EXPORT Texture3DPtr & getNextPtr();
 		BLIB_EXPORT const Texture3DPtr & getCurrentPtr() const;
 		BLIB_EXPORT const Texture3DPtr & getNextPtr() const;
+
+		
 
 		BLIB_EXPORT void resize(ivec3 origin, ivec3 dim);
 		
@@ -81,7 +85,8 @@ namespace blib{
 		BLIB_EXPORT uint addChannel(ivec3 dim, PrimitiveType type, bool doubleBuffered = true, const std::string & name = "New Channel");
 		BLIB_EXPORT uint emplaceChannel(VolumeChannel && channel, uint index = UINT_MAX);		
 		
-		
+		BLIB_EXPORT std::shared_ptr<CUDA_Volume> getCUDAVolume(int ID) const;
+		BLIB_EXPORT std::shared_ptr<CUDA_Volume> getCUDAVolume(int ID);
 
 		BLIB_EXPORT VolumeChannel & getChannel(uint index);
 		BLIB_EXPORT const VolumeChannel & getChannel(uint index) const;

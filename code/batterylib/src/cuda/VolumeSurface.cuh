@@ -13,36 +13,24 @@
 
 //Simple voxel edge count 
 void countVolumeInterface(	
-	uint3 res,
-	PrimitiveType volumeType,
-	const cudaSurfaceObject_t volume,
-	PrimitiveType countType,
-	cudaSurfaceObject_t count
+	const CUDA_Volume & input,
+	CUDA_Volume & countOutput
 );
 
 //Marching cubes
 void countVolumeInterface_MarchingCubes(
-	uint3 res,
-	PrimitiveType volumeType,
-	const cudaSurfaceObject_t volume,
-	PrimitiveType countType,
-	cudaSurfaceObject_t count
+	const CUDA_Volume & input,
+	CUDA_Volume & countOutput
 );
 
 void countVolumeInterface_MarchingCubes_Smoothed(
-	uint3 res,
-	PrimitiveType volumeType,
-	const cudaSurfaceObject_t volume,
-	PrimitiveType countType,
-	cudaSurfaceObject_t count,
+	const CUDA_Volume & input,
+	CUDA_Volume & countOutput,
 	int kernelSize
 );
 
-
 void sumOverVolume(	
-	uint3 res,
-	PrimitiveType type,
-	const cudaSurfaceObject_t volume,
+	const CUDA_Volume & input,
 	void * auxBufferGPU,
 	void * auxBufferCPU,
 	void * result

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cuda_runtime.h>
 #include <surface_functions.h>
 #include <surface_indirect_functions.h>
@@ -87,12 +89,10 @@ void launchMultiplyKernel(
 	cudaSurfaceObject_t C
 );
 
-void launchDotProductKernel(
-	PrimitiveType type,
-	uint3 res,
-	cudaSurfaceObject_t A,
-	cudaSurfaceObject_t B,
-	cudaSurfaceObject_t C, //holds temporary product, TODO: direct reduction
+void Volume_DotProduct(
+	CUDA_Volume A,
+	CUDA_Volume B,
+	CUDA_Volume C,
 	void * auxBufferGPU,
 	void * auxBufferCPU,
 	void * result
@@ -128,4 +128,17 @@ void launchABC_BetaGamma(
 	cudaSurfaceObject_t C,
 	double beta,
 	double gamma
+);
+
+// ||A||^2
+double Volume_SquareNorm(
+	const uint3 res,
+	CUDA_Volume & x,
+	void * auxGPU,
+	void * auxCPU
+);
+
+// A = 0
+void Volume_SetToZero(
+	CUDA_Volume & x
 );

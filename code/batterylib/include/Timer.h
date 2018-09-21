@@ -118,16 +118,7 @@ namespace blib {
 	};
 
 
-#define CUDA_TIMER(expr,name,prof)		\
-	{CUDATimer _localTimer(true); expr; prof.add(name, _localTimer.time());} \
 
-
-/*	{											\ 
-		CUDATimer _localTimer(true);				\
-		expr;									\
-		prof.add(name, _localTimer.time());		\
-	}											\
-	*/
 
 	
 	

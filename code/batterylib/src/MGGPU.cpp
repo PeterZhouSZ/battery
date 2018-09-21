@@ -23,6 +23,7 @@
 
 #include "Timer.h"
 #include "../src/cuda/MGGPU_Types.cuh"
+#include "../src/cuda/LinearSys.cuh"
 
 
 
@@ -33,7 +34,7 @@ using namespace blib;
 
 
 template <size_t KN>
-MGGPU<double>::DenseMat kernelToDenseMat(MGGPU_Kernel3D<KN> * kernels, ivec3 dim0, ivec3 dim1) {
+MGGPU<double>::DenseMat kernelToDenseMat(CUDA_Kernel3DD<KN> * kernels, ivec3 dim0, ivec3 dim1) {
 	size_t rows = dim0.x * dim0.y * dim0.z;
 	size_t cols = dim1.x * dim1.y * dim1.z;
 	
@@ -42,7 +43,7 @@ MGGPU<double>::DenseMat kernelToDenseMat(MGGPU_Kernel3D<KN> * kernels, ivec3 dim
 	ivec3 stride = { 1, dim1.x, dim1.x * dim1.y };
 
 	for (auto i = 0; i < rows; i++) {
-		MGGPU_Kernel3D<KN> & kernel = kernels[i];
+		CUDA_Kernel3DD<KN> & kernel = kernels[i];
 
 		ivec3 ipos = posFromLinear(dim0, i);
 		ivec3 jpos = ipos;
@@ -90,7 +91,7 @@ MGGPU<double>::DenseMat kernelToDenseMat(MGGPU_Kernel3D<KN> * kernels, ivec3 dim
 }
 
 template <size_t KN>
-MGGPU<double>::SparseMat kernelToSparse(MGGPU_Kernel3D<KN> * kernels, ivec3 dim0, ivec3 dim1) {
+MGGPU<double>::SparseMat kernelToSparse(CUDA_Kernel3DD<KN> * kernels, ivec3 dim0, ivec3 dim1) {
 
 	size_t rows = dim0.x * dim0.y * dim0.z;
 	size_t cols = dim1.x * dim1.y * dim1.z;
@@ -103,7 +104,7 @@ MGGPU<double>::SparseMat kernelToSparse(MGGPU_Kernel3D<KN> * kernels, ivec3 dim0
 	ivec3 stride = { 1, dim1.x, dim1.x * dim1.y };
 
 	for (auto i = 0; i < rows; i++) {
-		MGGPU_Kernel3D<KN> & kernel = kernels[i];
+		CUDA_Kernel3DD<KN> & kernel = kernels[i];
 
 		ivec3 ipos = posFromLinear(dim0, i);
 		ivec3 jpos = ipos;
@@ -158,14 +159,14 @@ MGGPU<double>::SparseMat kernelToSparse(MGGPU_Kernel3D<KN> * kernels, ivec3 dim0
 
 
 
-MGGPU<double>::Vector volumeToVector(const MGGPU_Volume & vol){
+MGGPU<double>::Vector volumeToVector(const CUDA_Volume & vol){
 	assert(vol.cpu);
 	size_t N = vol.res.x * vol.res.y * vol.res.z;
 	MGGPU<double>::Vector V = Eigen::Map< MGGPU<double>::Vector >((double*)vol.cpu, N);
 	return V;
 }
 
-void vectorToVolume(const MGGPU<double>::Vector & v, const MGGPU_Volume & vol) {
+void vectorToVolume(const MGGPU<double>::Vector & v, const CUDA_Volume & vol) {
 	//assert(vol.cpu);
 	size_t N = vol.res.x * vol.res.y * vol.res.z;
 	memcpy(vol.cpu, v.data(), N * sizeof(double));
@@ -225,27 +226,27 @@ bool saveVector(void * vin, size_t N,  const std::string & name, int level) {
 
 
 
-std::shared_ptr<MGGPU_Volume> toMGGPUVolume(VolumeChannel & volchan, int id = -1) {
+std::shared_ptr<CUDA_Volume> toMGGPUVolume(VolumeChannel & volchan, int id = -1) {
 	
-	auto mgvol = std::make_shared<MGGPU_Volume>();
+	auto mgvol = std::make_shared<CUDA_Volume>();
 
 	
 	mgvol->surf = volchan.getCurrentPtr().getSurface();
 	mgvol->res = make_uint3(volchan.dim().x, volchan.dim().y, volchan.dim().z);
 	mgvol->type = volchan.type();
-	mgvol->volID = id;
+	mgvol->ID = id;
 	mgvol->cpu = volchan.getCurrentPtr().getCPU();
 
 	return mgvol;
 }
 
-std::shared_ptr<MGGPU_Volume>  toMGGPUVolume(const VolumeChannel & volchan, int id = -1) {
-	auto mgvol = std::make_shared<MGGPU_Volume>();
+std::shared_ptr<CUDA_Volume>  toMGGPUVolume(const VolumeChannel & volchan, int id = -1) {
+	auto mgvol = std::make_shared<CUDA_Volume>();
 
 	mgvol->surf = volchan.getCurrentPtr().getSurface();
 	mgvol->res = make_uint3(volchan.dim().x, volchan.dim().y, volchan.dim().z);
 	mgvol->type = volchan.type();
-	mgvol->volID = id;
+	mgvol->ID = id;
 	mgvol->cpu = nullptr;
 
 	return mgvol;
@@ -261,24 +262,24 @@ MGGPU<T>::MGGPU() :
 
 
 template <typename T>
-bool blib::MGGPU<T>::saveVolume(MGGPU_Volume & v, const std::string & name, int level)
+bool blib::MGGPU<T>::saveVolume(CUDA_Volume & v, const std::string & name, int level)
 {
-	auto & ptr = _volume->getChannel(v.volID).getCurrentPtr();
+	auto & ptr = _volume->getChannel(v.ID).getCurrentPtr();
 	ptr.retrieve();
 	return saveVector<T>(v.cpu, v.res.x*v.res.y*v.res.z, name, level);
 }
 
 template <typename T>
-void blib::MGGPU<T>::retrieveVolume(MGGPU_Volume & v)
+void blib::MGGPU<T>::retrieveVolume(CUDA_Volume & v)
 {
-	auto & ptr = _volume->getChannel(v.volID).getCurrentPtr();
+	auto & ptr = _volume->getChannel(v.ID).getCurrentPtr();
 	ptr.retrieve();
 }
 
 template <typename T>
-void blib::MGGPU<T>::commitVolume(MGGPU_Volume & v)
+void blib::MGGPU<T>::commitVolume(CUDA_Volume & v)
 {
-	auto & ptr = _volume->getChannel(v.volID).getCurrentPtr();
+	auto & ptr = _volume->getChannel(v.ID).getCurrentPtr();
 	ptr.commit();
 }
 
@@ -306,7 +307,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 	{
 		auto MGmask = toMGGPUVolume(mask, 0);
 		CUDATimer tGenDomain(true);
-		MGGPU_GenerateDomain(*MGmask, _params.d0, _params.d1, *_levels[0].domain);
+		LinearSys_GenerateDomain(*MGmask, _params.d0, _params.d1, *_levels[0].domain);
 		std::cout << "Gen domain " << tGenDomain.time() << "s" << std::endl;
 
 /*#ifdef SAVE_TO_FILE
@@ -322,7 +323,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 		Restrict domain to further levels
 	*/
 	{
-		MGGPU_KernelPtr domainRestrKernel = (double *)MGGPU_GetDomainRestrictionKernel().v;
+		CUDA_KernelPtrD domainRestrKernel = (double *)MGGPU_GetDomainRestrictionKernel().v;
 		CUDATimer tConvolveDomain(true);
 		for (int i = 1; i < _levels.size(); i++) {
 			MGGPU_Convolve(*_levels[i - 1].domain, domainRestrKernel, 2, *_levels[i].domain);
@@ -340,7 +341,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 	
 
 	//Send system params to gpu
-	MGGPU_SysParams sysp;
+	LinearSys_SysParams sysp;
 	sysp.highConc = double(1.0);
 	sysp.lowConc = double(0.0);
 	sysp.concetrationBegin = (getDirSgn(params.dir) == 1) ? sysp.highConc : sysp.lowConc;
@@ -358,7 +359,8 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 
 	sysp.dir = params.dir;
 
-	if (!commitSysParams(sysp)) {
+	bool commitRes = MGGPU_commitSysParams(sysp) && LinearSys_commitSysParams(sysp);
+	if (!commitRes) {
 		return false;
 	}
 
@@ -371,9 +373,9 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 	{
 		auto & sysTop = _levels[0].A;
 		std::cout << "Alloc A0" << std::endl;
-		sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));
+		sysTop.allocDevice(_levels[0].N(), sizeof(CUDA_Stencil_7));
 		CUDATimer t(true);
-		MGGPU_GenerateSystemTopKernel(*_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, *_levels[0].f);
+		LinearSys_GenerateSystem(*_levels[0].domain, (CUDA_Stencil_7*)sysTop.gpu, *_levels[0].f);
 		std::cout << "Gen A0: " << t.time() << "s" << std::endl;
 	}
 
@@ -386,12 +388,12 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 
 		DataPtr & I = _levels[0].I;
 		std::cout << "Alloc I0" << std::endl;
-		I.allocDevice(_levels[0].N(), sizeof(MGGPU_Kernel3D<3>));
+		I.allocDevice(_levels[0].N(), sizeof(CUDA_Kernel3DD<3>));
 		CUDATimer tI(true);
 		MGGPU_GenerateSystemInterpKernels(
 			make_uint3(_levels[0].dim.x, _levels[0].dim.y, _levels[0].dim.z),
 			*_levels[1].domain,
-			(MGGPU_Kernel3D<3> *)I.gpu
+			(CUDA_Kernel3DD<3> *)I.gpu
 		);
 		std::cout << "Gen I0: " << tI.time() << "s" << std::endl;
 
@@ -415,7 +417,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 
 		DataPtr & A1 = _levels[1].A;
 		std::cout << "Alloc A1" << std::endl;
-		A1.allocDevice(_levels[1].N(), sizeof(MGGPU_Kernel3D<5>));
+		A1.allocDevice(_levels[1].N(), sizeof(CUDA_Kernel3DD<5>));
 
 
 
@@ -431,9 +433,9 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 			auto t0 = std::chrono::system_clock::now();
 			MGGPU_BuildA1(
 				Nres,
-				(MGGPU_SystemTopKernel*)A0.cpu,
+				(CUDA_Stencil_7*)A0.cpu,
 				(MGGPU_InterpKernel*)I.cpu,
-				(MGGPU_Kernel3D<5>*)A1.cpu,
+				(CUDA_Kernel3DD<5>*)A1.cpu,
 				false
 			);
 			auto t1 = std::chrono::system_clock::now();
@@ -449,9 +451,9 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 			CUDATimer t(true);
 			MGGPU_BuildA1(
 				Nres,
-				(MGGPU_SystemTopKernel*)A0.gpu,
+				(CUDA_Stencil_7*)A0.gpu,
 				(MGGPU_InterpKernel*)I.gpu,
-				(MGGPU_Kernel3D<5>*)A1.gpu,
+				(CUDA_Kernel3DD<5>*)A1.gpu,
 				true
 			);
 			t.stop();
@@ -467,9 +469,9 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 			DataPtr & A = _levels[1].A;
 
 			A.retrieve();
-			MGGPU_Kernel3D<5> * ptr = (MGGPU_Kernel3D<5> *)A.cpu;
+			CUDA_Kernel3DD<5> * ptr = (CUDA_Kernel3DD<5> *)A.cpu;
 			SparseMat mat = kernelToSparse<5>(
-				(MGGPU_Kernel3D<5>*)ptr,
+				(CUDA_Kernel3DD<5>*)ptr,
 				_levels[1].dim,
 				_levels[1].dim
 				);
@@ -498,13 +500,13 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 			std::cout << "!!!!!!!!!!!!!! Odd dimension not supported yet !!!!!!!!!!!!!!" << std::endl;
 			return false;
 		}*/
-		I.allocDevice(_levels[i - 1].N(), sizeof(MGGPU_Kernel3D<3>));
+		I.allocDevice(_levels[i - 1].N(), sizeof(CUDA_Kernel3DD<3>));
 
 		CUDATimer tI(true);
 		MGGPU_GenerateSystemInterpKernels(
 			make_uint3(_levels[i - 1].dim.x, _levels[i - 1].dim.y, _levels[i - 1].dim.z),
 			*_levels[i].domain,
-			(MGGPU_Kernel3D<3> *)I.gpu
+			(CUDA_Kernel3DD<3> *)I.gpu
 		);
 		std::cout << "Gen I" << i << ": " << tI.time() << "s" << std::endl;
 #ifdef SAVE_TO_FILE
@@ -525,7 +527,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 
 
 		std::cout << "Alloc A" << i << std::endl;
-		Anext.allocDevice(_levels[i].N(), sizeof(MGGPU_Kernel3D<5>));
+		Anext.allocDevice(_levels[i].N(), sizeof(CUDA_Kernel3DD<5>));
 
 		auto Nres = make_uint3(_levels[i - 1].dim.x, _levels[i - 1].dim.y, _levels[i - 1].dim.z);
 
@@ -540,9 +542,9 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 			auto t0 = std::chrono::system_clock::now();
 			MGGPU_BuildAi(
 				Nres,
-				(MGGPU_Kernel3D<5>*)Aprev.cpu,
+				(CUDA_Kernel3DD<5>*)Aprev.cpu,
 				(MGGPU_InterpKernel*)I.cpu,
-				(MGGPU_Kernel3D<5>*)Anext.cpu,
+				(CUDA_Kernel3DD<5>*)Anext.cpu,
 				false
 			);
 			auto t1 = std::chrono::system_clock::now();
@@ -557,9 +559,9 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 			CUDATimer t(true);
 			MGGPU_BuildAi(
 				Nres,
-				(MGGPU_Kernel3D<5>*)Aprev.gpu,
+				(CUDA_Kernel3DD<5>*)Aprev.gpu,
 				(MGGPU_InterpKernel*)I.gpu,
-				(MGGPU_Kernel3D<5>*)Anext.gpu,
+				(CUDA_Kernel3DD<5>*)Anext.gpu,
 				true
 			);
 			t.stop();
@@ -574,9 +576,9 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 			DataPtr & A = _levels[i].A;
 
 			A.retrieve();
-			MGGPU_Kernel3D<5> * ptr = (MGGPU_Kernel3D<5> *)A.cpu;
+			CUDA_Kernel3DD<5> * ptr = (CUDA_Kernel3DD<5> *)A.cpu;
 			SparseMat mat = kernelToSparse<5>(
-				(MGGPU_Kernel3D<5>*)ptr,
+				(CUDA_Kernel3DD<5>*)ptr,
 				_levels[i].dim,
 				_levels[i].dim
 				);
@@ -598,7 +600,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 		lastA.retrieve();
 
 		//_lastLevelA = kernelToDenseMat((MGGPU_Kernel3D<5>*)lastA.cpu, dim, dim);
-		_lastLevelA = kernelToSparse((MGGPU_Kernel3D<5>*)lastA.cpu, dim, dim);
+		_lastLevelA = kernelToSparse((CUDA_Kernel3DD<5>*)lastA.cpu, dim, dim);
 		_lastLevelSolver.analyzePattern(_lastLevelA);
 		_lastLevelSolver.factorize(_lastLevelA);
 
@@ -618,7 +620,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 		DataPtr & A = _levels[i].A;
 		const ivec3 dim = _levels[i].dim;
 		A.retrieve();
-		_levels[i].Acpu = kernelToSparse((MGGPU_Kernel3D<5>*)A.cpu, dim, dim);
+		_levels[i].Acpu = kernelToSparse((CUDA_Kernel3DD<5>*)A.cpu, dim, dim);
 
 	}
 #endif
@@ -682,10 +684,10 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 						Nres,
 						Nres,
 						Nhalfres,
-						(MGGPU_KernelPtr)Aprev.cpu,
+						(CUDA_KernelPtrD)Aprev.cpu,
 						nullptr,
 						kI,
-						(MGGPU_KernelPtr)AI.cpu,
+						(CUDA_KernelPtrD)AI.cpu,
 						kAI,
 						_levels[level].domain,
 						false
@@ -698,10 +700,10 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 						Nres,
 						Nres,
 						Nhalfres,
-						(MGGPU_KernelPtr)Aprev.gpu,
+						(CUDA_KernelPtrD)Aprev.gpu,
 						nullptr,
 						kI,
-						(MGGPU_KernelPtr)AI.gpu,
+						(CUDA_KernelPtrD)AI.gpu,
 						kAI,
 						_levels[level].domain,
 						true
@@ -728,7 +730,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 			else {
 				std::cout << "I alloc & gen" << level << std::endl;
 				DataPtr & I = _levels[level - 1].I;
-				I.allocDevice(_levels[level - 1].N(), sizeof(MGGPU_Kernel3D<3>));
+				I.allocDevice(_levels[level - 1].N(), sizeof(CUDA_Kernel3DD<3>));
 				//std::cout << "I^3: " << (_levels[level - 1].N() * sizeof(MGGPU_Kernel3D<3>)) / (1024.0f * 1024.0f) << "MB" << std::endl;
 				//std::cout << "I^2: " << (_levels[level - 1].N() * sizeof(MGGPU_Kernel3D<2>)) / (1024.0f * 1024.0f) << "MB" << std::endl;
 
@@ -737,7 +739,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 				MGGPU_GenerateSystemInterpKernels(
 					make_uint3(_levels[level - 1].dim.x, _levels[level - 1].dim.y, _levels[level - 1].dim.z),
 					_levels[level].domain,
-					(MGGPU_Kernel3D<3> *)I.gpu
+					(CUDA_Kernel3DD<3> *)I.gpu
 				);
 
 
@@ -746,11 +748,11 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 					Nres,
 					Nres,
 					Nhalfres,
-					(MGGPU_KernelPtr)Aprev.gpu,
+					(CUDA_KernelPtrD)Aprev.gpu,
 					kAprev,
-					(MGGPU_KernelPtr)I.gpu,
+					(CUDA_KernelPtrD)I.gpu,
 					kI,
-					(MGGPU_KernelPtr)AI.gpu,
+					(CUDA_KernelPtrD)AI.gpu,
 					kAI
 				);
 			}
@@ -769,9 +771,9 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 				Nres,
 				Nres,
 				Nhalfres,
-				(MGGPU_KernelPtr)AI.gpu,
+				(CUDA_KernelPtrD)AI.gpu,
 				kAI,
-				(MGGPU_KernelPtr)A.gpu,
+				(CUDA_KernelPtrD)A.gpu,
 				true
 			);
 
@@ -780,9 +782,9 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 			{
 				DataPtr & A = _levels[level].A;
 				A.retrieve();
-				MGGPU_Kernel3D<5> * ptr = (MGGPU_Kernel3D<5> *)A.cpu;
+				CUDA_Kernel3DD<5> * ptr = (CUDA_Kernel3DD<5> *)A.cpu;
 				SparseMat mat = kernelToSparse<5>(
-					(MGGPU_Kernel3D<5>*)ptr,
+					(CUDA_Kernel3DD<5>*)ptr,
 					_levels[level].dim,
 					_levels[level].dim
 					);
@@ -810,20 +812,20 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 
 
 			DataPtr I0Kernels;
-			I0Kernels.allocDevice(_levels[0].N(), sizeof(MGGPU_Kernel3D<3>));
+			I0Kernels.allocDevice(_levels[0].N(), sizeof(CUDA_Kernel3DD<3>));
 			I0Kernels.memsetDevice(0);
 
 			MGGPU_GenerateSystemInterpKernels(
 				make_uint3(_levels[0].dim.x, _levels[0].dim.y, _levels[0].dim.z),
 				_levels[1].domain,
-				(MGGPU_Kernel3D<3> *)I0Kernels.gpu
+				(CUDA_Kernel3DD<3> *)I0Kernels.gpu
 			);
 
 			//I0Kernels.retrieve();
 
 
 			DataPtr AI0;
-			AI0.allocDevice(_levels[0].N(), sizeof(MGGPU_Kernel3D<4>));
+			AI0.allocDevice(_levels[0].N(), sizeof(CUDA_Kernel3DD<4>));
 			AI0.memsetDevice(0);
 			//AI0.retrieve();
 
@@ -855,10 +857,10 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 				Nres,
 				Nres,
 				Nhalfres,
-				(MGGPU_KernelPtr)sysTop.gpu, //A0			
-				(MGGPU_KernelPtr)I0Kernels.gpu, //I0
+				(CUDA_KernelPtrD)sysTop.gpu, //A0			
+				(CUDA_KernelPtrD)I0Kernels.gpu, //I0
 				3,
-				(MGGPU_KernelPtr)AI0.gpu,
+				(CUDA_KernelPtrD)AI0.gpu,
 				4,
 				_levels[1].domain
 			);
@@ -872,7 +874,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 			///////////
 
 			DataPtr A1;
-			A1.allocDevice(_levels[1].N(), sizeof(MGGPU_Kernel3D<5>));
+			A1.allocDevice(_levels[1].N(), sizeof(CUDA_Kernel3DD<5>));
 			A1.memsetDevice(0);
 
 			DataPtr R0;
@@ -910,9 +912,9 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 				Nres,
 				Nres,
 				Nhalfres,
-				(MGGPU_KernelPtr)AI0.gpu, //I0
+				(CUDA_KernelPtrD)AI0.gpu, //I0
 				4,
-				(MGGPU_KernelPtr)A1.gpu
+				(CUDA_KernelPtrD)A1.gpu
 			);
 
 			_CUDA(cudaPeekAtLastError());
@@ -928,9 +930,9 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 #ifdef SAVE_TO_FILE
 			{
 				AI0.retrieve();
-				MGGPU_Kernel3D<4> * ptr = (MGGPU_Kernel3D<4> *)AI0.cpu;
+				CUDA_Kernel3DD<4> * ptr = (CUDA_Kernel3DD<4> *)AI0.cpu;
 				SparseMat mat = kernelToSparse<4>(
-					(MGGPU_Kernel3D<4>*)ptr,
+					(CUDA_Kernel3DD<4>*)ptr,
 					_levels[0].dim,
 					_levels[1].dim
 					);
@@ -939,9 +941,9 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 
 			{
 				R0.retrieve();
-				MGGPU_Kernel3D<4> * ptr = (MGGPU_Kernel3D<4> *)R0.cpu;
+				CUDA_Kernel3DD<4> * ptr = (CUDA_Kernel3DD<4> *)R0.cpu;
 				SparseMat mat = kernelToSparse<4>(
-					(MGGPU_Kernel3D<4>*)ptr,
+					(CUDA_Kernel3DD<4>*)ptr,
 					_levels[1].dim,
 					_levels[0].dim
 					);
@@ -950,9 +952,9 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 
 			{
 				A1.retrieve();
-				MGGPU_Kernel3D<5> * ptr = (MGGPU_Kernel3D<5> *)A1.cpu;
+				CUDA_Kernel3DD<5> * ptr = (CUDA_Kernel3DD<5> *)A1.cpu;
 				SparseMat mat = kernelToSparse<5>(
-					(MGGPU_Kernel3D<5>*)ptr,
+					(CUDA_Kernel3DD<5>*)ptr,
 					_levels[1].dim,
 					_levels[1].dim
 					);
@@ -992,11 +994,11 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 		}
 		return true;
 
-		std::cout << "I0 kern size " << (_levels[1].N() * sizeof(MGGPU_Kernel3D<4>)) / (1024.0f * 1024.0f) << "MB" << std::endl;
+		std::cout << "I0 kern size " << (_levels[1].N() * sizeof(CUDA_Kernel3DD<4>)) / (1024.0f * 1024.0f) << "MB" << std::endl;
 
 
 		DataPtr IT0Kernels;
-		IT0Kernels.allocDevice(_levels[1].N(), sizeof(MGGPU_Kernel3D<4>));
+		IT0Kernels.allocDevice(_levels[1].N(), sizeof(CUDA_Kernel3DD<4>));
 		IT0Kernels.memsetDevice(0);
 
 		CUDATimer tIT0Kern(true);
@@ -1004,7 +1006,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 			make_uint3(_levels[0].dim.x, _levels[0].dim.y, _levels[0].dim.z),
 			make_uint3(_levels[1].dim.x, _levels[1].dim.y, _levels[1].dim.z),
 			_levels[1].domain,
-			(MGGPU_Kernel3D<4> *)IT0Kernels.gpu
+			(CUDA_Kernel3DD<4> *)IT0Kernels.gpu
 		);
 
 		std::cout << "GPU I' Time: " << tIT0Kern.time() << "s" << std::endl;
@@ -1012,26 +1014,26 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 
 
 		auto & sysTop = _levels[0].A;
-		sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));
+		sysTop.allocDevice(_levels[0].N(), sizeof(CUDA_Stencil_7));
 		CUDATimer tSysTop(true);
-		MGGPU_GenerateSystemTopKernel(_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, _levels[0].f);
+		LinearSys_GenerateSystem(_levels[0].domain, (CUDA_Stencil_7*)sysTop.gpu, _levels[0].f);
 		std::cout << "GPU A0 time: " << tSysTop.time() << "s" << std::endl;
 		{
-			std::cout << "i " << 0 << ", kn: " << "N/A" << ", per row:" << 7 << ", n: " << _levels[0].N() << ", row: " << sizeof(MGGPU_SystemTopKernel) << "B" << ", total: " << (_levels[0].N() * sizeof(MGGPU_SystemTopKernel)) / (1024.0f * 1024.0f) << "MB" << std::endl;
+			std::cout << "i " << 0 << ", kn: " << "N/A" << ", per row:" << 7 << ", n: " << _levels[0].N() << ", row: " << sizeof(CUDA_Stencil_7) << "B" << ", total: " << (_levels[0].N() * sizeof(CUDA_Stencil_7)) / (1024.0f * 1024.0f) << "MB" << std::endl;
 		}
 
 
 
 		CUDATimer tAI0(true);
 		auto & sys1 = _levels[1].A;
-		sys1.allocDevice(_levels[0].N(), sizeof(MGGPU_Kernel3D<3>));
+		sys1.allocDevice(_levels[0].N(), sizeof(CUDA_Kernel3DD<3>));
 
 		MGGPU_GenerateAI0(
 			make_uint3(_levels[0].dim.x, _levels[0].dim.y, _levels[0].dim.z),
 			make_uint3(_levels[1].dim.x, _levels[1].dim.y, _levels[1].dim.z),
-			(MGGPU_SystemTopKernel*)sysTop.gpu,
-			(MGGPU_Kernel3D<4>*)IT0Kernels.gpu,
-			(MGGPU_Kernel3D<3>*)sys1.gpu
+			(CUDA_Stencil_7*)sysTop.gpu,
+			(CUDA_Kernel3DD<4>*)IT0Kernels.gpu,
+			(CUDA_Kernel3DD<3>*)sys1.gpu
 		);
 		tAI0.stop();
 
@@ -1093,7 +1095,7 @@ bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volu
 
 
 			SparseMat AI0 = kernelToSparse<3>(
-				(MGGPU_Kernel3D<3>*)sys1.cpu,
+				(CUDA_Kernel3DD<3>*)sys1.cpu,
 				_levels[0].dim,
 				_levels[1].dim
 				);
@@ -1276,9 +1278,9 @@ template <typename T>
 void blib::MGGPU<T>::profile()
 {
 
-	MGGPU_SystemTopKernel * A = (MGGPU_SystemTopKernel *)_levels[0].A.gpu;
+	CUDA_Stencil_7 * A = (CUDA_Stencil_7 *)_levels[0].A.gpu;
 	
-	MGGPU_MatrixVectorProduct(A, *_y, *_v);
+	LinearSys_MatrixVectorProduct(A, *_y, *_v);
 	
 
 	//Profile Gauss seidel
@@ -1322,9 +1324,9 @@ void blib::MGGPU<T>::reset()
 {
 
 	for (auto lv = 0; lv < numLevels(); lv++) {
-		MGGPU_SetToZero(*_levels[lv].x);
-		MGGPU_SetToZero(*_levels[lv].r);
-		MGGPU_SetToZero(*_levels[lv].tmpx);
+		Volume_SetToZero(*_levels[lv].x);
+		Volume_SetToZero(*_levels[lv].r);
+		Volume_SetToZero(*_levels[lv].tmpx);
 	}
 
 	_iterations = 0;
@@ -1342,22 +1344,21 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 	
 	const std::vector<int> cycle = genCycle(solveParams.cycleType);
 		
-	MGGPU_Residual_TopLevel(
-		make_uint3(_levels[0].dim),
-		(MGGPU_SystemTopKernel *)_levels[0].A.gpu,
+	LinearSys_Residual(		
+		(CUDA_Stencil_7 *)_levels[0].A.gpu,
 		*_levels[0].x,
 		*_levels[0].f,
 		*_levels[0].r
 	);
 
-	double f0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim), *_levels[0].f, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
-	double r0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim),* _levels[0].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);	
+	double f0SqNorm = Volume_SquareNorm(make_uint3(_levels[0].dim), *_levels[0].f, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+	double r0SqNorm = Volume_SquareNorm(make_uint3(_levels[0].dim),* _levels[0].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);	
 	double lastError = sqrt(r0SqNorm / f0SqNorm);
 
 
 	auto err = [&](int i){
-		double fiSqNorm = MGGPU_SquareNorm(make_uint3(_levels[i].dim), *_levels[i].f, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
-		double riSqNorm = MGGPU_SquareNorm(make_uint3(_levels[i].dim), *_levels[i].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+		double fiSqNorm = Volume_SquareNorm(make_uint3(_levels[i].dim), *_levels[i].f, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+		double riSqNorm = Volume_SquareNorm(make_uint3(_levels[i].dim), *_levels[i].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
 		return sqrt(riSqNorm / fiSqNorm);
 	};
 
@@ -1424,7 +1425,7 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 
 				//Zero out x
 				if (i > 0) {
-					MGGPU_SetToZero(*_levels[i].x);
+					Volume_SetToZero(*_levels[i].x);
 				}
 
 
@@ -1440,7 +1441,7 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 				{
 					auto t = CUDATimer(true);
 					MGGPU_SmootherParams sp;
-					sp.A = (MGGPU_KernelPtr)_levels[i].A.gpu;
+					sp.A = (CUDA_KernelPtrD)_levels[i].A.gpu;
 					sp.isTopLevel = (i == 0);
 					sp.f = *_levels[i].f;
 					sp.x = *_levels[i].x;
@@ -1548,7 +1549,7 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 				{
 					auto t = CUDATimer(true);
 					MGGPU_SmootherParams sp;
-					sp.A = (MGGPU_KernelPtr)_levels[i].A.gpu;
+					sp.A = (CUDA_KernelPtrD)_levels[i].A.gpu;
 					sp.isTopLevel = (i == 0);
 					sp.f = *_levels[i].f;
 					sp.x = *_levels[i].x;
@@ -1611,9 +1612,8 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 		
 		_iterations++;
 
-		MGGPU_Residual_TopLevel(
-			make_uint3(_levels[0].dim),
-			(MGGPU_SystemTopKernel *)_levels[0].A.gpu,
+		LinearSys_Residual(
+			(CUDA_Stencil_7 *)_levels[0].A.gpu,
 			*_levels[0].x,
 			*_levels[0].f,
 			*_levels[0].r
@@ -1621,7 +1621,7 @@ T MGGPU<T>::solve(const SolveParams & solveParams) {
 
 
 		auto tresidualEnd = CUDATimer(true);
-		double r0SqNorm = MGGPU_SquareNorm(make_uint3(_levels[0].dim), *_levels[0].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+		double r0SqNorm = Volume_SquareNorm(make_uint3(_levels[0].dim), *_levels[0].r, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
 		double err = sqrt(r0SqNorm / f0SqNorm);
 		profiler.add("residualEnd", tresidualEnd.time());
 		
@@ -1716,7 +1716,7 @@ T blib::MGGPU<T>::tortuosity()
 	const auto & topLevel = _levels[0];
 	const auto dim = topLevel.dim;
 
-	auto & xChannel = _volume->getChannel(topLevel.x->volID);
+	auto & xChannel = _volume->getChannel(topLevel.x->ID);
 	auto & maskChannel = *_mask;
 
 	xChannel.getCurrentPtr().retrieve();
@@ -1887,7 +1887,7 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 	{
 		auto MGmask = toMGGPUVolume(mask, 0);
 		CUDATimer tGenDomain(true);
-		MGGPU_GenerateDomain(*MGmask, _params.d0, _params.d1, *_levels[0].domain);
+		LinearSys_GenerateDomain(*MGmask, _params.d0, _params.d1, *_levels[0].domain);
 		std::cout << "Gen domain " << tGenDomain.time() << "s" << std::endl;
 
 		/*#ifdef SAVE_TO_FILE
@@ -1899,7 +1899,7 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 
 
 	//Send system params to gpu
-	MGGPU_SysParams sysp;
+	LinearSys_SysParams sysp;
 	sysp.highConc = double(1.0);
 	sysp.lowConc = double(0.0);
 	sysp.concetrationBegin = (getDirSgn(params.dir) == 1) ? sysp.highConc : sysp.lowConc;
@@ -1917,7 +1917,8 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 
 	sysp.dir = params.dir;
 
-	if (!commitSysParams(sysp)) {
+	bool commitRes = MGGPU_commitSysParams(sysp) && LinearSys_commitSysParams(sysp);
+	if (!commitRes) {
 		return false;
 	}
 
@@ -1980,9 +1981,9 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 	{
 		auto & sysTop = _levels[0].A;
 		std::cout << "Alloc A0" << std::endl;
-		sysTop.allocDevice(_levels[0].N(), sizeof(MGGPU_SystemTopKernel));
+		sysTop.allocDevice(_levels[0].N(), sizeof(CUDA_Stencil_7));
 		CUDATimer t(true);
-		MGGPU_GenerateSystemTopKernel(*_levels[0].domain, (MGGPU_SystemTopKernel*)sysTop.gpu, *_levels[0].f, &(*_x));
+		LinearSys_GenerateSystem(*_levels[0].domain, (CUDA_Stencil_7*)sysTop.gpu, *_levels[0].f, &(*_x));
 		std::cout << "Gen A0: " << t.time() << "s" << std::endl;
 	}
 
@@ -1992,7 +1993,7 @@ bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume
 
 	//Preinverted A0 diagonal
 	{
-		MGGPU_InvertA0DiagTo((MGGPU_SystemTopKernel*)_levels[0].A.gpu, *_ainvert);	
+		LinearSys_InvertSystemDiagTo((CUDA_Stencil_7*)_levels[0].A.gpu, *_ainvert);
 	}
 
 
@@ -2009,16 +2010,16 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 	
 #ifdef EIGEN_COPY
 	const uint3 res = _x->res;
-	auto SqNorm = [&](MGGPU_Volume & vol) {
-		return MGGPU_SquareNorm(res, vol, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+	auto SqNorm = [&](CUDA_Volume & vol) {
+		return Volume_SquareNorm(res, vol, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
 	};
-	auto DotProduct = [&](MGGPU_Volume & vol0, MGGPU_Volume & vol1) {
+	auto DotProduct = [&](CUDA_Volume & vol0, CUDA_Volume & vol1) {
 		double result;
-		launchDotProductKernel(TYPE_DOUBLE, res, vol0.surf, vol1.surf, _temp->surf, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu, &result);
+		Volume_DotProduct(vol0, vol1, *_temp, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu, &result);
 		return result;
 	};
 
-	MGGPU_SystemTopKernel * A = (MGGPU_SystemTopKernel *)_levels[0].A.gpu;
+	CUDA_Stencil_7 * A = (CUDA_Stencil_7 *)_levels[0].A.gpu;
 
 	auto & r = _r;
 	auto & r0 = _rhat0;
@@ -2038,7 +2039,7 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 
 	
 	//1. Residual r
-	MGGPU_Residual_TopLevel(res, A, *x, *rhs, *r);
+	LinearSys_Residual(A, *x, *rhs, *r);
 
 	//2. Choose rhat0 ..
 	launchCopyKernel(TYPE_DOUBLE, res, r->surf, r0->surf);
@@ -2100,7 +2101,7 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 			// The new residual vector became too orthogonal to the arbitrarily chosen direction r0
 			// Let's restart with a new r0:
 			
-			CUDA_TIMER(MGGPU_Residual_TopLevel(res, A, *x, *rhs, *r), "residual", profiler); //r = rhs - mat * x;
+			CUDA_TIMER(LinearSys_Residual(A, *x, *rhs, *r), "residual", profiler); //r = rhs - mat * x;
 			
 			
 			
@@ -2127,7 +2128,7 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 			
 			if(verbose) std::cout << "\t" << " ysq: " << SqNorm(*y) << std::endl;
 
-			CUDA_TIMER(MGGPU_MatrixVectorProduct(A, *y, *v),"matvec",profiler);
+			CUDA_TIMER(LinearSys_MatrixVectorProduct(A, *y, *v),"matvec",profiler);
 			
 
 			if(verbose) std::cout << "\t" << " vsq: " << SqNorm(*v) << std::endl;
@@ -2159,7 +2160,7 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 			if(verbose) std::cout << "\t" << " zsq: " << SqNorm(*z) << std::endl;
 
 			
-			CUDA_TIMER(MGGPU_MatrixVectorProduct(A, *z, *t),"matvec",profiler);
+			CUDA_TIMER(LinearSys_MatrixVectorProduct(A, *z, *t),"matvec",profiler);
 			
 
 			if(verbose) std::cout << "\t" << " tsq: " << SqNorm(*t) << std::endl;
@@ -2224,18 +2225,18 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 #else
 
 	///test bigstab
-	MGGPU_SystemTopKernel * A = (MGGPU_SystemTopKernel *)_levels[0].A.gpu;
-	MGGPU_Volume & b = _levels[0].f;
+	CUDA_Stencil_7 * A = (CUDA_Stencil_7 *)_levels[0].A.gpu;
+	CUDA_Volume & b = _levels[0].f;
 
 	uint3 res = _x.res;
 
-	auto SqNorm = [&](MGGPU_Volume & vol){		
-		return MGGPU_SquareNorm(res, vol, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
+	auto SqNorm = [&](CUDA_Volume & vol){		
+		return Volume_SquareNorm(res, vol, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
 	};
 
-	auto DotProduct = [&](MGGPU_Volume & vol0, MGGPU_Volume & vol1) {
+	auto DotProduct = [&](CUDA_Volume & vol0, CUDA_Volume & vol1) {
 		double result;
-		launchDotProductKernel(TYPE_DOUBLE, res, vol0.surf, vol1.surf, _temp.surf, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu, &result);
+		Volume_DotProduct(TYPE_DOUBLE, res, vol0.surf, vol1.surf, _temp.surf, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu, &result);
 		return result;
 	};
 
@@ -2251,7 +2252,7 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 
 
 	//1. Residual r
-	MGGPU_Residual_TopLevel(res, A, _x, b, _r);
+	LinearSys_Residual(res, A, _x, b, _r);
 
 	//2. Choose rhat0
 	launchCopyKernel(TYPE_DOUBLE, res, _r.surf, _rhat0.surf);
@@ -2281,7 +2282,7 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 		launchAPlusBetaBGammaPlusC(TYPE_DOUBLE, res, _p.surf, _v.surf, _r.surf, -_omega, _beta);
 
 		//4. v = Ap
-		MGGPU_MatrixVectorProduct(A, _p, _v);
+		LinearSys_MatrixVectorProduct(A, _p, _v);
 
 		//5. alpha = rho/dot(r0hat, v)
 		_alpha = _rho / DotProduct(_rhat0, _v);
@@ -2291,7 +2292,7 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 
 		//7. Check
 		{
-			MGGPU_Residual_TopLevel(res, A, _h, b, _temp);
+			LinearSys_Residual(res, A, _h, b, _temp);
 			double rSqNorm = SqNorm(_temp);
 			double err = sqrt(rSqNorm / bSqNorm);
 			std::cout << "h error " << err << std::endl;
@@ -2307,7 +2308,7 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 		launchAddAPlusBetaB(TYPE_DOUBLE, res, _r.surf, _v.surf, _s.surf, _alpha);
 
 		//9. As = t
-		MGGPU_MatrixVectorProduct(A, _s, _t);
+		LinearSys_MatrixVectorProduct(A, _s, _t);
 
 		//10. omega = (t,s)/(t,t)		
 		double tNorm = SqNorm(_t);
@@ -2318,7 +2319,7 @@ T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
 
 		// 12. check
 		{
-			MGGPU_Residual_TopLevel(res, A, _x, b, _temp);
+			LinearSys_Residual(res, A, _x, b, _temp);
 			double rSqNorm = SqNorm(_temp);
 			double err = sqrt(rSqNorm / bSqNorm);
 			std::cout << "x error " << err << std::endl;

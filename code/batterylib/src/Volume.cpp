@@ -7,6 +7,8 @@
 #include <thrust/reduce.h>
 #include <thrust/device_vector.h>
 
+#include "../src/cuda/VolumeTypes.cuh"
+
 using namespace blib;
 
 bool glewInited = false;
@@ -59,7 +61,9 @@ const Texture3DPtr & blib::VolumeChannel::getNextPtr() const
 	return _ptr[(_current + 1) % 2];
 }
 
- void blib::VolumeChannel::resize(ivec3 origin, ivec3 newDim)
+
+
+void blib::VolumeChannel::resize(ivec3 origin, ivec3 newDim)
 {
 	 
 	 const ivec3 end = origin + newDim;
@@ -284,6 +288,29 @@ blib::Volume::Volume()
 	
 }
 
+std::shared_ptr<CUDA_Volume> blib::Volume::getCUDAVolume(int ID) const
+{
+	auto v = std::make_shared<CUDA_Volume>();
+	auto &c = getChannel(ID);
+	v->ID = ID;
+	v->surf = c.getCurrentPtr().getSurface();
+	v->res = make_uint3(c.dim().x, c.dim().y, c.dim().z);
+	v->type = c.type();
+	v->cpu = nullptr;
+	return v;
+}
+
+std::shared_ptr<CUDA_Volume> blib::Volume::getCUDAVolume(int ID)
+{
+	auto v = std::make_shared<CUDA_Volume>();
+	auto &c = getChannel(ID);
+	v->ID = ID;
+	v->surf = c.getCurrentPtr().getSurface();
+	v->res = make_uint3(c.dim().x, c.dim().y, c.dim().z);
+	v->type = c.type();
+	v->cpu = c.getCurrentPtr().getCPU();
+	return v;
+}
 
 uint blib::Volume::addChannel(ivec3 dim, PrimitiveType type, bool doubleBuffered, const std::string & name)
 {

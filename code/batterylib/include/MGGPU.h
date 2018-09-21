@@ -9,7 +9,7 @@
 #include <Eigen/Eigen>
 
 //Forward declare cuda type holding the volume
-struct MGGPU_Volume; //TODO move to blib namespace
+struct CUDA_Volume; //TODO move to blib namespace
 
 
 namespace blib {
@@ -104,9 +104,9 @@ namespace blib {
 		std::vector<int> genCycle(CycleType ctype) const;
 
 
-		bool saveVolume(MGGPU_Volume & v, const std::string & name, int level);
-		void commitVolume(MGGPU_Volume & v);
-		void retrieveVolume(MGGPU_Volume & v);
+		bool saveVolume(CUDA_Volume & v, const std::string & name, int level);
+		void commitVolume(CUDA_Volume & v);
+		void retrieveVolume(CUDA_Volume & v);
 		
 
 		PrepareParams _params;
@@ -119,11 +119,11 @@ namespace blib {
 		struct Level {			
 			ivec3 dim;
 			 
-			std::shared_ptr<MGGPU_Volume> domain;
-			std::shared_ptr<MGGPU_Volume> x;
-			std::shared_ptr<MGGPU_Volume> tmpx;
-			std::shared_ptr<MGGPU_Volume> r;
-			std::shared_ptr<MGGPU_Volume> f;
+			std::shared_ptr<CUDA_Volume> domain;
+			std::shared_ptr<CUDA_Volume> x;
+			std::shared_ptr<CUDA_Volume> tmpx;
+			std::shared_ptr<CUDA_Volume> r;
+			std::shared_ptr<CUDA_Volume> f;
 
 			DataPtr A;
 			DataPtr I;
@@ -151,10 +151,10 @@ namespace blib {
 
 
 		//BICGStab
-		std::shared_ptr<MGGPU_Volume> _temp;
-		std::shared_ptr<MGGPU_Volume> _x;
-		std::shared_ptr<MGGPU_Volume> _rhat0;
-		std::shared_ptr<MGGPU_Volume> _r, _p, _v, _h, _s, _t, _y,_z,_kt,_ks,_ainvert;
+		std::shared_ptr<CUDA_Volume> _temp;
+		std::shared_ptr<CUDA_Volume> _x;
+		std::shared_ptr<CUDA_Volume> _rhat0;
+		std::shared_ptr<CUDA_Volume> _r, _p, _v, _h, _s, _t, _y,_z,_kt,_ks,_ainvert;
 		double _rho, _alpha, _omega, _beta;
 	};
 

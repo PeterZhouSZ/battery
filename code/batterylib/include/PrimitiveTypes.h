@@ -14,7 +14,26 @@ enum PrimitiveType {
 	TYPE_FLOAT3,
 	TYPE_FLOAT4,	
 	TYPE_DOUBLE,
+	TYPE_UNKNOWN
 };
+
+template<typename T>
+PrimitiveType primitiveTypeof() {
+	if (std::is_same<T, float>::value) 
+		return TYPE_FLOAT;	
+	else if (std::is_same<T, double>::value)
+		return TYPE_DOUBLE;
+	else if (std::is_same<T, uchar>::value)
+		return TYPE_UCHAR;
+	else if (std::is_same<T, int>::value)
+		return TYPE_INT;
+	/*else if (std::is_same<T, float3>::value)
+		return TYPE_FLOAT3;
+	else if (std::is_same<T, float4>::value)
+		return TYPE_FLOAT4;*/
+	
+	return TYPE_UNKNOWN;
+}
 
 inline uint primitiveSizeof(PrimitiveType type) {
 	switch (type) {

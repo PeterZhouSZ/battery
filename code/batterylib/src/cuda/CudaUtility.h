@@ -93,7 +93,11 @@ namespace blib {
 		cudaEvent_t _stopEvent;
 	};
 
-	//todo performance:
-	//https://devblogs.nvidia.com/how-implement-performance-metrics-cuda-cc/
 	
+
+
+#define CUDA_TIMER(expr,name,prof)		\
+	{CUDATimer _localTimer(true); expr; prof.add(name, _localTimer.time());} \
+
+
 }

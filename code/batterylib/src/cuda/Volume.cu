@@ -1,5 +1,7 @@
 #include "Volume.cuh"
+
 #include <stdio.h>
+#include <assert.h>
 
 
 	
@@ -1074,18 +1076,18 @@ void launchMultiplyKernel(PrimitiveType type, uint3 res, cudaSurfaceObject_t A, 
 }
 
 
-void launchDotProductKernel(
-	PrimitiveType type,
-	uint3 res,
-	cudaSurfaceObject_t A,
-	cudaSurfaceObject_t B,
-	cudaSurfaceObject_t C, //holds temporary product, TODO: direct reduction
+void Volume_DotProduct(
+	CUDA_Volume A, 
+	CUDA_Volume B,
+	CUDA_Volume C,
 	void * auxBufferGPU,
 	void * auxBufferCPU,
-	void * result
+	void * result	
 ) {
-	launchMultiplyKernel(type, res, A, B, C);
-	launchReduceKernel(type, REDUCE_OP_SUM, res, C, auxBufferGPU, auxBufferCPU, result);
+	assert(A.res.x == B.res.x && A.res.y == B.res.y && A.res.z == B.res.z && A.type == B.type);
+	assert(A.res.x == C.res.x && A.res.y == C.res.y && A.res.z == C.res.z && A.type == C.type);
+	launchMultiplyKernel(A.type, A.res, A.surf, B.surf, C.surf);
+	launchReduceKernel(C.type, REDUCE_OP_SUM, C.res, C.surf, auxBufferGPU, auxBufferCPU, result);
 }
 
 
@@ -1181,4 +1183,36 @@ void launchABC_BetaGamma(
 	}
 	else if (type == TYPE_DOUBLE)
 		___ABCBetaGamma<double> << < numBlocks, block >> >(res, A, B, C, beta, gamma);
+}
+
+
+
+double Volume_SquareNorm(
+	const uint3 res,
+	CUDA_Volume & x,
+	void * auxGPU,
+	void * auxCPU
+) {
+
+	double result = 0.0;
+
+	launchReduceKernel(
+		TYPE_DOUBLE,
+		REDUCE_OP_SQUARESUM,
+		res,
+		x.surf,
+		auxGPU,
+		auxCPU,
+		&result
+	);
+
+	return result;
+
+}
+
+void Volume_SetToZero(
+	CUDA_Volume & x
+) {
+	double val = 0.0;
+	launchClearKernel(TYPE_DOUBLE, x.surf, x.res, &val);
 }

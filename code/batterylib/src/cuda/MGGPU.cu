@@ -1,6 +1,8 @@
 #include "MGGPU.cuh"
 #include <stdio.h>
 
+
+
 #define MAX_CONST_KERNEL_DIM 7
 
 struct KernelCombineParams {
@@ -10,36 +12,36 @@ struct KernelCombineParams {
 	uint3 resBcol;
 	uint3 resCrow;
 	uint3 resCcol;
-	MGGPU_KernelPtr A,B,C;	
+	CUDA_KernelPtrD A,B,C;	
 	int Adim, Bdim, Cdim;	
 	int Aratio, Bratio, Cratio;
 	int AdimHalf, BdimHalf, CdimHalf;
 
-	MGGPU_Volume domain;
+	CUDA_Volume domain;
 };
 
 
 __device__ __constant__ double const_kernel[MAX_CONST_KERNEL_DIM * MAX_CONST_KERNEL_DIM * MAX_CONST_KERNEL_DIM];
 __device__ __constant__ int const_kernel_dim;
 
-__device__ __constant__ MGGPU_SysParams const_sys_params;
-MGGPU_SysParams const_sys_params_cpu;
+__device__ __constant__ LinearSys_SysParams mggpu_const_sys_params;
+LinearSys_SysParams mggpu_const_sys_params_cpu;
 
 __device__ __constant__ KernelCombineParams const_kernel_combine_params;
 
 
 
 
-bool commitSysParams(const MGGPU_SysParams & sysparams) {
+bool MGGPU_commitSysParams(const LinearSys_SysParams & sysparams) {
 	cudaError_t res = cudaMemcpyToSymbol(
-		const_sys_params, 
+		mggpu_const_sys_params, 
 		&sysparams, 
-		sizeof(MGGPU_SysParams),
+		sizeof(LinearSys_SysParams),
 		0,
 		cudaMemcpyHostToDevice
 	);
 
-	const_sys_params_cpu = sysparams;
+	mggpu_const_sys_params_cpu = sysparams;
 
 	return res == cudaSuccess;
 }
@@ -61,53 +63,21 @@ bool commitKernelCombineParams(const KernelCombineParams & p) {
 
 ////////////////////////////////////////////// Generate domain
 
-__global__ void ___generateDomain(
-	const MGGPU_Volume binaryMask,
-	double value_zero,
-	double value_one,
-	MGGPU_Volume output
-) {
-	VOLUME_VOX_GUARD(output.res);	
-
-	//Read mask
-	uchar c = read<uchar>(binaryMask.surf, vox);		
-
-	//Write value
-	write<double>(output.surf, vox, (c > 0) ? value_one : value_zero);
-}
-
-
-
-void MGGPU_GenerateDomain(
-	const MGGPU_Volume & binaryMask,
-	double value_zero,
-	double value_one,
-	MGGPU_Volume & output
-) {
-
-	BLOCKS3D(2, output.res);	
-	___generateDomain<< < numBlocks, block >> > (
-		binaryMask,
-		value_zero, 
-		value_one, 
-		output
-	);
-}
 
 ////////////////////////////////////////////// Convolve
 
 
 //Kernel for 3D convolution by 2^3 kernel with stride 2 and border
 __global__ void ___convolve3D_2_2(
-	const MGGPU_Volume in,	
-	const MGGPU_Volume out
+	const CUDA_Volume in,	
+	const CUDA_Volume out
 ){
 	//todo shared mem
 	VOLUME_VOX_GUARD(out.res);
 
 	double sum = 0.0;
 
-	MGGPU_Kernel3D<2> & k = *((MGGPU_Kernel3D<2>*)const_kernel);
+	CUDA_Kernel3DD<2> & k = *((CUDA_Kernel3DD<2>*)const_kernel);
 		
 	int3 s = make_int3(1, 1, 1); //stride
 	const uint3 voxSrc = vox * 2;
@@ -133,9 +103,9 @@ __global__ void ___convolve3D_2_2(
 
 
 void MGGPU_Convolve(
-	const MGGPU_Volume & in,
-	MGGPU_KernelPtr kernel, int kn,
-	const MGGPU_Volume & out
+	const CUDA_Volume & in,
+	CUDA_KernelPtrD kernel, int kn,
+	const CUDA_Volume & out
 ) {
 
 	cudaError_t res0 = cudaMemcpyToSymbol(const_kernel, kernel, sizeof(double) * kn * kn * kn, 0, cudaMemcpyHostToDevice);
@@ -163,179 +133,13 @@ void MGGPU_Convolve(
 	Kernel generation
 */
 
-
-////////////////////////////////////////////// Top level system kernel
-
-// Lin.sys at top level
-template <typename T>
-__device__ void MGGPU_GetSystemTopKernel(
-	const MGGPU_Volume & domain,
-	const uint3 & vox,
-	MGGPU_SystemTopKernel * out,
-	T * f = nullptr,
-	T * x = nullptr
-) {
-	
-	T Di = read<T>(domain.surf, vox);
-
-	T Dneg[3] = {
-		(read<T>(domain.surf, clampedVox(domain.res, vox, X_NEG)) + Di) * T(0.5),
-		(read<T>(domain.surf, clampedVox(domain.res, vox, Y_NEG)) + Di) * T(0.5),
-		(read<T>(domain.surf, clampedVox(domain.res, vox, Z_NEG)) + Di) * T(0.5)
-	};
-	T Dpos[3] = {
-		(read<T>(domain.surf, clampedVox(domain.res, vox, X_POS)) + Di) * T(0.5),
-		(read<T>(domain.surf, clampedVox(domain.res, vox, Y_POS)) + Di) * T(0.5),
-		(read<T>(domain.surf, clampedVox(domain.res, vox, Z_POS)) + Di) * T(0.5)
-	};
-	
-
-	T coeffs[7];	
-	bool useInMatrix[7];
-
-	coeffs[DIR_NONE] = T(0);
-	useInMatrix[DIR_NONE] = true;
-
-	for (uint j = 0; j < DIR_NONE; j++) {
-		const uint k = _getDirIndex(Dir(j));
-		const int sgn = _getDirSgn(Dir(j));
-		const T Dface = (sgn == -1) ? Dneg[k] : Dpos[k];
-
-		T cellDist[3] = { const_sys_params.cellDim[0],const_sys_params.cellDim[1],const_sys_params.cellDim[2] };
-		useInMatrix[j] = true;
-
-		if ((_at<uint>(vox, k) == 0 && sgn == -1) ||
-			(_at<uint>(vox, k) == _at<uint>(domain.res, k) - 1 && sgn == 1)
-			) {
-			cellDist[k] = const_sys_params.cellDim[k] * T(0.5);
-			useInMatrix[j] = false;
-		}
-
-		coeffs[j] = (Dface * const_sys_params.faceArea[k]) / cellDist[k];
-
-		//Subtract from diagonal
-		if (useInMatrix[j] || k == const_sys_params.dirPrimary)
-			coeffs[DIR_NONE] -= coeffs[j];
-	}
-
-
-	/*
-		Calculate right hand side
-	*/
-	const uint primaryRes = ((uint*)&domain.res)[const_sys_params.dirPrimary];
-	T rhs = T(0);
-	if (_at<uint>(vox, const_sys_params.dirPrimary) == 0) {
-		Dir dir = _getDir(const_sys_params.dirPrimary, -1);
-		rhs -= coeffs[dir] * const_sys_params.concetrationBegin;
-	}
-	else if (_at<uint>(vox, const_sys_params.dirPrimary) == primaryRes - 1) {
-		Dir dir = _getDir(const_sys_params.dirPrimary, 1);
-		rhs -= coeffs[dir] * const_sys_params.concetrationEnd;
-	}
-
-	*f = rhs;
-
-	/*
-		Initial guess
-	*/
-	uint primaryVox = _at<uint>(vox, const_sys_params.dirPrimary);
-	if (_getDirSgn(const_sys_params.dir) == 1)
-		*x = 1.0f - (primaryVox / T(primaryRes + 1));
-	else
-		*x = (primaryVox / T(primaryRes + 1));
-
-		
-
-	#pragma unroll
-	for (uint j = 0; j < DIR_NONE; j++) {
-		if (!useInMatrix[j])
-			coeffs[j] = T(0);
-	}
-	
-	#pragma unroll
-	for (uint i = 0; i < 7; i++) {
-		out->v[i] = coeffs[i];
-	}
-
-	
-
-	
-}
-
-
-
-
-
-void __global__ ___systemTopKernel(
-	MGGPU_Volume domain,
-	MGGPU_SystemTopKernel * A0,
-	MGGPU_Volume f
-){
-	VOLUME_VOX_GUARD(domain.res);
-
-	size_t i = _linearIndex(domain.res, vox);
-
-	double fval = 0.0;
-	double xval = 0.0;
-	MGGPU_GetSystemTopKernel<double>(domain, vox, &A0[i], &fval, &xval);	
-	write<double>(f.surf, vox, fval);
-
-}
-
-void __global__ ___systemTopKernelWithGuess(
-	MGGPU_Volume domain,
-	MGGPU_SystemTopKernel * A0,
-	MGGPU_Volume f,
-	MGGPU_Volume x
-) {
-	VOLUME_VOX_GUARD(domain.res);
-
-	size_t i = _linearIndex(domain.res, vox);
-
-	double fval = 0.0;
-	double xval = 0.0;
-	MGGPU_GetSystemTopKernel<double>(domain, vox, &A0[i], &fval, &xval);
-	write<double>(f.surf, vox, fval);
-	write<double>(x.surf, vox, xval);
-
-}
-
-void MGGPU_GenerateSystemTopKernel(
-	const MGGPU_Volume & domain,
-	MGGPU_SystemTopKernel * A0,
-	MGGPU_Volume & f,
-	MGGPU_Volume * x
-) {
-
-	BLOCKS3D(2, domain.res);
-	if (x == nullptr) {
-		___systemTopKernel << < numBlocks, block >> > (
-			domain,
-			A0,
-			f
-			);
-	}
-	else {
-		___systemTopKernelWithGuess << < numBlocks, block >> > (
-			domain,
-			A0,
-			f,
-			*x
-			);
-	}
-	
-
-
-}
-
-
 ////////////////////////////////////////////// Interpolation kernel
 
 
 
 
 __device__ __host__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
-	const MGGPU_Volume & domainSrc,
+	const CUDA_Volume & domainSrc,
 	const int3 & vox, //vox in destination
 	const uint3 & destRes, //should be exactly double (if power of 2) of domain.res
 	int dirIndex
@@ -489,7 +293,7 @@ __device__ __host__  MGGPU_InterpKernel MGGPU_GetInterpolationKernel(
 
 __global__ void ___genI(
 	const uint3 destRes,
-	const MGGPU_Volume domainHalf,	
+	const CUDA_Volume domainHalf,	
 	MGGPU_InterpKernel * I
 ) {
 
@@ -497,7 +301,7 @@ __global__ void ___genI(
 	size_t i = _linearIndex(destRes, vox);
 
 	const int3 ivox = make_int3(vox);
-	I[i] = MGGPU_GetInterpolationKernel(domainHalf, ivox, destRes, const_sys_params.dirPrimary);
+	I[i] = MGGPU_GetInterpolationKernel(domainHalf, ivox, destRes, mggpu_const_sys_params.dirPrimary);
 
 
 }
@@ -505,7 +309,7 @@ __global__ void ___genI(
 
 void MGGPU_GenerateSystemInterpKernels(
 	const uint3 & destRes, 
-	const MGGPU_Volume & domainHalf,
+	const CUDA_Volume & domainHalf,
 	MGGPU_InterpKernel * I
 ) {
 
@@ -522,8 +326,8 @@ void MGGPU_GenerateSystemInterpKernels(
 __global__ void ___genITranpose(
 	const uint3 Nres,
 	const uint3 Nhalfres,
-	const MGGPU_Volume domainHalf,
-	MGGPU_Kernel3D<4> * output
+	const CUDA_Volume domainHalf,
+	CUDA_Kernel3DD<4> * output
 ){
 
 		 
@@ -532,7 +336,7 @@ __global__ void ___genITranpose(
 	int3 ivoxhalf = make_int3(vox.x / 2, vox.y / 2, vox.z / 2);
 
 	//Get kernel interpolating to ivox from Nhalfres
-	MGGPU_InterpKernel kernel = MGGPU_GetInterpolationKernel(domainHalf, ivox, Nres, const_sys_params.dirPrimary);
+	MGGPU_InterpKernel kernel = MGGPU_GetInterpolationKernel(domainHalf, ivox, Nres, mggpu_const_sys_params.dirPrimary);
 
 	//Scatter kernel
 	for (int i = 0; i < 3; i++) {
@@ -607,14 +411,14 @@ __device__ __host__ void combineKernelsAt(
 		memcpy(kernelAStore, p.A + Asize * Arow, Asize * sizeof(double));
 	}
 	else if (combineType == A_IS_TOPLEVEL) {
-		memcpy(kernelAStore, ((char*)p.A) + sizeof(MGGPU_SystemTopKernel) * Arow, sizeof(MGGPU_SystemTopKernel));
+		memcpy(kernelAStore, ((char*)p.A) + sizeof(CUDA_Stencil_7) * Arow, sizeof(CUDA_Stencil_7));
 	}
 	else if (combineType == A_IS_RESTRICTION) {		
-		MGGPU_GetRestrictionKernel(make_uint3(ivox), p.resArow, const_sys_params.dirPrimary, kernelAStore);
+		MGGPU_GetRestrictionKernel(make_uint3(ivox), p.resArow, mggpu_const_sys_params.dirPrimary, kernelAStore);
 	}
 
-	const MGGPU_KernelPtr kernelA = kernelAStore;
-	const MGGPU_KernelPtr kernelC = p.C + Csize * Crow;
+	const CUDA_KernelPtrD kernelA = kernelAStore;
+	const CUDA_KernelPtrD kernelC = p.C + Csize * Crow;
 
 	//Columns of C				
 	for (int ck = -p.CdimHalf; ck < p.Cdim - p.CdimHalf; ck++) {
@@ -659,7 +463,7 @@ __device__ __host__ void combineKernelsAt(
 								];
 
 
-								MGGPU_KernelPtr kernelB = p.B + Bsize * iDot;
+								CUDA_KernelPtrD kernelB = p.B + Bsize * iDot;
 								int3 BkernelOffset = ivoxBcol - make_int3(ivoxDot.x / p.Bratio, ivoxDot.y / p.Bratio, ivoxDot.z / p.Bratio);
 								int bi = BkernelOffset.x + p.BdimHalf;
 								int bj = BkernelOffset.y + p.BdimHalf;
@@ -692,12 +496,12 @@ __device__ __host__ void combineKernelsAt(
 
 						double valA = kernelA[dir];						
 #ifdef __CUDA_ARCH__
-						MGGPU_InterpKernel kernelInterp = MGGPU_GetInterpolationKernel(p.domain, ivoxDot, p.resBrow, const_sys_params.dirPrimary);
+						MGGPU_InterpKernel kernelInterp = MGGPU_GetInterpolationKernel(p.domain, ivoxDot, p.resBrow, mggpu_const_sys_params.dirPrimary);
 #else
 						//TODO?
 						MGGPU_InterpKernel kernelInterp;
 #endif
-						MGGPU_KernelPtr kernelB = MGGPU_KernelPtr(&kernelInterp);
+						CUDA_KernelPtrD kernelB = CUDA_KernelPtrD(&kernelInterp);
 
 						
 
@@ -767,12 +571,12 @@ bool MGGPU_CombineKernelsTopLevel(
 	const uint3 resA,
 	const uint3 resBrow,
 	const uint3 resBcol,
-	const MGGPU_KernelPtr A,
-	const MGGPU_KernelPtr B,
+	const CUDA_KernelPtrD A,
+	const CUDA_KernelPtrD B,
 	const int Bdim, 
-	MGGPU_KernelPtr C,
+	CUDA_KernelPtrD C,
 	const int Cdim,
-	MGGPU_Volume interpDomain,
+	CUDA_Volume interpDomain,
 	bool onDevice
 ){
 
@@ -810,7 +614,7 @@ bool MGGPU_CombineKernelsTopLevel(
 	p.domain = interpDomain;
 
 	const CombineType combineType = A_IS_TOPLEVEL;
-	const size_t allocA = sizeof(MGGPU_SystemTopKernel) / sizeof(double);
+	const size_t allocA = sizeof(CUDA_Stencil_7) / sizeof(double);
 
 	if (onDevice) {
 		commitKernelCombineParams(p);
@@ -839,9 +643,9 @@ bool MGGPU_CombineKernelsRestrict(
 	const uint3 resAcol,
 	const uint3 resBrow,
 	const uint3 resBcol,	
-	const MGGPU_KernelPtr B,
+	const CUDA_KernelPtrD B,
 	const int Bdim,
-	MGGPU_KernelPtr C,
+	CUDA_KernelPtrD C,
 	bool onDevice
 ) {
 
@@ -909,11 +713,11 @@ bool MGGPU_CombineKernelsGeneric(
 	const uint3 resAcol,	
 	const uint3 resBrow,
 	const uint3 resBcol,	
-	const MGGPU_KernelPtr A,
+	const CUDA_KernelPtrD A,
 	const int Adim,
-	const MGGPU_KernelPtr B,
+	const CUDA_KernelPtrD B,
 	const int Bdim, // in resBcol
-	MGGPU_KernelPtr C,
+	CUDA_KernelPtrD C,
 	const int Cdim,
 	bool onDevice
 ) {
@@ -996,9 +800,9 @@ __device__ __host__ void buildA1At(
 	int3 & ivox,
 	const uint3 & resA0,
 	const uint3 & resA1,
-	const MGGPU_SystemTopKernel * A0,
+	const CUDA_Stencil_7 * A0,
 	const MGGPU_InterpKernel * I,
-	MGGPU_Kernel3D<5> * A1,
+	CUDA_Kernel3DD<5> * A1,
 	int dirPrimary	
 ) {
 
@@ -1010,7 +814,7 @@ __device__ __host__ void buildA1At(
 
 
 	//Temporary result of R*A at row(ivox)
-	MGGPU_Kernel3D<RA0_SIZE> RA;
+	CUDA_Kernel3DD<RA0_SIZE> RA;
 	
 	UNROLL_GENA1	
 	for (auto rax = 0; rax < RA0_SIZE; rax++) {	
@@ -1042,7 +846,7 @@ __device__ __host__ void buildA1At(
 
 							//Top level
 							{
-								const MGGPU_SystemTopKernel & A = A0[NspaceIndex];
+								const CUDA_Stencil_7 & A = A0[NspaceIndex];
 								int3 Aoffset = voxRA - rvox;								
 								double aval = MGGPU_GetTopLevelValue(A, Aoffset);							
 								sum += aval*rval;
@@ -1061,7 +865,7 @@ __device__ __host__ void buildA1At(
 	
 	
 	size_t a1index = _linearIndex(resA1, ivox);
-	MGGPU_Kernel3D<A1_SIZE> & a1 = A1[a1index];
+	CUDA_Kernel3DD<A1_SIZE> & a1 = A1[a1index];
 
 	
 	
@@ -1128,9 +932,9 @@ __device__ __host__ void buildAiAt(
 	int3 & ivox,
 	const uint3 & resAprev,
 	const uint3 & resAnext,
-	const MGGPU_Kernel3D<Ai_SIZE> * Aprev,
+	const CUDA_Kernel3DD<Ai_SIZE> * Aprev,
 	const MGGPU_InterpKernel * I,
-	MGGPU_Kernel3D<Ai_SIZE> * Anext,
+	CUDA_Kernel3DD<Ai_SIZE> * Anext,
 	int dirPrimary
 ) {
 
@@ -1143,7 +947,7 @@ __device__ __host__ void buildAiAt(
 
 
 	//Temporary result of R*A at row(ivox)
-	MGGPU_Kernel3D<RAi_SIZE> RA; //At A1->A2, 58% occupancy for 16^3
+	CUDA_Kernel3DD<RAi_SIZE> RA; //At A1->A2, 58% occupancy for 16^3
 
 	UNROLL_GENA1
 		for (auto rax = 0; rax < RAi_SIZE; rax++) {
@@ -1175,7 +979,7 @@ __device__ __host__ void buildAiAt(
 										size_t NspaceIndex = _linearIndex(resAprev, rvox);
 										
 										{
-											const MGGPU_Kernel3D<Ai_SIZE> & A = Aprev[NspaceIndex];
+											const CUDA_Kernel3DD<Ai_SIZE> & A = Aprev[NspaceIndex];
 											int3 Aoffset = voxRA - rvox + make_int3(Ai_HALF);
 											
 											if (!_isValidPos(make_uint3(Ai_SIZE), Aoffset)) {
@@ -1202,7 +1006,7 @@ __device__ __host__ void buildAiAt(
 
 
 	size_t a1index = _linearIndex(resAnext, ivox);
-	MGGPU_Kernel3D<Ai_SIZE> & aNext = Anext[a1index];
+	CUDA_Kernel3DD<Ai_SIZE> & aNext = Anext[a1index];
 
 
 	for (auto xa1 = 0; xa1 < Ai_SIZE; xa1++) {	
@@ -1272,9 +1076,9 @@ __device__ __host__ void buildAiAt(
 __global__ void __buildA1(
 	const uint3 resA0,
 	const uint3 resA1,
-	const MGGPU_SystemTopKernel * A0,
+	const CUDA_Stencil_7 * A0,
 	const MGGPU_InterpKernel * I,
-	MGGPU_Kernel3D<5> * A1)
+	CUDA_Kernel3DD<5> * A1)
 {
 
 	//Get voxel position
@@ -1288,16 +1092,16 @@ __global__ void __buildA1(
 		A0,
 		I,
 		A1,
-		const_sys_params.dirPrimary
+		mggpu_const_sys_params.dirPrimary
 	);	
 }
 
 __global__ void __buildAi(
 	const uint3 resAprev,
 	const uint3 resAnext,
-	const MGGPU_Kernel3D<Ai_SIZE> * Aprev,
+	const CUDA_Kernel3DD<Ai_SIZE> * Aprev,
 	const MGGPU_InterpKernel * I,
-	MGGPU_Kernel3D<Ai_SIZE> * Anext)
+	CUDA_Kernel3DD<Ai_SIZE> * Anext)
 {
 
 	//Get voxel position
@@ -1311,15 +1115,15 @@ __global__ void __buildAi(
 		Aprev,
 		I,
 		Anext,
-		const_sys_params.dirPrimary
+		mggpu_const_sys_params.dirPrimary
 	);
 }
 
 bool MGGPU_BuildA1(
 	const uint3 resA,
-	const MGGPU_SystemTopKernel * A0,
+	const CUDA_Stencil_7 * A0,
 	const MGGPU_InterpKernel * I,
-	MGGPU_Kernel3D<5> * A1,
+	CUDA_Kernel3DD<5> * A1,
 	bool onDevice
 ) {
 
@@ -1347,7 +1151,7 @@ bool MGGPU_BuildA1(
 						A0,
 						I,
 						A1,
-						const_sys_params_cpu.dirPrimary						
+						mggpu_const_sys_params_cpu.dirPrimary						
 					);
 				}
 			}
@@ -1360,9 +1164,9 @@ bool MGGPU_BuildA1(
 
 bool MGGPU_BuildAi(
 	const uint3 resA,
-	const MGGPU_Kernel3D<5> * Aprev,
+	const CUDA_Kernel3DD<5> * Aprev,
 	const MGGPU_InterpKernel * I,
-	MGGPU_Kernel3D<5> * Anext,
+	CUDA_Kernel3DD<5> * Anext,
 	bool onDevice
 ) {
 
@@ -1391,7 +1195,7 @@ bool MGGPU_BuildAi(
 						Aprev,
 						I,
 						Anext,
-						const_sys_params_cpu.dirPrimary
+						mggpu_const_sys_params_cpu.dirPrimary
 					);
 				}
 			}
@@ -1406,45 +1210,13 @@ bool MGGPU_BuildAi(
 
 ////////////////////////////////////////////// Residual
 
-//Convolve by system top kernel
-double __device__  convolve3D_SystemTop(
-	const int3 & ivox,
-	const MGGPU_SystemTopKernel & k,
-	const MGGPU_Volume & x
-	){
 
-	//Assumes ivox is inside the boundary
-
-	double sum = 0.0;
-
-	if (ivox.z - 1 >= 0)
-		sum += k.v[Z_NEG] * read<double>(x.surf, ivox + make_int3(0,0,-1));
-
-	if (ivox.y - 1 >= 0)
-		sum += k.v[Y_NEG] * read<double>(x.surf, ivox + make_int3(0, -1, 0));
-
-	if (ivox.x - 1 >= 0)
-		sum += k.v[X_NEG] * read<double>(x.surf, ivox + make_int3(-1, 0, 0));
-	
-	sum += k.v[DIR_NONE] * read<double>(x.surf, ivox);
-
-	if (ivox.x + 1 < x.res.x)
-		sum += k.v[X_POS] * read<double>(x.surf, ivox + make_int3(1, 0, 0));
-
-	if (ivox.y + 1 < x.res.y)
-		sum += k.v[Y_POS] * read<double>(x.surf, ivox + make_int3(0, 1, 0));
-
-	if (ivox.z + 1 < x.res.z)
-		sum += k.v[Z_POS] * read<double>(x.surf, ivox + make_int3(0, 0, 1));
-
-	return sum;
-}
 
 template<size_t kN>
 double __device__  convolve3D(
 	const int3 & ivox,
-	const MGGPU_Kernel3D<kN> & k,
-	const MGGPU_Volume & vec
+	const CUDA_Kernel3DD<kN> & k,
+	const CUDA_Volume & vec
 ) {
 
 	double sum = 0.0;
@@ -1474,30 +1246,13 @@ double __device__  convolve3D(
 }
 
 
-__global__ void __residual_topLevel(
-	const uint3 res,
-	const MGGPU_SystemTopKernel * A0,
-	const MGGPU_Volume x,
-	const MGGPU_Volume f,
-	MGGPU_Volume r
-) {
-	VOLUME_IVOX_GUARD(res);	
 
-	const size_t I = _linearIndex(res, ivox);
-
-	const double Axval = convolve3D_SystemTop(ivox, A0[I], x);
-	const double fval = read<double>(f.surf, ivox);
-	const double rval = fval - Axval;
-
-	write<double>(r.surf, ivox, rval);
-
-}
 __global__ void __residual(
 	const uint3 res,
-	const MGGPU_Kernel3D<Ai_SIZE> * A,
-	const MGGPU_Volume x,
-	const MGGPU_Volume f,
-	MGGPU_Volume r
+	const CUDA_Kernel3DD<Ai_SIZE> * A,
+	const CUDA_Volume x,
+	const CUDA_Volume f,
+	CUDA_Volume r
 ) {
 	VOLUME_IVOX_GUARD(res);
 
@@ -1511,24 +1266,13 @@ __global__ void __residual(
 
 
 
-void MGGPU_Residual_TopLevel(
-	const uint3 res,
-	const MGGPU_SystemTopKernel * A0,
-	const MGGPU_Volume & x,
-	const MGGPU_Volume & f,
-	MGGPU_Volume & r
-) {
-	BLOCKS3D(8, res); 
-	__residual_topLevel << < numBlocks, block >> >(	res,A0,x,f,	r);
-}
-
 
 void MGGPU_Residual(
 	const uint3 res,
-	const MGGPU_Kernel3D<Ai_SIZE> * A,
-	const MGGPU_Volume & x,
-	const MGGPU_Volume & f,
-	MGGPU_Volume & r
+	const CUDA_Kernel3DD<Ai_SIZE> * A,
+	const CUDA_Volume & x,
+	const CUDA_Volume & f,
+	CUDA_Volume & r
 ) {
 	BLOCKS3D(8, res);
 	__residual << < numBlocks, block >> >(res, A, x, f, r);
@@ -1537,35 +1281,6 @@ void MGGPU_Residual(
 
 ////////////////////////////////////////////// Reductions
 
-double MGGPU_SquareNorm(
-	const uint3 res, 
-	MGGPU_Volume & x,
-	void * auxGPU, 
-	void * auxCPU
-	) {
-
-	double result = 0.0;
-
-	launchReduceKernel(
-		TYPE_DOUBLE,
-		REDUCE_OP_SQUARESUM,
-		res,
-		x.surf,
-		auxGPU,
-		auxCPU,
-		&result
-	);
-
-	return result;
-
-}
-
-void MGGPU_SetToZero(
-	MGGPU_Volume & x
-) {
-	double val = 0.0;
-	launchClearKernel(TYPE_DOUBLE, x.surf, x.res, &val);
-}
 
 
 ////////////////////////////////////////////// Smoothing
@@ -1575,9 +1290,9 @@ void MGGPU_SetToZero(
 template <bool isTopLevel>
 __global__ void __gaussSeidelZeroGuess( //assumes zero x guess
 	uint3 res,
-	MGGPU_Volume F,
-	MGGPU_Volume X,
-	MGGPU_KernelPtr A,
+	CUDA_Volume F,
+	CUDA_Volume X,
+	CUDA_KernelPtrD A,
 	double alpha
 ){
 	VOLUME_IVOX_GUARD(res);
@@ -1586,10 +1301,10 @@ __global__ void __gaussSeidelZeroGuess( //assumes zero x guess
 	const size_t rowI = _linearIndex(res, ivox);
 	double diag;
 	if (isTopLevel) {
-		diag = ((MGGPU_SystemTopKernel*)A)[rowI].v[DIR_NONE];
+		diag = ((CUDA_Stencil_7*)A)[rowI].v[DIR_NONE];
 	}
 	else {
-		diag = ((const MGGPU_Kernel3D<Ai_SIZE>*)A)[rowI].v[Ai_HALF][Ai_HALF][Ai_HALF];
+		diag = ((const CUDA_Kernel3DD<Ai_SIZE>*)A)[rowI].v[Ai_HALF][Ai_HALF][Ai_HALF];
 	}
 	double newVal = fval / diag;
 
@@ -1608,9 +1323,9 @@ __global__ void __gaussSeidelZeroGuess( //assumes zero x guess
 template <int dir, int sgn, bool alternate, bool isTopLevel>
 __global__ void __gaussSeidelLine(
 	uint3 res,
-	MGGPU_Volume F,
-	MGGPU_Volume X,
-	MGGPU_KernelPtr A,
+	CUDA_Volume F,
+	CUDA_Volume X,
+	CUDA_KernelPtrD A,
 	double alpha
 ) {
 
@@ -1643,7 +1358,7 @@ __global__ void __gaussSeidelLine(
 
 
 	for (int i = begin; i != end; i += sgn) {
-		int3 voxi = { vox.x, vox.y, vox.z };
+		int3 voxi = { int(vox.x), int(vox.y), int(vox.z) };
 		_at<int>(voxi, dir) = i;
 
 
@@ -1653,7 +1368,7 @@ __global__ void __gaussSeidelLine(
 		double diag;
 
 		if (isTopLevel) {
-			MGGPU_SystemTopKernel a = ((MGGPU_SystemTopKernel*)A)[rowI];
+			CUDA_Stencil_7 a = ((CUDA_Stencil_7*)A)[rowI];
 			diag = a.v[DIR_NONE];
 			a.v[DIR_NONE] = 0.0;
 			sum = convolve3D_SystemTop(voxi, a, X);
@@ -1661,7 +1376,7 @@ __global__ void __gaussSeidelLine(
 		}
 		else {
 			//Avoid copy here?
-			MGGPU_Kernel3D<Ai_SIZE> a = ((const MGGPU_Kernel3D<Ai_SIZE>*)A)[rowI];
+			CUDA_Kernel3DD<Ai_SIZE> a = ((const CUDA_Kernel3DD<Ai_SIZE>*)A)[rowI];
 			diag = a.v[Ai_HALF][Ai_HALF][Ai_HALF];
 			a.v[Ai_HALF][Ai_HALF][Ai_HALF] = 0.0;
 			sum = convolve3D<Ai_SIZE>(voxi, a, X);
@@ -1800,7 +1515,7 @@ double MGGPU_GaussSeidel(MGGPU_SmootherParams & p) {
 	double error = 0.0;
 #ifdef GS_CHECK_RESIDUAL
 	
-	double fsq = MGGPU_SquareNorm(p.res, p.f, p.auxBufferGPU, p.auxBufferCPU);
+	double fsq = Volume_SquareNorm(p.res, p.f, p.auxBufferGPU, p.auxBufferCPU);
 
 	if (fsq == 0.0) {
 		printf("WARNING ||f||^2 = 0.0\n");
@@ -1813,13 +1528,13 @@ double MGGPU_GaussSeidel(MGGPU_SmootherParams & p) {
 		if (p.isTopLevel) {
 			gaussSeidelAllDirs<true>(p, 8);
 #ifdef GS_CHECK_RESIDUAL
-			MGGPU_Residual_TopLevel(p.res, (MGGPU_SystemTopKernel *)p.A, p.x, p.f, p.r);
+			LinearSys_Residual(p.res, (CUDA_Stencil_7 *)p.A, p.x, p.f, p.r);
 #endif
 		}
 		else {
 			gaussSeidelAllDirs<false>(p, 8);
 #ifdef GS_CHECK_RESIDUAL
-			MGGPU_Residual(p.res, (MGGPU_Kernel3D<Ai_SIZE>*)p.A, p.x, p.f, p.r);
+			MGGPU_Residual(p.res, (CUDA_Kernel3DD<Ai_SIZE>*)p.A, p.x, p.f, p.r);
 #endif
 
 		}
@@ -1828,7 +1543,7 @@ double MGGPU_GaussSeidel(MGGPU_SmootherParams & p) {
 
 #ifdef GS_CHECK_RESIDUAL
 		//Might not be needed to calculate residual
-		double rsq = MGGPU_SquareNorm(p.res, p.r, p.auxBufferGPU, p.auxBufferCPU);		
+		double rsq = Volume_SquareNorm(p.res, p.r, p.auxBufferGPU, p.auxBufferCPU);		
 		
 		error = sqrt(rsq / fsq);
 
@@ -1843,10 +1558,10 @@ double MGGPU_GaussSeidel(MGGPU_SmootherParams & p) {
 
 #ifndef GS_CHECK_RESIDUAL
 	if (p.isTopLevel) {
-		MGGPU_Residual_TopLevel(p.res, (MGGPU_SystemTopKernel *)p.A, p.x, p.f, p.r);
+		LinearSys_Residual((CUDA_Stencil_7 *)p.A, p.x, p.f, p.r);
 	}
 	else {
-		MGGPU_Residual(p.res, (MGGPU_Kernel3D<Ai_SIZE>*)p.A, p.x, p.f, p.r);
+		MGGPU_Residual(p.res, (CUDA_Kernel3DD<Ai_SIZE>*)p.A, p.x, p.f, p.r);
 	}
 #endif
 
@@ -1858,10 +1573,10 @@ double MGGPU_GaussSeidel(MGGPU_SmootherParams & p) {
 template <bool isTopLevel>
 __global__ void __jacobiKernel(
 	uint3 res,
-	MGGPU_Volume F,
-	MGGPU_Volume X,
-	MGGPU_Volume Y,
-	MGGPU_KernelPtr A
+	CUDA_Volume F,
+	CUDA_Volume X,
+	CUDA_Volume Y,
+	CUDA_KernelPtrD A
 ) {	
 	VOLUME_IVOX_GUARD(res);
 
@@ -1871,7 +1586,7 @@ __global__ void __jacobiKernel(
 	double diag;
 
 	if (isTopLevel) {
-		MGGPU_SystemTopKernel a = ((MGGPU_SystemTopKernel*)A)[rowI];
+		CUDA_Stencil_7 a = ((CUDA_Stencil_7*)A)[rowI];
 		diag = a.v[DIR_NONE];
 		a.v[DIR_NONE] = 0.0;
 		sum = convolve3D_SystemTop(ivox, a, X);
@@ -1879,7 +1594,7 @@ __global__ void __jacobiKernel(
 	}
 	else {
 		//Avoid copy here?
-		MGGPU_Kernel3D<Ai_SIZE> a = ((const MGGPU_Kernel3D<Ai_SIZE>*)A)[rowI];
+		CUDA_Kernel3DD<Ai_SIZE> a = ((const CUDA_Kernel3DD<Ai_SIZE>*)A)[rowI];
 		diag = a.v[Ai_HALF][Ai_HALF][Ai_HALF];
 		a.v[Ai_HALF][Ai_HALF][Ai_HALF] = 0.0;
 		sum = convolve3D<Ai_SIZE>(ivox, a, X);
@@ -1897,7 +1612,7 @@ __global__ void __jacobiKernel(
 
 void MGGPU_Jacobi(MGGPU_SmootherParams & p) {
 
-	MGGPU_Volume src, dest;
+	CUDA_Volume src, dest;
 	src = p.x;
 	dest = p.tmpx;
 
@@ -1927,7 +1642,7 @@ void MGGPU_Jacobi(MGGPU_SmootherParams & p) {
 				);
 		}
 		//Swap 
-		MGGPU_Volume tmp;
+		CUDA_Volume tmp;
 		tmp = src;
 		src = dest;
 		dest = tmp;
@@ -1936,10 +1651,10 @@ void MGGPU_Jacobi(MGGPU_SmootherParams & p) {
 	//Calculate residual at the end
 	//only for restr, todo: move out
 	if (p.isTopLevel) {
-		MGGPU_Residual_TopLevel(p.res, (MGGPU_SystemTopKernel *)p.A, p.x, p.f, p.r);
+		LinearSys_Residual((CUDA_Stencil_7 *)p.A, p.x, p.f, p.r);
 	}
 	else {
-		MGGPU_Residual(p.res, (MGGPU_Kernel3D<Ai_SIZE>*)p.A, p.x, p.f, p.r);
+		MGGPU_Residual(p.res, (CUDA_Kernel3DD<Ai_SIZE>*)p.A, p.x, p.f, p.r);
 	}
 
 }
@@ -1947,10 +1662,10 @@ void MGGPU_Jacobi(MGGPU_SmootherParams & p) {
 
 
 __global__ void ___restrictVolume(
-	MGGPU_Volume xPrev, MGGPU_Volume xNext
+	CUDA_Volume xPrev, CUDA_Volume xNext
 ){	
 	VOLUME_IVOX_GUARD(xNext.res);
-	const MGGPU_RestrictKernel R = MGGPU_GetRestrictionKernel(make_uint3(ivox), xNext.res, const_sys_params.dirPrimary);
+	const MGGPU_RestrictKernel R = MGGPU_GetRestrictionKernel(make_uint3(ivox), xNext.res, mggpu_const_sys_params.dirPrimary);
 	int3 ivoxPrev = make_int3(ivox.x * 2, ivox.y * 2, ivox.z * 2);
 	const double Rxval = convolve3D<RESTR_SIZE>(ivoxPrev, R, xPrev);
 	write<double>(xNext.surf, ivox, Rxval);
@@ -1958,8 +1673,8 @@ __global__ void ___restrictVolume(
 
 //Requires const_sys_params
 void MGGPU_Restrict(
-	MGGPU_Volume & xPrev,
-	MGGPU_Volume & xNext
+	CUDA_Volume & xPrev,
+	CUDA_Volume & xNext
 ) {
 
 	BLOCKS3D(4, xNext.res);
@@ -1969,8 +1684,8 @@ void MGGPU_Restrict(
 
 
 __global__ void ___interpVolumeAndAdd(
-	MGGPU_Volume xPrev, 
-	MGGPU_Volume xNext,
+	CUDA_Volume xPrev, 
+	CUDA_Volume xNext,
 	MGGPU_InterpKernel * I
 ) {
 	VOLUME_IVOX_GUARD(xNext.res);
@@ -1989,8 +1704,8 @@ __global__ void ___interpVolumeAndAdd(
 
 //Requires const_sys_params
 void MGGPU_InterpolateAndAdd(
-	MGGPU_Volume & xPrev,
-	MGGPU_Volume & xNext,
+	CUDA_Volume & xPrev,
+	CUDA_Volume & xNext,
 	MGGPU_InterpKernel * I
 ) {
 
@@ -2000,142 +1715,12 @@ void MGGPU_InterpolateAndAdd(
 }
 
 
-__global__ void ___matrixVectorProductKernel(
-	const MGGPU_SystemTopKernel * A,
-	const MGGPU_Volume x,
-	MGGPU_Volume b
-) {
-	VOLUME_IVOX_GUARD(x.res);
-	const size_t I = _linearIndex(x.res, ivox);
-	const double Axval = convolve3D_SystemTop(ivox, A[I], x);
-	write<double>(b.surf, ivox, Axval);
-}
-
-
-
-template<int blockSize, int apronSize>
-double __device__  convolve3D_SystemTop_Shared(
-	const int3 & relVox, //in block relative voxel
-	const MGGPU_SystemTopKernel & k,
-	double * x
-) {
-	double sum = 0.0;		
-
-	//Index in apron
-	const int index = _linearIndex(make_int3(apronSize), relVox + make_int3(1));
-
-	const int3 stride = make_int3(1, apronSize, apronSize*apronSize);	
-	sum += k.v[X_POS] * x[index + stride.x];
-	sum += k.v[X_NEG] * x[index - stride.x];
-	sum += k.v[Y_POS] * x[index + stride.y];
-	sum += k.v[Y_NEG] * x[index - stride.y];
-	sum += k.v[Z_POS] * x[index + stride.z];
-	sum += k.v[Z_NEG] * x[index - stride.z];	
-	sum += k.v[DIR_NONE] * x[index];		
-	
-	return sum;
-}
-
-template <int blockSize>
-__global__ void ___matrixVectorProductKernelShared(
-	const MGGPU_SystemTopKernel * A,
-	const MGGPU_Volume x,
-	MGGPU_Volume b
-) {
-	
-	
-	const int apronSize = blockSize + 2;
-	const int totalBlockSize = blockSize*blockSize*blockSize;	
-	const int totalApronSize = apronSize * apronSize * apronSize;
-	const int perThread = (totalApronSize + totalBlockSize -1) / totalBlockSize;
-
-	__shared__ double _s[totalApronSize];
-	
-	VOLUME_BLOCK_IVOX; //defines blockIvox
-
-	//Position of apron
-	const int3 apronIvox = blockIvox - make_int3(1);
-
-	//Load apron to shared memory
-	int tid = _linearIndex(blockDim, threadIdx);
-
-	/*size_t blockIndex = _linearIndex(gridDim, blockIdx);
-	if (blockIndex == 1) {
-		printf("tid: %d, <%d, %d)\n", tid, min(tid*perThread, totalApronSize), min((tid+1)*perThread, totalApronSize));
-	}*/
-	
-//	int3 relativeLoadVoxel = apronIvox + 
-	for (int i = 0; i < perThread; i++) {
-		const int targetIndex = tid + i*totalBlockSize;
-		//const int targetIndex = tid*perThread + i;
-		if (targetIndex >= totalApronSize)
-			break;
-
-		const int3 targetPos = apronIvox + posFromLinear(make_int3(apronSize), targetIndex);
-		if (_isValidPos(x.res, targetPos))
-			_s[targetIndex] = read<double>(x.surf, targetPos);
-		else
-			_s[targetIndex] = 0.0;
-	}
-
-	__syncthreads();
-
-
-
-	//VOLUME_IVOX_GUARD(x.res);
-	//write<double>(b.surf, ivox, 1.0);
-
-	VOLUME_IVOX_GUARD(x.res);
-	const size_t I = _linearIndex(x.res, ivox);
-	MGGPU_SystemTopKernel a = A[I];
-	const double Axval = convolve3D_SystemTop_Shared<blockSize, apronSize>(make_int3(threadIdx.x, threadIdx.y, threadIdx.z), a, _s);
-	
-	//const double Axval = convolve3D_SystemTop(ivox, A[I], x);
-	write<double>(b.surf, ivox, Axval);
-
-}
-
-
-
-void MGGPU_MatrixVectorProduct(
-	const MGGPU_SystemTopKernel * A,
-	const MGGPU_Volume & x,
-	MGGPU_Volume & b
-) {
-
-	const bool optimized = true;
-	if (!optimized) {
-		BLOCKS3D(8, x.res);
-		___matrixVectorProductKernel << < numBlocks, block >> > (A, x, b);
-	}
-	else {
-		const int blockSize = 8;
-		BLOCKS3D(blockSize, x.res);	
-		___matrixVectorProductKernelShared<blockSize><< < numBlocks, block >> > (A, x, b);
-	}
-}
 
 
 
 
-__global__ void ___inverta0diagtoKernel(
-	const MGGPU_SystemTopKernel * A,
-	MGGPU_Volume ainvert
-) {
-	VOLUME_IVOX_GUARD(ainvert.res);
-	const size_t I = _linearIndex(ainvert.res, ivox);
-	const double iadiag = 1.0 / A[I].v[DIR_NONE];
-	write<double>(ainvert.surf, ivox, iadiag);
-}
 
 
-void MGGPU_InvertA0DiagTo(
-	const MGGPU_SystemTopKernel * A,
-	MGGPU_Volume & ainvert
-) {
-	BLOCKS3D(4, ainvert.res);
-	___inverta0diagtoKernel << < numBlocks, block >> >(A, ainvert);
-}
 
 
 #ifdef ____OLD
@@ -2144,8 +1729,8 @@ void MGGPU_InvertA0DiagTo(
 __global__ void __genA1(
 	const uint3 Nres,
 	const uint3 Nhalfres,
-	const MGGPU_Kernel3D<4> * IT0,
-	MGGPU_Kernel3D<5> * output
+	const CUDA_Kernel3DD<4> * IT0,
+	CUDA_Kernel3DD<5> * output
 ) {
 	VOLUME_VOX_GUARD(Nhalfres);
 
@@ -2180,8 +1765,8 @@ __global__ void __genA1(
 void MGGPU_GenerateA1(
 	const uint3 & Nres,
 	const uint3 & Nhalfres,
-	const MGGPU_Kernel3D<4> * IT0,
-	MGGPU_Kernel3D<5> * output
+	const CUDA_Kernel3DD<4> * IT0,
+	CUDA_Kernel3DD<5> * output
 ) {
 
 	BLOCKS3D(2, Nhalfres);
@@ -2199,8 +1784,8 @@ void MGGPU_GenerateA1(
 void MGGPU_GenerateTranposeInterpKernels(
 	const uint3 & Nres,
 	const uint3 & Nhalfres,
-	const MGGPU_Volume & domainHalf,
-	MGGPU_Kernel3D<4> * output
+	const CUDA_Volume & domainHalf,
+	CUDA_Kernel3DD<4> * output
 ) {
 
 
@@ -2216,9 +1801,9 @@ void MGGPU_GenerateTranposeInterpKernels(
 __global__ void ___convolve_A0_IT0_Direct(
 	const uint3 Nres,
 	const uint3 Nhalfres,
-	const MGGPU_SystemTopKernel * A0,
-	const MGGPU_Kernel3D<4> * IT0,
-	MGGPU_Kernel3D<3> * output
+	const CUDA_Stencil_7 * A0,
+	const CUDA_Kernel3DD<4> * IT0,
+	CUDA_Kernel3DD<3> * output
 ) {
 
 	VOLUME_VOX_GUARD(Nres);
@@ -2238,14 +1823,14 @@ __global__ void ___convolve_A0_IT0_Direct(
 
 											   //Read packed a0 kernel
 	size_t i = _linearIndex(Nres, vox);
-	MGGPU_Kernel3D<N_AI> & AI = output[i];
+	CUDA_Kernel3DD<N_AI> & AI = output[i];
 
-	const MGGPU_SystemTopKernel & a7 = A0[i];
+	const CUDA_Stencil_7 & a7 = A0[i];
 
 	//Scatter to 3x3x3 kernel
-	MGGPU_Kernel3D<3> a;
+	CUDA_Kernel3DD<3> a;
 	{
-		memset(&a, 0, sizeof(MGGPU_Kernel3D<3>));
+		memset(&a, 0, sizeof(CUDA_Kernel3DD<3>));
 		a.v[1][1][1] = a7.v[DIR_NONE];
 		a.v[0][1][1] = a7.v[X_NEG];
 		a.v[2][1][1] = a7.v[X_POS];
@@ -2270,7 +1855,7 @@ __global__ void ___convolve_A0_IT0_Direct(
 
 				size_t interpIndex = _linearIndex(Nhalfres, voxiHalf + offsetAICenter);
 
-				const MGGPU_Kernel3D<N_I> & I = IT0[interpIndex];
+				const CUDA_Kernel3DD<N_I> & I = IT0[interpIndex];
 
 				double sum = 0.0;
 				//dot with offseted a
@@ -2313,9 +1898,9 @@ __global__ void ___convolve_A0_IT0_Direct(
 void MGGPU_GenerateAI0(
 	const uint3 & Nres,
 	const uint3 & Nhalfres,
-	const MGGPU_SystemTopKernel * A0,
-	const MGGPU_Kernel3D<4> * IT0,
-	MGGPU_Kernel3D<3> * output
+	const CUDA_Stencil_7 * A0,
+	const CUDA_Kernel3DD<4> * IT0,
+	CUDA_Kernel3DD<3> * output
 ) {
 
 	BLOCKS3D(2, Nres);
@@ -2333,11 +1918,11 @@ void MGGPU_GenerateAI0(
 
 void __device__ MGGPU_Convolve_A0_I_Direct(
 	const uint3 destRes,
-	const MGGPU_Volume & domain,
-	const MGGPU_SystemTopKernel * A0,
+	const CUDA_Volume & domain,
+	const CUDA_Stencil_7 * A0,
 	const uint3 & vox,
 	int dirIndex,
-	MGGPU_Kernel3D<5> * out
+	CUDA_Kernel3DD<5> * out
 ) {
 	const int3 voxi = make_int3(vox);
 
@@ -2345,17 +1930,17 @@ void __device__ MGGPU_Convolve_A0_I_Direct(
 	const int N_I = 3;
 	const int N_AI = N_A + N_I - 1; //5
 
-	MGGPU_Kernel3D<N_AI> & AI = *out;
+	CUDA_Kernel3DD<N_AI> & AI = *out;
 
 
 	//Read packed a0 kernel
 	size_t i = _linearIndex(destRes, vox);
-	const MGGPU_SystemTopKernel & a7 = A0[i];
+	const CUDA_Stencil_7 & a7 = A0[i];
 
 	//Scatter to 3x3x3 kernel
-	MGGPU_Kernel3D<3> a;
+	CUDA_Kernel3DD<3> a;
 	{
-		memset(&a, 0, sizeof(MGGPU_Kernel3D<3>));
+		memset(&a, 0, sizeof(CUDA_Kernel3DD<3>));
 		a.v[1][1][1] = a7.v[DIR_NONE];
 		a.v[0][1][1] = a7.v[X_NEG];
 		a.v[2][1][1] = a7.v[X_POS];
@@ -2412,24 +1997,24 @@ void __device__ MGGPU_Convolve_A0_I_Direct(
 
 __global__ void ___convolve_A0_I_Direct(
 	const uint3 destRes,
-	const MGGPU_Volume domainHalf,
-	const MGGPU_SystemTopKernel * A0,
-	MGGPU_Kernel3D<5> * AI
+	const CUDA_Volume domainHalf,
+	const CUDA_Stencil_7 * A0,
+	CUDA_Kernel3DD<5> * AI
 ) {
 
 	VOLUME_VOX_GUARD(destRes);
 
 	size_t i = _linearIndex(destRes, vox);
 
-	MGGPU_Convolve_A0_I_Direct(destRes, domainHalf, A0, vox, const_sys_params.dirPrimary, &(AI[i]));
+	MGGPU_Convolve_A0_I_Direct(destRes, domainHalf, A0, vox, mggpu_const_sys_params.dirPrimary, &(AI[i]));
 
 
 }
 
 void MGGPU_GenerateAI0(
-	const MGGPU_Volume & domainHalf,
-	const MGGPU_SystemTopKernel * A0,
-	MGGPU_Kernel3D<5> * AI
+	const CUDA_Volume & domainHalf,
+	const CUDA_Stencil_7 * A0,
+	CUDA_Kernel3DD<5> * AI
 ) {
 
 	const uint3 destRes = domainHalf.res * 2; // TODO:
