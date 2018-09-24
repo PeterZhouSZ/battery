@@ -45,6 +45,9 @@ namespace blib{
 		//Current = Current - Next; Sum(Current);
 		BLIB_EXPORT float differenceSum();
 
+		
+		BLIB_EXPORT size_t nonZeroElems() const;
+
 		/*
 			Clears both buffers
 		*/
@@ -61,6 +64,7 @@ namespace blib{
 
 		BLIB_EXPORT ivec3 dim() const;
 		BLIB_EXPORT PrimitiveType type() const;
+		BLIB_EXPORT size_t totalElems() const;
 
 		BLIB_EXPORT void setName(const std::string & name);
 		BLIB_EXPORT std::string getName() const;

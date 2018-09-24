@@ -685,9 +685,14 @@ void BatteryApp::solveBICGSTABGPU()
 	tp.dir = Dir(_options["Diffusion"].get<int>("direction"));
 	tp.tolerance = pow(10.0, -_options["Diffusion"].get<int>("Tolerance"));
 
-	tortuosity<double>(_volume->getChannel(CHANNEL_BATTERY), tp, DSOLVER_BICGSTABGPU);
-	tortuosity<double>(_volume->getChannel(CHANNEL_BATTERY), tp, DSOLVER_EIGEN, &_volume->getChannel(CHANNEL_CONCETRATION));
-	tortuosity<double>(_volume->getChannel(CHANNEL_BATTERY), tp, DSOLVER_MGGPU);
+	auto tau0 = getTortuosity<double>(_volume->getChannel(CHANNEL_BATTERY), tp, DSOLVER_BICGSTABGPU);
+	std::cout << "BICGSTABGPU\t\t" << tau0 << std::endl;
+	
+	auto tau1 = getTortuosity<double>(_volume->getChannel(CHANNEL_BATTERY), tp, DSOLVER_EIGEN, &_volume->getChannel(CHANNEL_CONCETRATION));
+	std::cout << "EIGEN\t\t" << tau1 << std::endl;
+
+	auto tau2 = getTortuosity<double>(_volume->getChannel(CHANNEL_BATTERY), tp, DSOLVER_MGGPU);
+	std::cout << "MGGPU\t\t" << tau2 << std::endl;
 }
 
 void BatteryApp::reset()

@@ -249,6 +249,15 @@ inline __device__ uchar read(cudaSurfaceObject_t surf, const uint3 & vox) {
 }
 
 template<>
+inline __device__ char read(cudaSurfaceObject_t surf, const uint3 & vox) {
+	char val = 0;
+#ifdef __CUDA_ARCH__
+	surf3Dread(&val, surf, vox.x * sizeof(char), vox.y, vox.z);
+#endif
+	return val;
+}
+
+template<>
 inline __device__ double read(cudaSurfaceObject_t surf, const uint3 & vox) {
 	
 #ifdef __CUDA_ARCH__

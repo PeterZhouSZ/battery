@@ -51,7 +51,8 @@ enum ReduceOpType {
 	REDUCE_OP_PROD,
 	REDUCE_OP_SQUARESUM,
 	REDUCE_OP_MIN,
-	REDUCE_OP_MAX
+	REDUCE_OP_MAX,
+	REDUCE_OP_SUM_NONZERO
 };
 
 #define VOLUME_REDUCTION_BLOCKSIZE 512
@@ -65,6 +66,23 @@ void launchReduceKernel(
 	void * result
 );
 
+
+void Volume_Reduce(
+	CUDA_Volume & vol,
+	ReduceOpType opType,
+	PrimitiveType outputType,
+	void * auxBufferGPU,
+	void * auxBufferCPU,
+	void * result
+);
+
+inline size_t Volume_Reduce_RequiredBufferSize(size_t origSize) {
+	return (origSize + VOLUME_REDUCTION_BLOCKSIZE - 1) / VOLUME_REDUCTION_BLOCKSIZE;
+}
+
+inline size_t Volume_Reduce_RequiredBufferSize(uint3 res) {
+	return (res.x*res.y*res.z + VOLUME_REDUCTION_BLOCKSIZE - 1) / VOLUME_REDUCTION_BLOCKSIZE;
+}
 
 
 void launchClearKernel(

@@ -11,7 +11,7 @@
 namespace blib {
 
 	template <typename T>
-	BLIB_EXPORT T tortuosity(
+	BLIB_EXPORT T getTortuosity(
 		const VolumeChannel & mask, 
 		const TortuosityParams & params, 
 		DiffusionSolverType solverType, 
@@ -46,7 +46,9 @@ namespace blib {
 		}
 		
 		
-
+		/*
+			Solver diffusion problem
+		*/
 		if (solverType == DSOLVER_BICGSTABGPU) {
 			if (std::is_same<T, float>::value) {
 				std::cerr << "Single precision not supported with BICGSTABGPU, using double instead." << std::endl;
@@ -74,6 +76,8 @@ namespace blib {
 			if (out.status != Solver<K>::SOLVER_STATUS_SUCCESS) {
 				return T(0);
 			}
+
+			std::cout << "BICGSTAB ERROR: " << out.error << std::endl;
 			
 		}
 		else if (solverType == DSOLVER_MGGPU) {
@@ -110,6 +114,7 @@ namespace blib {
 				return T(0);
 			}
 
+			std::cout << "MGGPU ERROR: " << err << std::endl;
 
 		}
 		else if (solverType == DSOLVER_EIGEN) {
@@ -125,13 +130,32 @@ namespace blib {
 			
 			double err = solver.solve(params.tolerance, params.maxIter, 256);				
 
-			if (err > sp.tolerance) {
+			if (err > params.tolerance) {
 				return T(0);
 			}
 
 			solver.resultToVolume(*outputChannel);
 			outputChannel->getCurrentPtr().commit();
+			
+			std::cout << "EIGEN ERROR: " << err << std::endl;
 		}
+		
+		/*
+			Get porosity
+		*/
+		const T porosity = params.porosityPrecomputed ?
+			static_cast<T>(params.porosity) :
+			getPorosity<T>(mask);
+
+
+		/*
+			Tortuosity
+		*/
+
+		tau = porosity;
+
+
+		
 
 
 
@@ -140,7 +164,21 @@ namespace blib {
 	}
 
 
+	template <typename T>
+	BLIB_EXPORT T getPorosity(const VolumeChannel & mask)
+	{
+		return T(mask.nonZeroElems()) / T(mask.totalElems());		
+	}
 
-	template BLIB_EXPORT double tortuosity<double>(const VolumeChannel &, const TortuosityParams &, DiffusionSolverType, VolumeChannel *);
-	template BLIB_EXPORT float tortuosity<float>(const VolumeChannel &, const TortuosityParams &, DiffusionSolverType, VolumeChannel *);
+
+
+
+
+	template BLIB_EXPORT double getTortuosity<double>(const VolumeChannel &, const TortuosityParams &, DiffusionSolverType, VolumeChannel *);
+	template BLIB_EXPORT float getTortuosity<float>(const VolumeChannel &, const TortuosityParams &, DiffusionSolverType, VolumeChannel *);
+
+
+
+	template BLIB_EXPORT float getPorosity<float>(const VolumeChannel &);
+	template BLIB_EXPORT double getPorosity<double>(const VolumeChannel &);
 }

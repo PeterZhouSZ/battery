@@ -54,7 +54,7 @@ namespace blib {
 		using DirectSolver = Eigen::SparseLU<SparseMat>;
 
 
-		BLIB_EXPORT MGGPU();
+		BLIB_EXPORT MGGPU(bool verbose = false);
 		
 		BLIB_EXPORT bool prepare(
 			const VolumeChannel & mask,
@@ -136,6 +136,9 @@ namespace blib {
 		T _porosity;
 
 		VolumeChannel * _output;
+
+
+		bool _verbose;
 
 	};
 

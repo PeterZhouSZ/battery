@@ -58,8 +58,9 @@ namespace blib {
 		}
 		
 
-		{			
-			const size_t reduceN = N / VOLUME_REDUCTION_BLOCKSIZE;
+		{		
+			
+			const size_t reduceN = Volume_Reduce_RequiredBufferSize(N);
 			_auxReduceBuffer = std::make_shared<DataPtr>();
 			_auxReduceBuffer->allocDevice(reduceN, sizeof(T));
 			_auxReduceBuffer->allocHost();

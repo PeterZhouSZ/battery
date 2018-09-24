@@ -723,6 +723,11 @@ __device__ void opSum(volatile T & a, T b) {
 }
 
 template <typename T>
+__device__ void opProd(volatile T & a, T b) {
+	a *= b;
+}
+
+template <typename T>
 __device__ void opMin(volatile T & a, T b) {
 	if (b < a) a = b;
 }
@@ -738,20 +743,77 @@ using ReduceOp = void(*)(
 	volatile T & a, T b
 	);
 
-template <typename T>
-__device__ void opSquare(T & a) {
-	a *= a;
+
+
+template <typename T, typename R = T>
+__device__ R opSquare(T & a) {
+	return R(a)*R(a);
 }
 
-template <typename T>
-__device__ void opIdentity(T & a) {
-	//nothing
+template <typename T, typename R = T>
+__device__ R opNonzero(T & a) {
+	return (a == T(0)) ? R(1) : R(0);
 }
 
-template <typename T>
-using PreReduceOp = void(*)(
+template <typename T, typename R = T>
+__device__ R opIdentity(T & a) {
+	return R(a);
+}
+
+template <typename T, typename R = T>
+using PreReduceOp = R(*)(
 	T & a
 	);
+
+template <typename T, typename R, unsigned int blockSize, ReduceOp<R> _op, PreReduceOp<T,R> _preOp = opIdentity<T>>
+__global__ void reduce3DSurfaceToBufferTR(uint3 res, cudaSurfaceObject_t surf, R * reducedData, size_t n)
+{
+	extern __shared__ __align__(sizeof(R)) volatile unsigned char my_smem[];
+	volatile R *sdata = reinterpret_cast<volatile R *>(my_smem);
+
+	unsigned int tid = threadIdx.x;
+	unsigned int i = blockIdx.x*(blockSize * 2) + tid;
+	unsigned int gridSize = blockSize * 2 * gridDim.x;
+	sdata[tid] = R(0);
+
+	while (i < n) {
+		const uint3 voxi = ind2sub(res, i);
+		const uint3 voxip = ind2sub(res, i + blockSize);
+
+		if (voxi.x < res.x && voxi.y < res.y && voxi.z < res.z) {
+			T vali = read<T>(surf, voxi);			
+			R valiprep = _preOp(vali); 
+			_op(sdata[tid], valiprep);
+		}
+
+		if (i + blockSize < n && voxip.x < res.x && voxip.y < res.y && voxip.z < res.z) {
+			T valip = read<T>(surf, voxip);			
+			R valiprep = _preOp(valip); 
+			_op(sdata[tid], valiprep);
+		}
+
+		i += gridSize;
+	}
+	__syncthreads();
+
+	if (blockSize >= 512) { if (tid < 256) { _op(sdata[tid], sdata[tid + 256]); } __syncthreads(); }
+	if (blockSize >= 256) { if (tid < 128) { _op(sdata[tid], sdata[tid + 128]); } __syncthreads(); }
+	if (blockSize >= 128) { if (tid < 64) { _op(sdata[tid], sdata[tid + 64]); } __syncthreads(); }
+	if (tid < 32) {
+		if (blockSize >= 64) _op(sdata[tid], sdata[tid + 32]);
+		if (blockSize >= 32) _op(sdata[tid], sdata[tid + 16]);
+		if (blockSize >= 16) _op(sdata[tid], sdata[tid + 8]);
+		if (blockSize >= 8) _op(sdata[tid], sdata[tid + 4]);
+		if (blockSize >= 4) _op(sdata[tid], sdata[tid + 2]);
+		if (blockSize >= 2) _op(sdata[tid], sdata[tid + 1]);
+	}
+
+	if (tid == 0) {
+		reducedData[blockIdx.x] = sdata[0];
+	}
+
+}
+
 
 template <typename T, unsigned int blockSize, ReduceOp<T> _op, PreReduceOp<T> _preOp = opIdentity<T>>
 __global__ void reduce3DSurfaceToBuffer(uint3 res, cudaSurfaceObject_t surf, T * reducedData, size_t n)
@@ -770,23 +832,17 @@ __global__ void reduce3DSurfaceToBuffer(uint3 res, cudaSurfaceObject_t surf, T *
 
 		if (voxi.x < res.x && voxi.y < res.y && voxi.z < res.z) {
 			
-			/*if (threadIdx.x == 32 && threadIdx.y == 0 && threadIdx.z == 0) {
-				if (blockIdx.x == 16 && blockIdx.y == 0 && blockIdx.z == 0) {
-					printf("%d: %d %d %d ... %d %d %d\n",i, res.x, res.y, res.z , voxi.x, voxi.y, voxi.z);
-				}
-			}*/
-
 			T vali = T(0);
 			vali = read<T>(surf, voxi);
-			_preOp(vali);
-			_op(sdata[tid], vali);
+			T valiprep = _preOp(vali); //todo
+			_op(sdata[tid], valiprep);
 		}
 
 		if (i + blockSize < n && voxip.x < res.x && voxip.y < res.y && voxip.z < res.z) {
 			T valip = T(0);
 			valip = read<T>(surf, voxip);
-			_preOp(valip);
-			_op(sdata[tid], valip);
+			T valiprep = _preOp(valip); //todo
+			_op(sdata[tid], valiprep);
 		}		
 
 		i += gridSize;
@@ -853,6 +909,136 @@ __global__ void reduceBuffer(T * buffer, size_t n)
 
 
 
+template<typename In, typename Out, ReduceOp<Out> _op, PreReduceOp<In, Out> _preOp>
+void _Volume_Reduce_Op(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType outputType, void * auxBufferGPU, void * auxBufferCPU, void * result) {
+
+
+	const uint blockSize = VOLUME_REDUCTION_BLOCKSIZE;
+	const uint sharedSize = primitiveSizeof(outputType) * blockSize;
+
+	const uint3 block = make_uint3(blockSize, 1, 1);
+	const uint finalSizeMax = VOLUME_REDUCTION_BLOCKSIZE;
+	const size_t initialN = vol.res.x * vol.res.y * vol.res.z;
+
+	size_t n = initialN;
+
+	/*
+	Reduce from surface to auxiliar buffer
+	*/
+	{
+		uint3 numBlocks = make_uint3(
+			uint((n / block.x) / 2), 1, 1
+		);
+		if (numBlocks.x == 0)
+			numBlocks.x = 1;
+
+		reduce3DSurfaceToBufferTR<In,Out, blockSize, _op, _preOp> << <numBlocks, block, sharedSize >> > (
+			vol.res, vol.surf, (Out*)auxBufferGPU, n
+			);
+		n = numBlocks.x;
+	}
+
+	/*
+	Further reduce in buffer
+	*/
+	while (n > finalSizeMax) {
+		const uint blockSize = VOLUME_REDUCTION_BLOCKSIZE;
+		const uint3 block = make_uint3(blockSize, 1, 1);
+		uint3 numBlocks = make_uint3(
+			uint((n / block.x) / 2), 1, 1
+		);
+
+		reduceBuffer<Out, blockSize, _op> << <numBlocks, block, sharedSize >> > ((Out*)auxBufferGPU, n);
+		n = numBlocks.x;
+	}
+
+	cudaMemcpy(auxBufferCPU, auxBufferGPU, primitiveSizeof(outputType) * n, cudaMemcpyDeviceToHost);
+
+	/*
+	Sum last array on CPU
+	*/
+	*((Out*)result) = 0.0f;
+	for (auto i = 0; i < n; i++) {
+		*((Out*)result) += ((Out*)auxBufferCPU)[i];
+	}
+
+	return;
+}
+
+
+template<typename In, typename Out>
+void _Volume_Reduce_Out(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType outputType, void * auxBufferGPU, void * auxBufferCPU, void * result) {
+
+	switch (opType) {
+	case REDUCE_OP_MIN:
+		return _Volume_Reduce_Op<In, Out, opMin<Out>, opIdentity<In,Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	case REDUCE_OP_MAX:
+		return _Volume_Reduce_Op<In, Out, opMax<Out>, opIdentity<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	case REDUCE_OP_SUM:
+		return _Volume_Reduce_Op<In, Out, opSum<Out>, opIdentity<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	case REDUCE_OP_SQUARESUM:
+		return _Volume_Reduce_Op<In, Out, opSum<Out>, opSquare<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	case REDUCE_OP_PROD:
+		return _Volume_Reduce_Op<In, Out, opProd<Out>, opIdentity<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	case REDUCE_OP_SUM_NONZERO:
+		return _Volume_Reduce_Op<In, Out, opSum<Out>, opNonzero<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	default:
+		assert("Unsupported reduction op");
+		exit(0);
+	}
+
+}
+
+template<typename In>
+void _Volume_Reduce_In(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType outputType, void * auxBufferGPU, void * auxBufferCPU, void * result) {
+
+	switch (outputType) {
+	case TYPE_FLOAT:
+		return _Volume_Reduce_Out<In, float>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	case TYPE_DOUBLE:
+		return _Volume_Reduce_Out<In, double>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	case TYPE_CHAR:
+		return _Volume_Reduce_Out<In, char>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	case TYPE_UCHAR:
+		return _Volume_Reduce_Out<In, uchar>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	case TYPE_UINT:
+		return _Volume_Reduce_Out<In, uint>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	case TYPE_UINT64:
+		return _Volume_Reduce_Out<In, uint64>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	default:
+		assert("Unsupported type");
+		exit(0);
+	}	
+}
+
+void Volume_Reduce(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType outputType, void * auxBufferGPU, void * auxBufferCPU, void * result)
+{
+
+	if ((vol.type == TYPE_CHAR || vol.type == TYPE_UCHAR) &&
+		(outputType == TYPE_CHAR || outputType == TYPE_UCHAR) &&
+		opType != REDUCE_OP_MIN && opType != REDUCE_OP_MAX
+		) {
+		printf("Warning: Reduction can result in overflow. Choose wider output type.\n");
+	}
+
+	switch (vol.type) {
+	case TYPE_FLOAT:
+		return _Volume_Reduce_In<float>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	case TYPE_DOUBLE:
+		return _Volume_Reduce_In<double>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	case TYPE_CHAR:
+		return _Volume_Reduce_In<char>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	case TYPE_UCHAR:
+		return _Volume_Reduce_In<uchar>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+	default:
+		assert("Unsupported type");
+		exit(0);
+	}
+}
+
+
+
+
 //AuxBuffer -> surf total n / 512
 void launchReduceKernel(	
 	PrimitiveType type, 
@@ -863,6 +1049,9 @@ void launchReduceKernel(
 	void * auxBufferCPU,
 	void * result	
 ) {
+	
+	
+	
 
 	const uint blockSize = VOLUME_REDUCTION_BLOCKSIZE;
 	const uint sharedSize = primitiveSizeof(type) * blockSize;
@@ -885,7 +1074,7 @@ void launchReduceKernel(
 
 		if (type == TYPE_FLOAT) {
 			if (opType == REDUCE_OP_SQUARESUM)
-				reduce3DSurfaceToBuffer<float, blockSize, opSum, opSquare> << <numBlocks, block, sharedSize >> > (
+				reduce3DSurfaceToBuffer<float, blockSize, opSum, opSquare<float,float>> << <numBlocks, block, sharedSize >> > (
 					res, surf, (float*)auxBufferGPU, n
 					);
 

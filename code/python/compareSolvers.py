@@ -8,6 +8,8 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import csv
+from scipy import stats
+from scipy.optimize import curve_fit
 
 parser = argparse.ArgumentParser(description='Compare solvers.')
 parser.add_argument('s',nargs='?', type=int,default=0, help='Start offset')
@@ -20,10 +22,11 @@ args = parser.parse_args()
 
 
 
-solvers = ['MGGPU','BICGSTABGPU','BICGSTABCPU']
-solverLabels = ['MultiGrid-GPU','BiCGStab-GPU','BiCGStab-CPU',]
+solvers = ['BICGSTABGPU','MGGPU','BICGSTABCPU']
+solverLabels = ['BiCGStab-GPU','MultiGrid-GPU','BiCGStab-CPU',]
 sub = None
-direction = 'x-'
+#direction = 'neg'
+directions = ['xneg','yneg', 'zneg']
 verbose = True
 solver = 'MGGPU'
 volExport = False
@@ -52,6 +55,7 @@ if(args.plot):
         times = []
         indices = []
         taus = []
+        dirs  = []
         
         for i, row in enumerate(reader):            
             if(i == 0):                
@@ -67,10 +71,13 @@ if(args.plot):
             for j, col in enumerate(row):
                 row[j] = row[j].strip()
             
-            voxels = int(row[i_dimx]) * int(row[i_dimy]) * int(row[i_dimz]);
+            if(float(row[i_tau]) < 1):
+                continue
 
+            voxels = int(row[i_dimx]) * int(row[i_dimy]) * int(row[i_dimz]);
             voxels = np.cbrt(voxels)
             dims.append(voxels)
+            dirs.append(row[i_dir])
             times.append(float(row[i_t]))
             indices.append(i - 1)
             taus.append(float(row[i_tau]))
@@ -78,17 +85,33 @@ if(args.plot):
         solverTimes[solver] = times
         
         f.close()
+
+        x = dims
+        y = times
+
+        x,y = zip(*sorted(zip(x,y)))
+        x = np.asarray(x)
+        y = np.asarray(y)
+
+        slope, intercept, r_value, p_value, std_err = stats.linregress(x,y)
+        line = slope*x+intercept
+       
+
                 
-        plt.plot(dims, times, label=label)             
+        plt.scatter(x,y, label=label)         
+        plt.plot(x,line)
+
 
 
     #print(np.asarray(solverTimes['Eigen']) / np.asarray(solverTimes['MGGPU']) )
         
     #plt.xticks(np.arange(0,256, step=32))
-    plt.yticks(list(np.arange(0,500, step=100)) + [30])
     
-    plt.axvline(x=230,color='gray',linestyle='--')
-    plt.axvline(x=300,color='gray',linestyle='--')
+    plt.yticks(list(np.arange(0,500, step=100)) + [30])    
+    #plt.axvline(x=230,color='gray',linestyle='--')
+    #plt.axvline(x=300,color='gray',linestyle='--')
+
+    #plt.xlim(1,2)
 
     plt.xlabel('Dimension along single axis [voxels^(1/3)] ')
     plt.ylabel('Time [s]')
@@ -96,7 +119,7 @@ if(args.plot):
     plt.legend()
     
     if(os.name == 'nt'):
-        plt.title('Tortuosity Calculation\n(Windows 8.1, MSVC 2017, CUDA 9.2)\n(Intel Xeon E5-1630 v3 @ 3.7Ghz, 16GB RAM DDR4, GTX Titan X 12GB)')
+        plt.title('Tortuosity Calculation (NMC Dataset)\n(Windows 8.1, MSVC 2017, CUDA 9.2)\n(Intel Xeon E5-1630 v3 @ 3.7Ghz, 16GB RAM DDR4, GTX Titan X 12GB)')
     else:
         plt.title('Tortuosity Calculation (Ubuntu 18.04, GCC 7.3.0, CUDA 9.2)')
     plt.show()
@@ -119,7 +142,7 @@ else:
 
 if(len(args.input) == 0):
     #dataset
-    if(False):
+    if(True):
         if(os.name == 'nt'):
             root = Path('D:/!battery/datasetNMC/')    
         else:
@@ -156,7 +179,7 @@ for solver in solvers:
             '-t'        
         ]
 
-        targ += [ '-d' + direction]
+        #targ += [ '-d' + direction]
         if(verbose):
             targ += ['-v']
 
@@ -176,14 +199,14 @@ for solver in solvers:
         #targ += ['--solver', solver]
         #targ += ['-o', solver + "_" + args.output]
         
-        for _s in subs:        
-            finalArgs = targ + ['--sub', str(_s)] + ['--solver', solver] + ['-o', solver + "_" + args.output]
-            
+        for direction in directions:            
+            finalArgs = targ + ['--solver', solver] + ['-o', solver + "_" + args.output] +[ '-d' + direction]
+        
             print (" ".join(finalArgs))
 
             subprocess.call(
                 finalArgs
             )
 
-        
+    
    

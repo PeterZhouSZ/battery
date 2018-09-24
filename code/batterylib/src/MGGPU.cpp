@@ -255,8 +255,8 @@ std::shared_ptr<CUDA_Volume>  toMGGPUVolume(const VolumeChannel & volchan, int i
 
 
 template <typename T>
-MGGPU<T>::MGGPU() :
-	_iterations(0)
+MGGPU<T>::MGGPU(bool verbose) :
+	_iterations(0), _verbose(verbose)
 {
 
 }
@@ -312,7 +312,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 		auto MGmask = toMGGPUVolume(mask, 0);
 		CUDATimer tGenDomain(true);
 		LinearSys_GenerateDomain(*MGmask, _params.d0, _params.d1, *_levels[0].domain);
-		std::cout << "Gen domain " << tGenDomain.time() << "s" << std::endl;
+		if(_verbose) std::cout << "Gen domain " << tGenDomain.time() << "s" << std::endl;
 
 /*#ifdef SAVE_TO_FILE
 		auto & D0ptr = volume.getChannel(_levels[0].domain.volID).getCurrentPtr();
@@ -339,7 +339,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 #endif*/
 		}
 
-		std::cout << "Convolve domain " << tConvolveDomain.time() << "s" << std::endl;
+		if(_verbose) std::cout << "Convolve domain " << tConvolveDomain.time() << "s" << std::endl;
 	}
 
 	
@@ -376,11 +376,11 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 	*/
 	{
 		auto & sysTop = _levels[0].A;
-		std::cout << "Alloc A0" << std::endl;
+		if(_verbose) std::cout << "Alloc A0" << std::endl;
 		sysTop.allocDevice(_levels[0].N(), sizeof(CUDA_Stencil_7));
 		CUDATimer t(true);
 		LinearSys_GenerateSystem(*_levels[0].domain, (CUDA_Stencil_7*)sysTop.gpu, *_levels[0].f);
-		std::cout << "Gen A0: " << t.time() << "s" << std::endl;
+		if(_verbose) std::cout << "Gen A0: " << t.time() << "s" << std::endl;
 	}
 
 	
@@ -391,7 +391,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 	{
 
 		DataPtr & I = _levels[0].I;
-		std::cout << "Alloc I0" << std::endl;
+		if(_verbose) std::cout << "Alloc I0" << std::endl;
 		I.allocDevice(_levels[0].N(), sizeof(CUDA_Kernel3DD<3>));
 		CUDATimer tI(true);
 		MGGPU_GenerateSystemInterpKernels(
@@ -399,7 +399,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 			*_levels[1].domain,
 			(CUDA_Kernel3DD<3> *)I.gpu
 		);
-		std::cout << "Gen I0: " << tI.time() << "s" << std::endl;
+		if(_verbose) std::cout << "Gen I0: " << tI.time() << "s" << std::endl;
 
 #ifdef SAVE_TO_FILE
 		{
@@ -420,7 +420,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 
 
 		DataPtr & A1 = _levels[1].A;
-		std::cout << "Alloc A1" << std::endl;
+		if(_verbose) std::cout << "Alloc A1" << std::endl;
 		A1.allocDevice(_levels[1].N(), sizeof(CUDA_Kernel3DD<5>));
 
 
@@ -444,14 +444,14 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 			);
 			auto t1 = std::chrono::system_clock::now();
 			std::chrono::duration<double> prepTime = t1 - t0;
-			std::cout << "Build A1 CPU: " << prepTime.count() << "s" << std::endl;
+			if(_verbose) std::cout << "Build A1 CPU: " << prepTime.count() << "s" << std::endl;
 
 			A1.commit();
 		}
 
 		{
 
-			cudaPrintMemInfo();
+			if (_verbose) cudaPrintMemInfo();
 			CUDATimer t(true);
 			MGGPU_BuildA1(
 				Nres,
@@ -462,8 +462,8 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 			);
 			t.stop();
 			_CUDA(cudaPeekAtLastError());
-			std::cout << "Build A1 GPU: " << t.time() << "s" << std::endl;
-			cudaPrintMemInfo();
+			if(_verbose) std::cout << "Build A1 GPU: " << t.time() << "s" << std::endl;
+			if (_verbose)  cudaPrintMemInfo();
 
 		}
 
@@ -499,9 +499,9 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 
 
 
-		std::cout << "Alloc I" << i << ", dim:" << _levels[i - 1].dim.x << "~^3 -> " << _levels[i].dim.x << "~^3" << std::endl;
+		if(_verbose) std::cout << "Alloc I" << i << ", dim:" << _levels[i - 1].dim.x << "~^3 -> " << _levels[i].dim.x << "~^3" << std::endl;
 		/*if (_levels[i].dim.x % 2 != 0 || _levels[i].dim.y % 2 != 0 || _levels[i].dim.z % 2 != 0) {
-			std::cout << "!!!!!!!!!!!!!! Odd dimension not supported yet !!!!!!!!!!!!!!" << std::endl;
+			if(_verbose) std::cout << "!!!!!!!!!!!!!! Odd dimension not supported yet !!!!!!!!!!!!!!" << std::endl;
 			return false;
 		}*/
 		I.allocDevice(_levels[i - 1].N(), sizeof(CUDA_Kernel3DD<3>));
@@ -512,7 +512,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 			*_levels[i].domain,
 			(CUDA_Kernel3DD<3> *)I.gpu
 		);
-		std::cout << "Gen I" << i << ": " << tI.time() << "s" << std::endl;
+		if(_verbose) std::cout << "Gen I" << i << ": " << tI.time() << "s" << std::endl;
 #ifdef SAVE_TO_FILE
 		{
 			//DataPtr & I = _levels[i-1].I;
@@ -530,7 +530,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 
 
 
-		std::cout << "Alloc A" << i << std::endl;
+		if(_verbose) std::cout << "Alloc A" << i << std::endl;
 		Anext.allocDevice(_levels[i].N(), sizeof(CUDA_Kernel3DD<5>));
 
 		auto Nres = make_uint3(_levels[i - 1].dim.x, _levels[i - 1].dim.y, _levels[i - 1].dim.z);
@@ -553,13 +553,13 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 			);
 			auto t1 = std::chrono::system_clock::now();
 			std::chrono::duration<double> prepTime = t1 - t0;
-			std::cout << "Build A1 CPU: " << prepTime.count() << "s" << std::endl;
+			if(_verbose) std::cout << "Build A1 CPU: " << prepTime.count() << "s" << std::endl;
 
 			Anext.commit();
 		}
 		else {
 
-			cudaPrintMemInfo();
+			if (_verbose) cudaPrintMemInfo();
 			CUDATimer t(true);
 			MGGPU_BuildAi(
 				Nres,
@@ -570,8 +570,8 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 			);
 			t.stop();
 			_CUDA(cudaPeekAtLastError());
-			std::cout << "Build A" << i << " GPU: " << t.time() << "s" << std::endl;
-			cudaPrintMemInfo();
+			if(_verbose) std::cout << "Build A" << i << " GPU: " << t.time() << "s" << std::endl;
+			if (_verbose) cudaPrintMemInfo();
 
 		}
 
@@ -610,7 +610,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 
 		auto t1 = std::chrono::system_clock::now();
 		std::chrono::duration<double> prepTime = t1 - t0;
-		std::cout << "Presolve ALast: " << prepTime.count() << "s" << std::endl;
+		if(_verbose) std::cout << "Presolve ALast: " << prepTime.count() << "s" << std::endl;
 
 		//saveSparse(_lastLevelA, "MGGPU_lastLevelA", 0);
 
@@ -661,16 +661,16 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 			DataPtr & A = _levels[level].A;
 			DataPtr & Aprev = _levels[level - 1].A;
 
-			std::cout << "Level " << level << std::endl;
-			cudaPrintMemInfo();
+			if(_verbose) std::cout << "Level " << level << std::endl;
+			if (_verbose)  cudaPrintMemInfo();
 
-			std::cout << "AI alloc & gen" << level << std::endl;
+			if(_verbose) std::cout << "AI alloc & gen" << level << std::endl;
 			//Free when out of scope
 			DataPtr AI;
 			AI.allocDevice(_levels[level - 1].N(), sizeof(double)*kAI*kAI*kAI);
 			AI.memsetDevice(0);
 
-			cudaPrintMemInfo();
+			if (_verbose) cudaPrintMemInfo();
 
 			auto Nres = make_uint3(_levels[level - 1].dim.x, _levels[level - 1].dim.y, _levels[level - 1].dim.z);
 			auto Nhalfres = make_uint3(_levels[level].dim.x, _levels[level].dim.y, _levels[level].dim.z);
@@ -716,7 +716,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 				}
 				_CUDA(cudaPeekAtLastError());
 
-				std::cout << "########## MGGPU_CombineKernelsTopLevel" << level << " time: " << tA.time() << std::endl;
+				if(_verbose) std::cout << "########## MGGPU_CombineKernelsTopLevel" << level << " time: " << tA.time() << std::endl;
 
 
 				/*{
@@ -732,11 +732,11 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 
 			}
 			else {
-				std::cout << "I alloc & gen" << level << std::endl;
+				if(_verbose) std::cout << "I alloc & gen" << level << std::endl;
 				DataPtr & I = _levels[level - 1].I;
 				I.allocDevice(_levels[level - 1].N(), sizeof(CUDA_Kernel3DD<3>));
-				//std::cout << "I^3: " << (_levels[level - 1].N() * sizeof(MGGPU_Kernel3D<3>)) / (1024.0f * 1024.0f) << "MB" << std::endl;
-				//std::cout << "I^2: " << (_levels[level - 1].N() * sizeof(MGGPU_Kernel3D<2>)) / (1024.0f * 1024.0f) << "MB" << std::endl;
+				//if(_verbose) std::cout << "I^3: " << (_levels[level - 1].N() * sizeof(MGGPU_Kernel3D<3>)) / (1024.0f * 1024.0f) << "MB" << std::endl;
+				//if(_verbose) std::cout << "I^2: " << (_levels[level - 1].N() * sizeof(MGGPU_Kernel3D<2>)) / (1024.0f * 1024.0f) << "MB" << std::endl;
 
 				//cudaPrintMemInfo();
 
@@ -763,7 +763,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 
 
 
-			std::cout << "A alloc & gen" << level << std::endl;
+			if(_verbose) std::cout << "A alloc & gen" << level << std::endl;
 
 			A.allocDevice(_levels[level].N(), sizeof(double)*kA*kA*kA);
 
@@ -872,7 +872,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 			//AI0.commit();
 
 			tAI0.stop();
-			std::cout << "GPU AI0 combine: " << tAI0.time() << std::endl;
+			if(_verbose) std::cout << "GPU AI0 combine: " << tAI0.time() << std::endl;
 
 
 			///////////
@@ -897,7 +897,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 					}
 				}
 				R0.commit();
-				std::cout << "R0 cpu->gpu: " << tr0.time() << std::endl;
+				if(_verbose) std::cout << "R0 cpu->gpu: " << tr0.time() << std::endl;
 
 			}
 
@@ -926,9 +926,9 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 			//A1.commit();
 			tA1.stop();
 
-			std::cout << "GPU A1 combine: " << tA1.time() << std::endl;
+			if(_verbose) std::cout << "GPU A1 combine: " << tA1.time() << std::endl;
 
-			std::cout << "==== GPU A1: " << tAI0.time() + tA1.time() << std::endl;
+			if(_verbose) std::cout << "==== GPU A1: " << tAI0.time() + tA1.time() << std::endl;
 
 
 #ifdef SAVE_TO_FILE
@@ -998,7 +998,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 		}
 		return true;
 
-		std::cout << "I0 kern size " << (_levels[1].N() * sizeof(CUDA_Kernel3DD<4>)) / (1024.0f * 1024.0f) << "MB" << std::endl;
+		if(_verbose) std::cout << "I0 kern size " << (_levels[1].N() * sizeof(CUDA_Kernel3DD<4>)) / (1024.0f * 1024.0f) << "MB" << std::endl;
 
 
 		DataPtr IT0Kernels;
@@ -1013,7 +1013,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 			(CUDA_Kernel3DD<4> *)IT0Kernels.gpu
 		);
 
-		std::cout << "GPU I' Time: " << tIT0Kern.time() << "s" << std::endl;
+		if(_verbose) std::cout << "GPU I' Time: " << tIT0Kern.time() << "s" << std::endl;
 
 
 
@@ -1021,9 +1021,9 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 		sysTop.allocDevice(_levels[0].N(), sizeof(CUDA_Stencil_7));
 		CUDATimer tSysTop(true);
 		LinearSys_GenerateSystem(_levels[0].domain, (CUDA_Stencil_7*)sysTop.gpu, _levels[0].f);
-		std::cout << "GPU A0 time: " << tSysTop.time() << "s" << std::endl;
+		if(_verbose) std::cout << "GPU A0 time: " << tSysTop.time() << "s" << std::endl;
 		{
-			std::cout << "i " << 0 << ", kn: " << "N/A" << ", per row:" << 7 << ", n: " << _levels[0].N() << ", row: " << sizeof(CUDA_Stencil_7) << "B" << ", total: " << (_levels[0].N() * sizeof(CUDA_Stencil_7)) / (1024.0f * 1024.0f) << "MB" << std::endl;
+			if(_verbose) std::cout << "i " << 0 << ", kn: " << "N/A" << ", per row:" << 7 << ", n: " << _levels[0].N() << ", row: " << sizeof(CUDA_Stencil_7) << "B" << ", total: " << (_levels[0].N() * sizeof(CUDA_Stencil_7)) / (1024.0f * 1024.0f) << "MB" << std::endl;
 		}
 
 
@@ -1041,7 +1041,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 		);
 		tAI0.stop();
 
-		std::cout << "GPU AI time: " << tAI0.time() << "s" << std::endl;
+		if(_verbose) std::cout << "GPU AI time: " << tAI0.time() << "s" << std::endl;
 
 		/*DataPtr I0Kernels;
 		I0Kernels.allocDevice(_levels[0].N(), sizeof(MGGPU_InterpKernel));
@@ -1127,7 +1127,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 			kn = 3 + 4 * i;
 			//int kn = 3 + 5 * i;
 			size_t rowsize = kn*kn*kn * sizeof(double);
-			std::cout << "i " << i << ", kn: " << kn << ", per row:" << kn*kn*kn << ", n: " << _levels[i].N() << ", row: " << rowsize << "B" << ", total: " << (_levels[i].N() * rowsize) / (1024.0f * 1024.0f) << "MB" << std::endl;
+			if(_verbose) std::cout << "i " << i << ", kn: " << kn << ", per row:" << kn*kn*kn << ", n: " << _levels[i].N() << ", row: " << rowsize << "B" << ", total: " << (_levels[i].N() * rowsize) / (1024.0f * 1024.0f) << "MB" << std::endl;
 			_levels[i].A.allocDevice(_levels[i].N(), rowsize);
 
 			prevKernelSize = kn;
@@ -1163,7 +1163,7 @@ bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeC
 
 		cudaDeviceSynchronize();
 
-		cudaPrintMemInfo(0);
+		if (_verbose) cudaPrintMemInfo(0);
 
 		return true;
 
@@ -1226,7 +1226,7 @@ bool MGGPU<T>::alloc(int levelLimit)
 
 	_levels.resize(LEVEL_NUM);
 	_levels[0].dim = origDim;
-	std::cout << "Level 0: " << origDim.x << " X " << origDim.y << " X " << origDim.z << std::endl;
+	if(_verbose) std::cout << "Level 0: " << origDim.x << " X " << origDim.y << " X " << origDim.z << std::endl;
 	for (auto i = 1; i < LEVEL_NUM; i++) {
 		
 		const auto prevDim = _levels[i - 1].dim;
@@ -1236,7 +1236,7 @@ bool MGGPU<T>::alloc(int levelLimit)
 			(prevDim.z + 1) / 2
 		};
 
-		std::cout << "Level "<< i <<": " << _levels[i].dim.x << " X " << _levels[i].dim.y << " X " << _levels[i].dim.z << std::endl;
+		if(_verbose) std::cout << "Level "<< i <<": " << _levels[i].dim.x << " X " << _levels[i].dim.y << " X " << _levels[i].dim.z << std::endl;
 	}
 
 	auto label = [](const std::string & prefix, int i) {

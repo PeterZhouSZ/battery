@@ -74,6 +74,13 @@ std::vector<Dir> getDirs(std::string & flagStr) {
 	if (flagStr == "neg")
 		return { X_NEG, Y_NEG, Z_NEG };
 
+	if (flagStr == "xneg")
+		return { X_NEG};
+	if (flagStr == "yneg")
+		return { Y_NEG };
+	if (flagStr == "zneg")
+		return { Z_NEG };
+
 
 	std::vector<Dir> arr;
 	for (auto & c : flagStr) {
