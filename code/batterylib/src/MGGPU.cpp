@@ -12,6 +12,7 @@
 
 
 #include "JacobiSolver.h"
+#include "Volume.h"
 //#ifdef DEBUG
 //#define SAVE_TO_FILE
 //#endif
@@ -286,15 +287,18 @@ void blib::MGGPU<T>::commitVolume(CUDA_Volume & v)
 
 
 template <typename T>
-bool MGGPU<T>::prepare(VolumeChannel & mask, PrepareParams params, Volume & volume) {
+bool MGGPU<T>::prepare(const VolumeChannel & mask, PrepareParams params, VolumeChannel * output) {
 
 
+	assert(output);
+	if (!output) return false;
 
-	_params = params;
+	_params = params;	
 	_mask = &mask;
-	_volume = &volume;
+	_output = output;
+	_volume = std::make_unique<Volume>();
 
-	//cudaPrintProperties();
+	
 
 	alloc();
 
@@ -1244,19 +1248,28 @@ bool MGGPU<T>::alloc(int levelLimit)
 	//Domain & vector allocation
 	//Automatically allocated on CPU as well.
 	for (auto i = 0; i < LEVEL_NUM; i++) {
-		int domain = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("domain", i));
-		int x = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("x", i));
+		int domain = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("domain", i));		
 		int tmpx = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("tmpx", i));
 		int r = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("r", i));
 		int f = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("f", i));		
 		
 
 		_levels[i].domain = toMGGPUVolume(_volume->getChannel(domain), domain);
-		_levels[i].x = toMGGPUVolume(_volume->getChannel(x), x);
+		
 		_levels[i].tmpx = toMGGPUVolume(_volume->getChannel(tmpx), tmpx);
 		_levels[i].r = toMGGPUVolume(_volume->getChannel(r), r);
 		_levels[i].f = toMGGPUVolume(_volume->getChannel(f), f);
+
+		if (i == 0) {
+			//Top level x is provided from outside
+			_levels[i].x = toMGGPUVolume(*static_cast<const VolumeChannel *>(_output));
+		}
+		else {
+			int x = _volume->addChannel(_levels[i].dim, TYPE_DOUBLE, false, label("x", i));
+			_levels[i].x = toMGGPUVolume(_volume->getChannel(x), x);
+		}
 	}
+
 
 
 
@@ -1274,50 +1287,8 @@ bool MGGPU<T>::alloc(int levelLimit)
 }
 
 
-template <typename T>
-void blib::MGGPU<T>::profile()
-{
 
-	CUDA_Stencil_7 * A = (CUDA_Stencil_7 *)_levels[0].A.gpu;
 	
-	LinearSys_MatrixVectorProduct(A, *_y, *_v);
-	
-
-	//Profile Gauss seidel
-	/*{
-		double tolerance = 1e-6;
-		int preN = 1;
-		Profiler profiler;
-
-		int i = 1;
-		int kmax = 1;
-		for (auto k = 0; k < kmax; k++) {
-			auto t = CUDATimer(true);
-			MGGPU_SmootherParams sp;
-			sp.A = (MGGPU_KernelPtr)_levels[i].A.gpu;
-			sp.isTopLevel = (i == 0);
-			sp.f = _levels[i].f;
-			sp.x = _levels[i].x;
-			sp.tmpx = _levels[i].tmpx;
-			sp.r = _levels[i].r;
-			sp.dir = _params.dir;
-
-			sp.res = make_uint3(_levels[i].dim);
-			sp.tolerance = tolerance;
-			sp.auxBufferGPU = _auxReduceBuffer.gpu;
-			sp.auxBufferCPU = _auxReduceBuffer.cpu;
-			sp.iter = preN;
-			double er = MGGPU_GaussSeidel(sp);
-
-			profiler.add("smooth", t.time());
-		}
-		profiler.stop();
-		std::cout << profiler.summary();
-
-		
-	}*/
-
-}
 
 template <typename T>
 void blib::MGGPU<T>::reset()
@@ -1707,6 +1678,7 @@ std::vector<int> MGGPU<T>::genCycle(CycleType ctype) const{
 }
 
 
+/*
 template <typename T>
 T blib::MGGPU<T>::tortuosity()
 {		
@@ -1782,560 +1754,12 @@ T blib::MGGPU<T>::tortuosity()
 
 	return tau;
 
-	/*
-	Calculate average of low concetration plane where mask == 1
-	*/
-	
-	
-	
-
-	/*
-	const T * concData = _x[0].data();
-	const uchar * cdata = (uchar *)mask.getCurrentPtr().getCPU();
-
-	const int primaryDim = getDirIndex(dir);
-	const int secondaryDims[2] = { (primaryDim + 1) % 3, (primaryDim + 2) % 3 };
-
-
-	int n = dim[secondaryDims[0]] * dim[secondaryDims[1]];
-	int k = (getDirSgn(dir) == -1) ? 0 : dim[primaryDim] - 1;
-	*/
-
-	/*
-	Calculate average in low concetration plane
-	*/
-
-	/*
-	bool zeroOutPart = true;
-	std::vector<T> isums(dim[secondaryDims[0]], T(0));
-
-	#pragma omp parallel for
-	for (auto i = 0; i < dim[secondaryDims[0]]; i++) {
-		T jsum = T(0);
-		for (auto j = 0; j < dim[secondaryDims[1]]; j++) {
-			ivec3 pos;
-			pos[primaryDim] = k;
-			pos[secondaryDims[0]] = i;
-			pos[secondaryDims[1]] = j;
-
-			if (zeroOutPart && cdata[linearIndex(dim, pos)] == 0)
-				jsum += concData[linearIndex(dim, pos)];
-		}
-		isums[i] = jsum;
-	}
-
-	T sum = std::accumulate(isums.begin(), isums.end(), T(0));
-
-	double dc = sum / n;
-	double dx = 1.0f / (dim[primaryDim] + 1);
-	double tau = _porosity / (dc * dim[primaryDim] * 2);
-	*/
-	
+		
 
 	
 
-}
+}*/
 
-
-
-
-template <typename T>
-bool blib::MGGPU<T>::bicgPrep(VolumeChannel & mask, PrepareParams params, Volume & volume)
-{
-	_params = params;
-	_mask = &mask;
-	_volume = &volume;
-
-	//cudaPrintProperties();
-
-	//alloc(1);
-	{
-
-		auto label = [](const std::string & prefix, int i) {
-			char buf[16];
-			sprintf(buf, "%d", i);
-			return prefix + std::string(buf);
-		};
-		
-		_levels.resize(1);
-		const auto origDim = _mask->dim();
-		const size_t origTotal = origDim.x * origDim.y * origDim.z;
-		_levels[0].dim = origDim;
-
-		int domain = _volume->addChannel(_levels[0].dim, TYPE_DOUBLE, false, label("domain", 0));
-		_levels[0].domain = toMGGPUVolume(_volume->getChannel(domain), domain);
-
-		int f = _volume->addChannel(_levels[0].dim, TYPE_DOUBLE, false, label("f", 0));
-		_levels[0].f = toMGGPUVolume(_volume->getChannel(f), f);
-
-
-		//Auxiliary buffer for reduction
-		{
-			const size_t maxN = _levels[0].N();
-			const size_t reduceN = maxN / VOLUME_REDUCTION_BLOCKSIZE;
-			_auxReduceBuffer.allocDevice(reduceN, sizeof(double));
-			_auxReduceBuffer.allocHost();
-		}
-
-	}
-
-
-
-	/*
-	Generate continous domain at first level
-	*/
-	{
-		auto MGmask = toMGGPUVolume(mask, 0);
-		CUDATimer tGenDomain(true);
-		LinearSys_GenerateDomain(*MGmask, _params.d0, _params.d1, *_levels[0].domain);
-		std::cout << "Gen domain " << tGenDomain.time() << "s" << std::endl;
-
-		/*#ifdef SAVE_TO_FILE
-		auto & D0ptr = volume.getChannel(_levels[0].domain.volID).getCurrentPtr();
-		D0ptr.retrieve();
-		saveVector<double>(D0ptr.getCPU(), _levels[0].N(), "MGGPU_D", 0);
-		#endif*/
-	}
-
-
-	//Send system params to gpu
-	LinearSys_SysParams sysp;
-	sysp.highConc = double(1.0);
-	sysp.lowConc = double(0.0);
-	sysp.concetrationBegin = (getDirSgn(params.dir) == 1) ? sysp.highConc : sysp.lowConc;
-	sysp.concetrationEnd = (getDirSgn(params.dir) == 1) ? sysp.lowConc : sysp.highConc;
-
-	sysp.cellDim[0] = params.cellDim.x;
-	sysp.cellDim[1] = params.cellDim.y;
-	sysp.cellDim[2] = params.cellDim.z;
-	sysp.faceArea[0] = sysp.cellDim[1] * sysp.cellDim[2];
-	sysp.faceArea[1] = sysp.cellDim[0] * sysp.cellDim[2];
-	sysp.faceArea[2] = sysp.cellDim[0] * sysp.cellDim[1];
-
-	sysp.dirPrimary = getDirIndex(params.dir);
-	sysp.dirSecondary = make_uint2((sysp.dirPrimary + 1) % 3, (sysp.dirPrimary + 2) % 3);
-
-	sysp.dir = params.dir;
-
-	bool commitRes = MGGPU_commitSysParams(sysp) && LinearSys_commitSysParams(sysp);
-	if (!commitRes) {
-		return false;
-	}
-
-
-	//BICGStab prep
-	{
-
-
-
-
-		auto label = [](const std::string & prefix, int i) {
-			char buf[16];			
-			sprintf(buf, "%d", i);	
-			return prefix + std::string(buf);
-		};
-
-		const auto origDim = _mask->dim();
-
-		int i = 0;
-
-
-		int temp = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("temp", i));
-		int x = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("_x", i));
-		int rhat0 = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("rhat0", i));
-		int r = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("r", i));
-		int p = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("p", i));
-		int v = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("v", i));
-		int s = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("s", i));
-		int t = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("t", i));
-
-		int y = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("y", i));
-		int z = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("z", i));
-
-
-		int ainvert = _volume->addChannel(origDim, TYPE_DOUBLE, false, label("ainvert", i));
-
-
-		_temp = toMGGPUVolume(_volume->getChannel(temp), temp);
-		_x = toMGGPUVolume(_volume->getChannel(x), x);
-		_rhat0 = toMGGPUVolume(_volume->getChannel(rhat0), rhat0);
-		_r = toMGGPUVolume(_volume->getChannel(r), r);
-		_p = toMGGPUVolume(_volume->getChannel(p), p);
-		_v = toMGGPUVolume(_volume->getChannel(v), v);
-
-		_s = toMGGPUVolume(_volume->getChannel(s), s);
-		_t = toMGGPUVolume(_volume->getChannel(t), t);
-
-		_y = toMGGPUVolume(_volume->getChannel(y), y);
-		_z = toMGGPUVolume(_volume->getChannel(z), z);
-
-
-		_ainvert = toMGGPUVolume(_volume->getChannel(ainvert), ainvert);
-
-		//TODO: memory optimization -> do not remember domain, just slice in computed dir
-	}
-
-	/*
-	Generate A0 - top level kernels
-	*/
-	{
-		auto & sysTop = _levels[0].A;
-		std::cout << "Alloc A0" << std::endl;
-		sysTop.allocDevice(_levels[0].N(), sizeof(CUDA_Stencil_7));
-		CUDATimer t(true);
-		LinearSys_GenerateSystem(*_levels[0].domain, (CUDA_Stencil_7*)sysTop.gpu, *_levels[0].f, &(*_x));
-		std::cout << "Gen A0: " << t.time() << "s" << std::endl;
-	}
-
-
-
-	
-
-	//Preinverted A0 diagonal
-	{
-		LinearSys_InvertSystemDiagTo((CUDA_Stencil_7*)_levels[0].A.gpu, *_ainvert);
-	}
-
-
-	_levels[0].x = _x;
-
-	return true;
-}
-
-
-#define EIGEN_COPY
-template <typename T>
-T blib::MGGPU<T>::bicgSolve(const SolveParams & solveParams)
-{
-	
-#ifdef EIGEN_COPY
-	const uint3 res = _x->res;
-	auto SqNorm = [&](CUDA_Volume & vol) {
-		return Volume_SquareNorm(res, vol, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
-	};
-	auto DotProduct = [&](CUDA_Volume & vol0, CUDA_Volume & vol1) {
-		double result;
-		Volume_DotProduct(vol0, vol1, *_temp, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu, &result);
-		return result;
-	};
-
-	CUDA_Stencil_7 * A = (CUDA_Stencil_7 *)_levels[0].A.gpu;
-
-	auto & r = _r;
-	auto & r0 = _rhat0;
-	auto & rhs = _levels[0].f;
-	auto & x = _x;
-	
-
-	double zero = 0.0;
-	//launchClearKernel(TYPE_DOUBLE, x.surf, res, &zero);
-
-	T tol = solveParams.tolerance;
-	T tol_error = 1.0;
-
-	size_t maxIters = solveParams.maxIter;
-
-	size_t n = _levels[0].N();
-
-	
-	//1. Residual r
-	LinearSys_Residual(A, *x, *rhs, *r);
-
-	//2. Choose rhat0 ..
-	launchCopyKernel(TYPE_DOUBLE, res, r->surf, r0->surf);
-
-	T r0_sqnorm = SqNorm(*r0);
-	T rhs_sqnorm = SqNorm(*rhs);
-	if (rhs_sqnorm == 0) {
-		return 0.0;
-	}
-
-	T rho = 1;
-	T alpha = 1;
-	T w = 1;
-
-	auto & p = _p;
-	auto & v = _v;
-	launchClearKernel(TYPE_DOUBLE, v->surf, res, &zero);
-	launchClearKernel(TYPE_DOUBLE, p->surf, res, &zero);
-
-	auto & y = _y;
-	auto & z = _z;
-	
-	
-
-	auto & s = _s;
-	auto & t = _t;
-
-	T tol2 = tol*tol*rhs_sqnorm;
-	T eps2 = Eigen::NumTraits<T>::epsilon() * Eigen::NumTraits<T>::epsilon();
-
-	size_t i = 0;
-	size_t restarts = 0;
-
-	const bool verbose = solveParams.verboseDebug;
-	
-	Profiler profiler;
-
-	
-
-	T rsqNorm = 0;
-	CUDA_TIMER(rsqNorm = SqNorm(*r),"sqNorm",profiler);
-
-	while (rsqNorm > tol2 && i < maxIters)
-	{
-		if(verbose) std::cout << i << std::endl;
-		if(verbose) std::cout << "\t" << "sq r: " << SqNorm(*r) << std::endl;
-
-		T rho_old = rho;
-
-		
-		
-		CUDA_TIMER(rho = DotProduct(*r0,*r),"dot",profiler); //r0.dot(r);
-		
-
-		if(verbose) std::cout << "\t" << " rho: " << rho << std::endl;
-		if (abs(rho) < eps2*r0_sqnorm)
-		{
-			if(verbose) std::cout << "\t" << " restart " << std::endl;
-			// The new residual vector became too orthogonal to the arbitrarily chosen direction r0
-			// Let's restart with a new r0:
-			
-			CUDA_TIMER(LinearSys_Residual(A, *x, *rhs, *r), "residual", profiler); //r = rhs - mat * x;
-			
-			
-			
-			CUDA_TIMER(launchCopyKernel(TYPE_DOUBLE, res, r->surf, r0->surf),"copy",profiler); //r0 = r;			
-			CUDA_TIMER(rho = r0_sqnorm = SqNorm(*r),"sqNorm",profiler); //r.squaredNorm();
-			if (restarts++ == 0)
-				i = 0;
-		}
-		T beta = (rho / rho_old) * (alpha / w);
-		if(verbose) std::cout << "\t" << " beta: " << beta << std::endl;
-		
-		//p = beta * (p + -w * v ) + r
-		//p = r + beta * (p - w * v);
-		CUDA_TIMER(launchAPlusBetaBGammaPlusC(TYPE_DOUBLE, res, p->surf, v->surf, r->surf , -w, beta),"launchAPlusBetaBGammaPlusC",profiler);
-				
-
-		if(verbose) std::cout << "\t" << " psq: " << SqNorm(*p) << std::endl;
-		
-		{
-			//y = precond.solve(p);
-			//v.noalias() = mat * y;
-			
-			CUDA_TIMER(launchMultiplyKernel(TYPE_DOUBLE, res, _ainvert->surf, p->surf, y->surf),"multiply",profiler);
-			
-			if(verbose) std::cout << "\t" << " ysq: " << SqNorm(*y) << std::endl;
-
-			CUDA_TIMER(LinearSys_MatrixVectorProduct(A, *y, *v),"matvec",profiler);
-			
-
-			if(verbose) std::cout << "\t" << " vsq: " << SqNorm(*v) << std::endl;
-		}
-
-
-		//alpha = rho / r0.dot(v);
-		
-		CUDA_TIMER(alpha = rho / DotProduct(*r0, *v),"dot",profiler);
-		
-		
-
-		if(verbose) std::cout << "\t" << " alpha: " << alpha  << " = " << rho << "/" << DotProduct(*r0, *v) << std::endl;
-				
-		//s = r - alpha * v;
-		
-		CUDA_TIMER(launchAddAPlusBetaB(TYPE_DOUBLE, res, r->surf, v->surf, s->surf, -alpha),"launchAddAPlusBetaB",profiler);
-		
-		
-		if(verbose) std::cout << "\t" << " ssq: " << SqNorm(*s) << std::endl;
-
-		{
-			//z = precond.solve(s);
-			//t.noalias() = mat * z;
-			//DOUBLE CHECK
-			
-			CUDA_TIMER(launchMultiplyKernel(TYPE_DOUBLE, res, _ainvert->surf, s->surf, z->surf), "multiply",profiler);
-			
-			if(verbose) std::cout << "\t" << " zsq: " << SqNorm(*z) << std::endl;
-
-			
-			CUDA_TIMER(LinearSys_MatrixVectorProduct(A, *z, *t),"matvec",profiler);
-			
-
-			if(verbose) std::cout << "\t" << " tsq: " << SqNorm(*t) << std::endl;
-		}
-		
-
-		//RealScalar tmp = t.squaredNorm();
-		
-		T tmp;
-		CUDA_TIMER(tmp = SqNorm(*t), "sqNorm", profiler);
-		
-
-		if (tmp > T(0)) {
-			//w = t.dot(s) / tmp;			
-			CUDA_TIMER(w = DotProduct(*t, *s) / tmp,"dot",profiler);			
-		}
-		else {
-			w = T(0);
-		}
-
-		if(verbose) std::cout << "\t" << " w: " << w << std::endl;
-
-		//x = x + alpha*y + omega * z
-		//x += alpha * y + w * z;
-		
-		CUDA_TIMER(launchABC_BetaGamma(TYPE_DOUBLE, res, x->surf, y->surf, z->surf, alpha, w),"launchABC_BetaGamma",profiler);
-		
-
-		if(verbose) std::cout << "\t" << " xsq: " << SqNorm(*x) << std::endl;
-		
-
-		//r = s - w * t; C = A + beta * B
-		
-		CUDA_TIMER(launchAddAPlusBetaB(TYPE_DOUBLE, res, s->surf, t->surf, r->surf, -w),"launchAddAPlusBetaB", profiler);
-
-		CUDA_TIMER(rsqNorm = SqNorm(*r), "sqNorm", profiler);
-
-		if(verbose) std::cout << "\t" << " rsq: " << SqNorm(*r) << std::endl;
-		++i;
-	}
-	//tol_error = sqrt(r.squaredNorm() / rhs_sqnorm);
-	CUDA_TIMER(tol_error = sqrt(SqNorm(*r) / rhs_sqnorm),"sqNorm",profiler);
-	_iterations = i;
-
-	profiler.stop();
-
-
-	if (solveParams.verbose) {
-		std::cout << "Iterations: " << _iterations << " / " << solveParams.maxIter << std::endl;
-		std::cout << profiler.summary();
-	}
-
-	return tol_error;
-	
-	
-
-	
-
-
-
-
-#else
-
-	///test bigstab
-	CUDA_Stencil_7 * A = (CUDA_Stencil_7 *)_levels[0].A.gpu;
-	CUDA_Volume & b = _levels[0].f;
-
-	uint3 res = _x.res;
-
-	auto SqNorm = [&](CUDA_Volume & vol){		
-		return Volume_SquareNorm(res, vol, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu);
-	};
-
-	auto DotProduct = [&](CUDA_Volume & vol0, CUDA_Volume & vol1) {
-		double result;
-		Volume_DotProduct(TYPE_DOUBLE, res, vol0.surf, vol1.surf, _temp.surf, _auxReduceBuffer.gpu, _auxReduceBuffer.cpu, &result);
-		return result;
-	};
-
-		
-
-
-	//Initial guess
-	double zero = 0.0;
-	launchClearKernel(TYPE_DOUBLE, _x.surf, res, &zero);
-
-	double bSqNorm = SqNorm(b);
-
-
-
-	//1. Residual r
-	LinearSys_Residual(res, A, _x, b, _r);
-
-	//2. Choose rhat0
-	launchCopyKernel(TYPE_DOUBLE, res, _r.surf, _rhat0.surf);
-
-	//3. Set scalars
-	_rho = 1.0;
-	_alpha = 1.0;
-	_omega = 1.0;
-
-	//4. Set vectors
-	launchClearKernel(TYPE_DOUBLE, _v.surf, res, &zero);
-	launchClearKernel(TYPE_DOUBLE, _p.surf, res, &zero);
-
-	double dotRes = 0.0;
-
-	for (auto i = 0; i < solveParams.maxIter; i++) {
-
-
-		//1. 		
-		double rhoPrev = _rho;
-		_rho = DotProduct(_rhat0, _r);
-
-		//2. 
-		_beta = (_rho / rhoPrev) * (_alpha / _omega);
-
-		//3. pi = (pi-1 - omega*v) * beta + r-1
-		launchAPlusBetaBGammaPlusC(TYPE_DOUBLE, res, _p.surf, _v.surf, _r.surf, -_omega, _beta);
-
-		//4. v = Ap
-		LinearSys_MatrixVectorProduct(A, _p, _v);
-
-		//5. alpha = rho/dot(r0hat, v)
-		_alpha = _rho / DotProduct(_rhat0, _v);
-
-		//6. h = x-1 + alpha p
-		launchAddAPlusBetaB(TYPE_DOUBLE, res, _x.surf, _p.surf, _h.surf, _alpha);
-
-		//7. Check
-		{
-			LinearSys_Residual(res, A, _h, b, _temp);
-			double rSqNorm = SqNorm(_temp);
-			double err = sqrt(rSqNorm / bSqNorm);
-			std::cout << "h error " << err << std::endl;
-			if (err < solveParams.tolerance) {
-				//result is in h
-				return err;
-			}
-		}
-
-
-
-		//8. s = ri - alpha v
-		launchAddAPlusBetaB(TYPE_DOUBLE, res, _r.surf, _v.surf, _s.surf, _alpha);
-
-		//9. As = t
-		LinearSys_MatrixVectorProduct(A, _s, _t);
-
-		//10. omega = (t,s)/(t,t)		
-		double tNorm = SqNorm(_t);
-		_omega = DotProduct(_t, _s) / tNorm;
-
-		//11. x = h + omega s
-		launchAddAPlusBetaB(TYPE_DOUBLE, res, _h.surf, _s.surf, _x.surf, _omega);
-
-		// 12. check
-		{
-			LinearSys_Residual(res, A, _x, b, _temp);
-			double rSqNorm = SqNorm(_temp);
-			double err = sqrt(rSqNorm / bSqNorm);
-			std::cout << "x error " << err << std::endl;
-			if (err < solveParams.tolerance) {
-				//result is in x
-				return err;
-			}
-		}
-
-
-		//13. r = s - omega*t
-		launchAddAPlusBetaB(TYPE_DOUBLE, res, _s.surf, _t.surf, _r.surf, _omega);
-	}
-
-#endif
-}
 
 
 

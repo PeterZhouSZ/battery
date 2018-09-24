@@ -30,7 +30,7 @@ volExport = False
 
 #subs = [296, 320, 380, 420]
 #solvers = ['BICGSTABGPU']
-#subs = [310]
+subs = [16]
 
 
 
@@ -110,6 +110,8 @@ if(args.plot):
 
 if(os.name == 'nt'):
     toolPath = Path('../build/Release/batterytool.exe')    
+    if(not toolPath.exists()):
+        toolPath = Path('../build/Debug/batterytool.exe')
 else:
     toolPath = Path('../build/batterytool')
     

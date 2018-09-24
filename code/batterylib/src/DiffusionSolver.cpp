@@ -247,7 +247,7 @@ DiffusionSolver<T>::~DiffusionSolver()
 }
 
 template <typename T>
-bool DiffusionSolver<T>::prepare(VolumeChannel & volChannel, Dir dir, T d0, T d1, bool preserveAspectRatio) {
+bool DiffusionSolver<T>::prepare(const VolumeChannel & volChannel, Dir dir, T d0, T d1, bool preserveAspectRatio) {
 
 	using vec3 = glm::tvec3<T, glm::highp>;
 

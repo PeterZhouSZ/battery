@@ -49,6 +49,8 @@ RNGUniformInt uniformDistInt(0, INT_MAX);
 
 #include "batterylib/include/Timer.h"
 
+#include "batterylib/include/VolumeMeasures.h"
+
 
 
 
@@ -516,7 +518,7 @@ void BatteryApp::solveMGGPU()
 		Prepare
 	*/
 
-	bool bicg = _options["Diffusion"].get<bool>("BICG");
+	
 	
 	while (_volume->numChannels() > 2) {
 		_volume->removeChannel(_volume->numChannels() - 1);
@@ -542,12 +544,9 @@ void BatteryApp::solveMGGPU()
 
 	auto t0 = std::chrono::system_clock::now();
 	bool resPrep = false;
-	if (bicg) {
-		resPrep = _mggpu.bicgPrep(_volume->getChannel(CHANNEL_BATTERY), p, *_volume);
-	}
-	else {
-		resPrep = _mggpu.prepare(_volume->getChannel(CHANNEL_BATTERY), p, *_volume);
-	}
+	
+	resPrep = _mggpu.prepare(_volume->getChannel(CHANNEL_BATTERY), p,  &_volume->getChannel(CHANNEL_CONCETRATION));
+	
 	auto t1 = std::chrono::system_clock::now();
 
 	
@@ -582,16 +581,11 @@ void BatteryApp::solveMGGPU()
 
 		auto ts0 = std::chrono::system_clock::now();
 		double err;
-		if (bicg) {
-			err = _mggpu.bicgSolve(
-				sp
-			);
-		}
-		else {
-			err = _mggpu.solve(
-				sp
-			);		
-		}
+		
+		err = _mggpu.solve(
+			sp
+		);		
+		
 		auto ts1 = std::chrono::system_clock::now();
 
 		if (err < 0.0) {
@@ -606,8 +600,8 @@ void BatteryApp::solveMGGPU()
 		std::cout << std::endl;
 
 
-		double tau = _mggpu.tortuosity();
-		std::cout << "TORTUOSITY: " << tau << std::endl;
+		//double tau = _mggpu.tortuosity();
+		std::cout << "TORTUOSITY: use tortusity<T> instead" << std::endl;
 
 		std::chrono::duration<double> solveTime = ts1 - ts0;
 		std::cout << "Solve time: " << solveTime.count() << "s" << std::endl;
@@ -683,64 +677,17 @@ void BatteryApp::solveBICGSTABGPU()
 	/*
 	Prepare
 	*/
+	TortuosityParams tp;
+	tp.coeffs = {
+		_options["Diffusion"].get<float>("D_zero"),
+		_options["Diffusion"].get<float>("D_one")
+	};
+	tp.dir = Dir(_options["Diffusion"].get<int>("direction"));
+	tp.tolerance = pow(10.0, -_options["Diffusion"].get<int>("Tolerance"));
 
-	
-
-	while (_volume->numChannels() > 2) {
-		_volume->removeChannel(_volume->numChannels() - 1);
-	}
-
-	BICGSTABGPU<double>::PrepareParams p;
-	p.dir = Dir(_options["Diffusion"].get<int>("direction"));
-	p.d0 = _options["Diffusion"].get<float>("D_zero");
-	p.d1 = _options["Diffusion"].get<float>("D_one");
-
-	
-	auto & c = _volume->getChannel(CHANNEL_BATTERY);
-	auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
-	auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
-	auto exactSolveDim = 4;
-	p.cellDim = vec3(1.0 / maxDim);	
-
-	p.volume = _volume.get();
-	p.maskID = CHANNEL_BATTERY;
-	
-
-	auto t0 = std::chrono::system_clock::now();
-	bool resPrep = _bicgstabgpu.prepare(p);	
-	auto t1 = std::chrono::system_clock::now();
-	std::chrono::duration<double> prepTime = t1 - t0;
-	std::cout << "Prep time: " << prepTime.count() << "s" << std::endl;
-
-	if (!resPrep) {
-		std::cout << "Preparation failed" << std::endl;
-		return;
-	}
-
-	std::cout << "=================================" << std::endl;
-
-	//One solve
-
-	BICGSTABGPU<double>::SolveParams sp; 
-	sp.maxIter = 1000;
-	sp.tolerance = pow(10.0, -_options["Diffusion"].get<int>("Tolerance"));
-
-	
-	auto ts0 = std::chrono::system_clock::now();
-	auto out = _bicgstabgpu.solve(sp);	
-	auto ts1 = std::chrono::system_clock::now();
-
-	if (out.status == Solver<double>::SOLVER_STATUS_SUCCESS) {
-		std::cout << "SUCCESS iter: " << out.iterations << ", error: " << out.error;
-	}			
-	
-	std::cout << "TORTUOSITY: " << "Not implemented" << std::endl;
-
-	std::chrono::duration<double> solveTime = ts1 - ts0;
-	std::cout << "Solve time: " << solveTime.count() << "s" << std::endl;
-	std::cout << "TOTAL time: " << solveTime.count() + prepTime.count() << "s" << std::endl;
-	std::cout << "BICGSTABGPU END =================================" << std::endl;
-
+	tortuosity<double>(_volume->getChannel(CHANNEL_BATTERY), tp, DSOLVER_BICGSTABGPU);
+	tortuosity<double>(_volume->getChannel(CHANNEL_BATTERY), tp, DSOLVER_EIGEN, &_volume->getChannel(CHANNEL_CONCETRATION));
+	tortuosity<double>(_volume->getChannel(CHANNEL_BATTERY), tp, DSOLVER_MGGPU);
 }
 
 void BatteryApp::reset()
@@ -770,7 +717,7 @@ void BatteryApp::reset()
 		//Add concetration channel
 		auto concetrationID = _volume->addChannel(
 			_volume->getChannel(CHANNEL_BATTERY).dim(),
-			TYPE_FLOAT
+			TYPE_DOUBLE
 		);
 		assert(concetrationID == CHANNEL_CONCETRATION);
 

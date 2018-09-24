@@ -1,7 +1,9 @@
 #pragma once
-#include "Volume.h"
+
 
 namespace blib {
+
+	class VolumeChannel;
 
 	template <typename T>
 	class Solver {
@@ -14,8 +16,8 @@ namespace blib {
 		}
 
 		struct PrepareParams {
-			Volume * volume = nullptr;
-			int maskID = 0;
+			const VolumeChannel * mask = nullptr;			
+			VolumeChannel * output = nullptr;
 			Dir dir = X_NEG;
 			T d0 = 0.0;
 			T d1 = 1.0;
@@ -40,7 +42,7 @@ namespace blib {
 		};
 
 		virtual bool prepare(const PrepareParams & params) = 0;
-		virtual Output solve(const SolveParams & solveParams) = 0;
+		virtual Output solve(const SolveParams & solveParams) = 0;		
 
 	protected:
 		bool _verbose;

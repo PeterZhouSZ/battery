@@ -15,7 +15,8 @@ namespace blib{
 	
 
 
-	struct VolumeChannel {
+	class VolumeChannel {
+	public:
 
 		BLIB_EXPORT VolumeChannel(
 			ivec3 dim, 
@@ -66,6 +67,8 @@ namespace blib{
 		
 		BLIB_EXPORT void normalize();
 
+		BLIB_EXPORT std::shared_ptr<CUDA_Volume> getCUDAVolume() const;
+
 		BLIB_EXPORT static bool enableOpenGLInterop;
 
 	private:		
@@ -79,7 +82,8 @@ namespace blib{
 		
 	};
 
-	struct Volume {
+	class Volume {
+	public:
 		BLIB_EXPORT Volume();
 
 		BLIB_EXPORT uint addChannel(ivec3 dim, PrimitiveType type, bool doubleBuffered = true, const std::string & name = "New Channel");
@@ -115,6 +119,8 @@ namespace blib{
 			);
 
 		BLIB_EXPORT void synchronize();
+
+		BLIB_EXPORT void clear();
 		
 
 		

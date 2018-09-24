@@ -2,7 +2,7 @@
 
 #include "BatteryLibDef.h"
 #include "Types.h"
-#include "Volume.h"
+
 #include "DataPtr.h"
 
 #include <array>
@@ -14,7 +14,8 @@ struct CUDA_Volume; //TODO move to blib namespace
 
 namespace blib {
 
-	
+	class Volume;
+	class VolumeChannel;
 
 
 	template <typename T>
@@ -56,9 +57,9 @@ namespace blib {
 		BLIB_EXPORT MGGPU();
 		
 		BLIB_EXPORT bool prepare(
-			VolumeChannel & mask,
-			PrepareParams params,
-			Volume & volume
+			const VolumeChannel & mask,
+			PrepareParams params,	
+			VolumeChannel * output
 		);
 
 
@@ -67,22 +68,7 @@ namespace blib {
 		BLIB_EXPORT T solve(
 			const SolveParams & solveParams			
 		);
-
-		BLIB_EXPORT bool bicgPrep(
-			VolumeChannel & mask,
-			PrepareParams params,
-			Volume & volume
-		);
-
-		BLIB_EXPORT T bicgSolve(
-			const SolveParams & solveParams			
-		);
-
-		BLIB_EXPORT T tortuosity();
 		
-
-		BLIB_EXPORT void profile();
-
 		BLIB_EXPORT void reset();
 
 		BLIB_EXPORT size_t iterations() const {
@@ -110,8 +96,8 @@ namespace blib {
 		
 
 		PrepareParams _params;
-		VolumeChannel * _mask;
-		Volume * _volume;
+		const VolumeChannel * _mask;
+		std::unique_ptr<Volume> _volume;
 
 		//using SparseMat = int; //Todo cusparse mat
 		//using Vector = int; //Todo cusparse vec
@@ -149,13 +135,8 @@ namespace blib {
 
 		T _porosity;
 
+		VolumeChannel * _output;
 
-		//BICGStab
-		std::shared_ptr<CUDA_Volume> _temp;
-		std::shared_ptr<CUDA_Volume> _x;
-		std::shared_ptr<CUDA_Volume> _rhat0;
-		std::shared_ptr<CUDA_Volume> _r, _p, _v, _h, _s, _t, _y,_z,_kt,_ks,_ainvert;
-		double _rho, _alpha, _omega, _beta;
 	};
 
 	

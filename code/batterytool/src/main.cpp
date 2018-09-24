@@ -233,7 +233,7 @@ bool tortuosity() {
 		}
 
 		if (argSolver.Get() == "BICGSTABGPU" || argSolver.Get() == "MGGPU" || runAllSolvers) {
-			typename blib::MGGPU<T>::PrepareParams p;
+			/*typename blib::MGGPU<T>::PrepareParams p;
 			{
 				p.dir = dir;
 				p.d0 = d0;
@@ -244,10 +244,9 @@ bool tortuosity() {
 				p.cellDim = blib::vec3(1.0 / maxDim);
 				p.levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;								
 			}			
-			if(argSolver.Get() == "BICGSTABGPU")
-				solverMGGPU.bicgPrep(c, p, volume);
-			else
-				solverMGGPU.prepare(c, p, volume);
+			
+				
+			//solverMGGPU.prepare(c, p);
 
 			typename blib::MGGPU<T>::SolveParams sp;
 			sp.tolerance = tol;
@@ -255,15 +254,12 @@ bool tortuosity() {
 			sp.verboseDebug = verboseDebug;
 			sp.maxIter = maxIterations;
 			
-			if (argSolver.Get() == "BICGSTABGPU") {
-				T err = solverMGGPU.bicgSolve(sp);
-				std::cout << err << std::endl;
-			}
-			else
-				solverMGGPU.solve(sp);
+			
+			solverMGGPU.solve(sp);
 
-			taus[i] = solverMGGPU.tortuosity();
-			porosity = solverMGGPU.porosity();
+			//taus[i] = solverMGGPU.tortuosity();
+			std::cerr << "use tortusity<T> instead" << std::endl;
+			porosity = solverMGGPU.porosity();*/
 		}		
 
 		//Calculate tortuosity and porosity				

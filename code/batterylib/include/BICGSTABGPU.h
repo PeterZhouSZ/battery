@@ -25,6 +25,8 @@ namespace blib {
 		BLIB_EXPORT bool prepare(const PrepareParams & params);
 		BLIB_EXPORT Solver<T>::Output solve(const SolveParams & solveParams);
 
+		
+
 	private:
 
 		//Linear system matrix
@@ -43,11 +45,13 @@ namespace blib {
 		std::shared_ptr<CUDA_Volume> _r, _p, _v, _h, _s, _t, _y, _z, _ainvert;
 
 
-		//double _rho, _alpha, _omega, _beta;
+		//Container for all temporary volume channels
+		std::unique_ptr<Volume> _volume;
 
-				
+		
 	};
 
+	
 	
 
 }

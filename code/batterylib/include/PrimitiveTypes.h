@@ -1,4 +1,5 @@
 #pragma once
+#include <cmath>
 
 
 using uint64 = unsigned long long;
@@ -68,11 +69,11 @@ inline float primitiveToFloat(PrimitiveType type, void * ptr) {
 	case TYPE_INT:
 		return float(*((int*)ptr));;		
 	case TYPE_FLOAT3:
-		return nanf("");
+		return std::nanf("");
 	case TYPE_FLOAT4:
-		return nanf("");
+		return std::nanf("");
 	}
-	return nanf("");
+	return std::nanf("");
 }
 
 inline double primitiveToDouble(PrimitiveType type, void * ptr) {
@@ -88,12 +89,12 @@ inline double primitiveToDouble(PrimitiveType type, void * ptr) {
 	case TYPE_INT:
 		return double(*((int*)ptr));;
 	case TYPE_FLOAT3:
-		return nanf("");
+		return std::nan("");
 	case TYPE_FLOAT4:
-		return nanf("");
+		return std::nan("");
 	}
 
-	return nanf("");
+	return std::nan("");
 }
 
 

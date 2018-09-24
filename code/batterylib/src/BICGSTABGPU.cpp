@@ -3,9 +3,9 @@
 #include "DataPtr.h"
 #include "cuda/Volume.cuh"
 #include "cuda/LinearSys.cuh"
-
 #include "cuda/CudaUtility.h"
 
+#include "Volume.h"
 #include "Timer.h"
 
 #include <iostream>
@@ -20,7 +20,7 @@ namespace blib {
 	
 
 	template <typename T>
-	BICGSTABGPU<T>::BICGSTABGPU(bool verbose) : Solver(verbose)
+	BICGSTABGPU<T>::BICGSTABGPU(bool verbose) : _volume(std::make_unique<Volume>()), Solver(verbose)
 	{
 
 	}
@@ -30,23 +30,28 @@ namespace blib {
 	template <typename T>
 	bool BICGSTABGPU<T>::prepare(const PrepareParams & params)
 	{
-		assert(params.volume);
-		if (!params.volume) return false;
-		if (params.maskID >= params.volume->numChannels()) return false;
 
-		_params = params;
+		assert(params.mask && params.output);
+
+		if (!params.mask) return false;
+		if (!params.output) return false;
+
+		_volume->clear();
 		
 
-		const auto dim = _params.volume->getChannel(_params.maskID).dim();
+		_params = params;		
+
+		const auto dim = _params.mask->dim();
 		const size_t N = dim.x * dim.y * dim.z;
 
 
-		auto &v = *_params.volume;
+		auto &v = *_volume;
 
 		{			
 			_domain = v.getCUDAVolume(v.addChannel(dim, primitiveTypeof<T>(), false, "domain"));
-			_f = v.getCUDAVolume(v.addChannel(dim, primitiveTypeof<T>(), false, "f"));		
-			_x = v.getCUDAVolume(v.addChannel(dim, primitiveTypeof<T>(), false, "_temp"));
+			_f = v.getCUDAVolume(v.addChannel(dim, primitiveTypeof<T>(), false, "f"));							
+
+			_x = params.output->getCUDAVolume();			 
 
 			if (_verbose)
 				std::cout << "Allocated _domain, _f & _x" << std::endl;
@@ -68,7 +73,7 @@ namespace blib {
 		Generate continous domain 
 		*/
 		{
-			auto MGmask = _params.volume->getCUDAVolume(_params.maskID);
+			auto MGmask = _params.mask->getCUDAVolume();
 			blib::CUDATimer tGenDomain(true);
 
 			LinearSys_GenerateDomain(*MGmask, _params.d0, _params.d1, *_domain);
@@ -162,7 +167,7 @@ namespace blib {
 
 
 	template <typename T>
-	typename Solver<T>::Output BICGSTABGPU<T>::solve(const SolveParams & solveParams)
+	BLIB_EXPORT typename Solver<T>::Output BICGSTABGPU<T>::solve(const SolveParams & solveParams)
 	{
 		Solver<T>::Output out;
 		out.error = 0;
@@ -339,6 +344,8 @@ namespace blib {
 		return out;
 	}
 
+
+	
 
 	template class BICGSTABGPU<double>;
 	template class BICGSTABGPU<float>;

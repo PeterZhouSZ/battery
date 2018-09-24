@@ -25,7 +25,7 @@ namespace blib {
 			Assumes volChannel is synchronized on cpu
 		*/
 		BLIB_EXPORT bool prepare(
-			VolumeChannel & volChannel,
+			const VolumeChannel & volChannel,
 			Dir dir,
 			T d0,
 			T d1,

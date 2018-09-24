@@ -271,6 +271,16 @@ void blib::VolumeChannel::normalize()
 
 }
 
+std::shared_ptr<CUDA_Volume> blib::VolumeChannel::getCUDAVolume() const
+{
+	auto v = std::make_shared<CUDA_Volume>();	
+	v->ID = -1;
+	v->surf = getCurrentPtr().getSurface();
+	v->res = make_uint3(dim().x, dim().y, dim().z);
+	v->type = type();	
+	return v;
+}
+
 bool blib::VolumeChannel::enableOpenGLInterop = false;
 
 ///////////////////////////
@@ -492,5 +502,10 @@ void blib::Volume::heat(uint channel)
  BLIB_EXPORT void blib::Volume::synchronize()
  {
 	 cudaDeviceSynchronize();
+ }
+
+ BLIB_EXPORT void blib::Volume::clear()
+ {
+	 _channels.clear();
  }
 
