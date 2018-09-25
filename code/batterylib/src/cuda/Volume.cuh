@@ -70,10 +70,12 @@ void launchReduceKernel(
 void Volume_Reduce(
 	CUDA_Volume & vol,
 	ReduceOpType opType,
-	PrimitiveType outputType,
+	PrimitiveType outputType,	
 	void * auxBufferGPU,
 	void * auxBufferCPU,
-	void * result
+	void * result,
+	uint3 begin = make_uint3(0), 
+	uint3 end = make_uint3(static_cast<uint>(-1))
 );
 
 inline size_t Volume_Reduce_RequiredBufferSize(size_t origSize) {

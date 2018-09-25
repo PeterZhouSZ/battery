@@ -766,7 +766,14 @@ using PreReduceOp = R(*)(
 	);
 
 template <typename T, typename R, unsigned int blockSize, ReduceOp<R> _op, PreReduceOp<T,R> _preOp = opIdentity<T>>
-__global__ void reduce3DSurfaceToBufferTR(uint3 res, cudaSurfaceObject_t surf, R * reducedData, size_t n)
+__global__ void reduce3DSurfaceToBufferTR(
+	uint3 res, 
+	cudaSurfaceObject_t surf, 
+	R * reducedData, 
+	size_t n,
+	uint3 begin,
+	uint3 end
+)
 {
 	extern __shared__ __align__(sizeof(R)) volatile unsigned char my_smem[];
 	volatile R *sdata = reinterpret_cast<volatile R *>(my_smem);
@@ -778,15 +785,14 @@ __global__ void reduce3DSurfaceToBufferTR(uint3 res, cudaSurfaceObject_t surf, R
 
 	while (i < n) {
 		const uint3 voxi = ind2sub(res, i);
-		const uint3 voxip = ind2sub(res, i + blockSize);
-
-		if (voxi.x < res.x && voxi.y < res.y && voxi.z < res.z) {
+		const uint3 voxip = ind2sub(res, i + blockSize);		
+		if (_isValidPosInRange(begin,end,voxi)) {
 			T vali = read<T>(surf, voxi);			
 			R valiprep = _preOp(vali); 
 			_op(sdata[tid], valiprep);
 		}
 
-		if (i + blockSize < n && voxip.x < res.x && voxip.y < res.y && voxip.z < res.z) {
+		if (i + blockSize < n && _isValidPosInRange(begin, end, voxi)) {
 			T valip = read<T>(surf, voxip);			
 			R valiprep = _preOp(valip); 
 			_op(sdata[tid], valiprep);
@@ -910,16 +916,26 @@ __global__ void reduceBuffer(T * buffer, size_t n)
 
 
 template<typename In, typename Out, ReduceOp<Out> _op, PreReduceOp<In, Out> _preOp>
-void _Volume_Reduce_Op(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType outputType, void * auxBufferGPU, void * auxBufferCPU, void * result) {
+void _Volume_Reduce_Op(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType outputType, void * auxBufferGPU, void * auxBufferCPU, void * result,
+	uint3 begin,
+	uint3 end) {
 
+
+	begin = make_uint3(min(begin.x, vol.res.x), min(begin.y, vol.res.y), min(begin.z, vol.res.z));
+	end = make_uint3(min(end.x, vol.res.x), min(end.y, vol.res.y), min(end.z, vol.res.z));
+
+	//printf("Reduction from %d %d %d to %u %u %u\n", begin.x, begin.y, begin.z, end.x, end.y, end.z);
+	
+	
 
 	const uint blockSize = VOLUME_REDUCTION_BLOCKSIZE;
 	const uint sharedSize = primitiveSizeof(outputType) * blockSize;
 
 	const uint3 block = make_uint3(blockSize, 1, 1);
 	const uint finalSizeMax = VOLUME_REDUCTION_BLOCKSIZE;
-	const size_t initialN = vol.res.x * vol.res.y * vol.res.z;
 
+
+	const size_t initialN = vol.res.x * vol.res.y * vol.res.z;
 	size_t n = initialN;
 
 	/*
@@ -932,8 +948,8 @@ void _Volume_Reduce_Op(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType out
 		if (numBlocks.x == 0)
 			numBlocks.x = 1;
 
-		reduce3DSurfaceToBufferTR<In,Out, blockSize, _op, _preOp> << <numBlocks, block, sharedSize >> > (
-			vol.res, vol.surf, (Out*)auxBufferGPU, n
+		reduce3DSurfaceToBufferTR<In,Out, blockSize, _op, _preOp> << <numBlocks, block, sharedSize >>> (
+			vol.res, vol.surf, (Out*)auxBufferGPU, n, begin, end
 			);
 		n = numBlocks.x;
 	}
@@ -967,21 +983,23 @@ void _Volume_Reduce_Op(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType out
 
 
 template<typename In, typename Out>
-void _Volume_Reduce_Out(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType outputType, void * auxBufferGPU, void * auxBufferCPU, void * result) {
+void _Volume_Reduce_Out(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType outputType, void * auxBufferGPU, void * auxBufferCPU, void * result,
+	uint3 begin,
+	uint3 end) {
 
 	switch (opType) {
 	case REDUCE_OP_MIN:
-		return _Volume_Reduce_Op<In, Out, opMin<Out>, opIdentity<In,Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_Op<In, Out, opMin<Out>, opIdentity<In,Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	case REDUCE_OP_MAX:
-		return _Volume_Reduce_Op<In, Out, opMax<Out>, opIdentity<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_Op<In, Out, opMax<Out>, opIdentity<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	case REDUCE_OP_SUM:
-		return _Volume_Reduce_Op<In, Out, opSum<Out>, opIdentity<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_Op<In, Out, opSum<Out>, opIdentity<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	case REDUCE_OP_SQUARESUM:
-		return _Volume_Reduce_Op<In, Out, opSum<Out>, opSquare<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_Op<In, Out, opSum<Out>, opSquare<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	case REDUCE_OP_PROD:
-		return _Volume_Reduce_Op<In, Out, opProd<Out>, opIdentity<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_Op<In, Out, opProd<Out>, opIdentity<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	case REDUCE_OP_SUM_NONZERO:
-		return _Volume_Reduce_Op<In, Out, opSum<Out>, opNonzero<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_Op<In, Out, opSum<Out>, opNonzero<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	default:
 		assert("Unsupported reduction op");
 		exit(0);
@@ -990,29 +1008,36 @@ void _Volume_Reduce_Out(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType ou
 }
 
 template<typename In>
-void _Volume_Reduce_In(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType outputType, void * auxBufferGPU, void * auxBufferCPU, void * result) {
+void _Volume_Reduce_In(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType outputType, void * auxBufferGPU, void * auxBufferCPU, void * result,
+	uint3 begin,
+	uint3 end) {
 
 	switch (outputType) {
 	case TYPE_FLOAT:
-		return _Volume_Reduce_Out<In, float>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_Out<In, float>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	case TYPE_DOUBLE:
-		return _Volume_Reduce_Out<In, double>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_Out<In, double>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	case TYPE_CHAR:
-		return _Volume_Reduce_Out<In, char>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_Out<In, char>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	case TYPE_UCHAR:
-		return _Volume_Reduce_Out<In, uchar>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_Out<In, uchar>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	case TYPE_UINT:
-		return _Volume_Reduce_Out<In, uint>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_Out<In, uint>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	case TYPE_UINT64:
-		return _Volume_Reduce_Out<In, uint64>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_Out<In, uint64>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	default:
 		assert("Unsupported type");
 		exit(0);
 	}	
 }
 
-void Volume_Reduce(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType outputType, void * auxBufferGPU, void * auxBufferCPU, void * result)
+void Volume_Reduce(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType outputType, void * auxBufferGPU, void * auxBufferCPU, void * result,
+	uint3 begin, 
+	uint3 end
+)
 {
+
+	
 
 	if ((vol.type == TYPE_CHAR || vol.type == TYPE_UCHAR) &&
 		(outputType == TYPE_CHAR || outputType == TYPE_UCHAR) &&
@@ -1023,13 +1048,13 @@ void Volume_Reduce(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType outputT
 
 	switch (vol.type) {
 	case TYPE_FLOAT:
-		return _Volume_Reduce_In<float>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_In<float>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	case TYPE_DOUBLE:
-		return _Volume_Reduce_In<double>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_In<double>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	case TYPE_CHAR:
-		return _Volume_Reduce_In<char>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_In<char>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	case TYPE_UCHAR:
-		return _Volume_Reduce_In<uchar>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result);
+		return _Volume_Reduce_In<uchar>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	default:
 		assert("Unsupported type");
 		exit(0);

@@ -6,6 +6,7 @@
 #include "DiffusionSolver.h"
 #include "MGGPU.h"
 
+#include <numeric>
 #include <iostream>
 
 namespace blib {
@@ -18,9 +19,23 @@ namespace blib {
 		VolumeChannel * concetrationOutput
 	)
 	{
+		if (mask.type() != TYPE_UCHAR) {
+			std::cerr << "Mask must by type uchar" << std::endl;
+			return T(0);
+		}
+
+		if (mask.getCurrentPtr().getCPU() == nullptr) {
+			std::cerr << "Mask must be allocated and retrieved to CPU" << std::endl;
+			return T(0);
+		}	
+
+
+		
 		T tau = 0.0;
 		auto maxDim = std::max(mask.dim().x, std::max(mask.dim().y, mask.dim().z));
 		auto minDim = std::min(mask.dim().x, std::min(mask.dim().y, mask.dim().z));
+
+		
 
 		/*
 			Either use provided output channel or create a temporary one
@@ -77,7 +92,7 @@ namespace blib {
 				return T(0);
 			}
 
-			std::cout << "BICGSTAB ERROR: " << out.error << std::endl;
+		
 			
 		}
 		else if (solverType == DSOLVER_MGGPU) {
@@ -114,7 +129,7 @@ namespace blib {
 				return T(0);
 			}
 
-			std::cout << "MGGPU ERROR: " << err << std::endl;
+			
 
 		}
 		else if (solverType == DSOLVER_EIGEN) {
@@ -137,7 +152,7 @@ namespace blib {
 			solver.resultToVolume(*outputChannel);
 			outputChannel->getCurrentPtr().commit();
 			
-			std::cout << "EIGEN ERROR: " << err << std::endl;
+			
 		}
 		
 		/*
@@ -155,7 +170,54 @@ namespace blib {
 		tau = porosity;
 
 
+
+		auto & concPtr = outputChannel->getCurrentPtr();		
 		
+		//Make sure is allocated on CPU
+		concPtr.allocCPU();	
+
+		//Retrieve whole volume (TODO: retrieve just slice)
+		concPtr.retrieve();	
+
+		const auto & maskPtr = mask.getCurrentPtr();
+
+		{
+			T * concetration = static_cast<T*>(concPtr.getCPU());
+			const uchar * maskData = static_cast<const uchar*>(maskPtr.getCPU());
+			const ivec3 dim = mask.dim();
+
+			const int primaryDim = getDirIndex(params.dir);
+			const int secondaryDims[2] = { (primaryDim + 1) % 3, (primaryDim + 2) % 3 };
+			const T cellDim = T(1) / static_cast<T>(maxDim);
+
+			//Number of elems in plane
+			const int n = dim[secondaryDims[0]] * dim[secondaryDims[1]];
+
+			//Index in primary dim
+			const int k = (getDirSgn(params.dir) == -1) ? 0 : dim[primaryDim] - 1;
+			
+			std::vector<T> isums(dim[secondaryDims[0]], T(0));
+
+			#pragma omp parallel for
+			for (auto i = 0; i < dim[secondaryDims[0]]; i++) {
+				T jsum = T(0);
+				for (auto j = 0; j < dim[secondaryDims[1]]; j++) {
+					ivec3 pos;
+					pos[primaryDim] = k;
+					pos[secondaryDims[0]] = i;
+					pos[secondaryDims[1]] = j;
+
+					if (maskData[linearIndex(dim, pos)] == 0)
+						jsum += concetration[linearIndex(dim, pos)];
+				}
+				isums[i] = jsum;
+			}
+
+			T sum = std::accumulate(isums.begin(), isums.end(), T(0));			
+			T dc = sum / n;			
+
+			tau = porosity / (dc * dim[primaryDim] * 2);		
+		}
 
 
 

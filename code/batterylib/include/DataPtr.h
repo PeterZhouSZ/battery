@@ -130,6 +130,8 @@ namespace blib {
 		*/
 		BLIB_EXPORT bool retrieve();
 
+
+
 		
 		/*
 			Returns cuda surface handle

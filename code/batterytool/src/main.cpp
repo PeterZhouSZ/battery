@@ -2,8 +2,7 @@
 
 #include <args.h>
 
-#include <batterylib/include/DiffusionSolver.h>
-#include <batterylib/include/MGGPU.h>
+#include <batterylib/include/VolumeMeasures.h>
 #include <batterylib/include/VolumeIO.h>
 
 #include <batterylib/src/cuda/CudaUtility.h>
@@ -136,7 +135,8 @@ bool tortuosity() {
 		);
 		volume.binarize(IDMask, 1.0f);
 
-		IDConc = volume.addChannel(volume.getChannel(IDMask).dim(), TYPE_FLOAT);
+		if(argVolumeExport.Get())
+			IDConc = volume.addChannel(volume.getChannel(IDMask).dim(), ((std::is_same<T, float>()) ? TYPE_FLOAT : TYPE_DOUBLE) );
 
 	}
 	catch (const char * ex) {
@@ -146,6 +146,8 @@ bool tortuosity() {
 	}
 
 	blib::VolumeChannel & c = volume.getChannel(IDMask);
+	c.getCurrentPtr().allocCPU();
+	c.getCurrentPtr().retrieve();
 
 	//Resize volume if desired
 	if (argSubvolume.Get() != 0) {
@@ -169,105 +171,42 @@ bool tortuosity() {
 
 	std::vector<Dir> dirs = getDirs(argTauDir.Get());
 	std::vector<T> taus(dirs.size());
-	T porosity;
-	std::vector<double> times(dirs.size());
-
-	T d0 = 1.0f;
-	T d1 = 0.001f;
-
 	
+	std::vector<double> times(dirs.size());	
+
+	blib::DiffusionSolverType solverType = DSOLVER_BICGSTABGPU;
+	if (argSolver.Get() == "Eigen")
+		solverType = DSOLVER_EIGEN;
+	else if (argSolver.Get() == "MGGPU")
+		solverType = DSOLVER_MGGPU;
+
+	TortuosityParams tp;
+	tp.verbose = argVerbose.Get();
+	tp.coeffs = { 1.0, 0.001 };
+	tp.maxIter = argMaxIterations.Get();
+	tp.tolerance = double(pow(10.0, -argTol.Get()));
+
+	tp.porosity = getPorosity<double>(c);
+	tp.porosityPrecomputed = true;
 	
-	const bool runAllSolvers = false;
-	const size_t maxIterations = argMaxIterations.Get();
-	
-
-	const bool verbose = argVerbose.Get();
-	const bool verboseDebug = false;
-	
-	blib::DiffusionSolver<T> solverEigen(verbose);
-	blib::MGGPU<T> solverMGGPU;
-
-
-//#define KERNEL_PROFILE
-
-
-#ifdef KERNEL_PROFILE
-	{
-		typename blib::MGGPU<T>::PrepareParams p;
-		{
-			p.dir = dirs[0];
-			p.d0 = d0;
-			p.d1 = d1;
-			auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
-			auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
-			auto exactSolveDim = 4;
-			p.cellDim = blib::vec3(1.0 / maxDim);
-			p.levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
-		}	
-		solverMGGPU.bicgPrep(c, p, volume);
-
-		typename blib::MGGPU<T>::SolveParams sp;
-		solverMGGPU.profile();
-		exit(0);		
-	}
-#endif
-
 
 	for (auto i = 0; i < dirs.size(); i++) {
-		auto dir = dirs[i];
+		
+
+		tp.dir = dirs[i];
+
 		if (argVerbose) {
-			std::cout << "Direction " << dir << std::endl;
+			std::cout << "Direction " << tp.dir << std::endl;
 		}
 
 		auto t0 = std::chrono::system_clock::now();
 
-		T tol = T(pow(10.0, -argTol.Get()));
+		blib::VolumeChannel *outPtr = (argVolumeExport.Get()) ? &volume.getChannel(IDConc) : nullptr;		
+		T tau = getTortuosity<T>(c, tp, solverType, outPtr);				
 
-		//Prepare linear system
-		if (argSolver.Get() == "BICGSTABCPU" || runAllSolvers) {			
-			solverEigen.prepare(
-				c,
-				dir,
-				d0,
-				d1,
-				true
-			);
+		taus[i] = tau;
 
-			solverEigen.solve(tol, maxIterations,  argStep.Get());
-
-			taus[i] = solverEigen.tortuosity(c, dir);
-			porosity = solverEigen.porosity();
-		}
-
-		if (argSolver.Get() == "BICGSTABGPU" || argSolver.Get() == "MGGPU" || runAllSolvers) {
-			/*typename blib::MGGPU<T>::PrepareParams p;
-			{
-				p.dir = dir;
-				p.d0 = d0;
-				p.d1 = d1;				
-				auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
-				auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
-				auto exactSolveDim = 4;
-				p.cellDim = blib::vec3(1.0 / maxDim);
-				p.levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;								
-			}			
-			
-				
-			//solverMGGPU.prepare(c, p);
-
-			typename blib::MGGPU<T>::SolveParams sp;
-			sp.tolerance = tol;
-			sp.verbose = verbose;
-			sp.verboseDebug = verboseDebug;
-			sp.maxIter = maxIterations;
-			
-			
-			solverMGGPU.solve(sp);
-
-			//taus[i] = solverMGGPU.tortuosity();
-			std::cerr << "use tortusity<T> instead" << std::endl;
-			porosity = solverMGGPU.porosity();*/
-		}		
+		
 
 		//Calculate tortuosity and porosity				
 		auto t1 = std::chrono::system_clock::now();
@@ -281,11 +220,11 @@ bool tortuosity() {
 		}
 
 		//Export calculated concetration volume
-		if (argVolumeExport && argSolver.Get() == "Eigen") {
-			const std::string exportPath = (argInput.Get() + std::string("/conc_dir_") + char(char(dir) + '0')
+		if (argVolumeExport.Get()) {
+			const std::string exportPath = (argInput.Get() + std::string("/conc_dir_") + char(char(tp.dir) + '0')
 				+ std::string("_") + tmpstamp("%Y_%m_%d_%H_%M_%S") 
 				+ std::string(".vol"));			
-			solverEigen.resultToVolume(volume.getChannel(IDConc));
+			
 			bool res = blib::saveVolumeBinary(exportPath.c_str(), volume.getChannel(IDConc));
 			if (argVerbose) {
 				std::cout << "export to" << (exportPath) << std::endl;
@@ -326,7 +265,7 @@ bool tortuosity() {
 		for(auto i =0 ; i < taus.size(); i++){
 			os << "'" << fs::absolute(fs::path(argInput.Get())) << "'" << ",\t";
 
-			os << porosity << ",\t";
+			os << tp.porosity << ",\t";
 
 			os << dirString(dirs[i]) << ",\t";
 			

@@ -24,12 +24,14 @@ args = parser.parse_args()
 
 solvers = ['BICGSTABGPU','MGGPU','BICGSTABCPU']
 solverLabels = ['BiCGStab-GPU','MultiGrid-GPU','BiCGStab-CPU',]
-sub = None
+#sub = None
 #direction = 'neg'
-directions = ['xneg','yneg', 'zneg']
+directions = ['x','y','z','xneg','yneg','zneg']
 verbose = True
 solver = 'MGGPU'
 volExport = False
+
+outputToSameFile = False
 
 #subs = [296, 320, 380, 420]
 #solvers = ['BICGSTABGPU']
@@ -187,8 +189,8 @@ for solver in solvers:
 
         
 
-        if(sub):
-            targ += ['--sub', str(sub)]
+        #if(sub):
+            #targ += ['--sub', str(sub)]
 
         if(volExport):
             targ += ['--volExport']
@@ -199,14 +201,22 @@ for solver in solvers:
         #targ += ['--solver', solver]
         #targ += ['-o', solver + "_" + args.output]
         
-        for direction in directions:            
-            finalArgs = targ + ['--solver', solver] + ['-o', solver + "_" + args.output] +[ '-d' + direction]
-        
-            print (" ".join(finalArgs))
+        for direction in directions:       
+            for sub in subs:     
 
-            subprocess.call(
-                finalArgs
-            )
+                finalArgs = targ + ['--solver', solver]  +[ '-d' + direction] + ['--sub', str(sub)]
+
+                if(outputToSameFile):
+                    finalArgs += ['-o', args.output]
+                else:
+                    finalArgs += ['-o', solver + "_" + args.output]
+
+        
+                print (" ".join(finalArgs))
+
+                subprocess.call(
+                    finalArgs
+                )
 
     
    

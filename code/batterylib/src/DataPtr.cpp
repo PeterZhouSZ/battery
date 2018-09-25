@@ -326,6 +326,10 @@ bool blib::Texture3DPtr::allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnC
 bool blib::Texture3DPtr::allocCPU(){
 	assert(byteSize() > 0);
 
+	//Already allocated
+	if (_cpu.ptr)
+		return false;
+
 	void * hostPtr = new char[byteSize()];
 	_cpu = make_cudaPitchedPtr(hostPtr, stride() * _extent.width, _extent.width, _extent.height);
 	return true;

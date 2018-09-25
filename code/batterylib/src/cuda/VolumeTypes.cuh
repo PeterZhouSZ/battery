@@ -124,6 +124,13 @@ inline __device__ __host__ size_t _linearIndexXFirst(const uint3 & dim, const in
 	return pos.z + dim.z * pos.y + dim.z * dim.y * pos.x;
 }
 
+
+template<typename D, typename P>
+inline __device__ __host__ bool _isValidPosInRange(const D & begin, const D & end, const P & pos) {
+	return pos.x >= begin.x && pos.y >= begin.y && pos.z >= begin.z &&
+		pos.x < end.x && pos.y < end.y && pos.z < end.z;
+}
+
 inline __device__ __host__ bool _isValidPos(const uint3 & dim, const uint3 & pos) {
 	return pos.x < dim.x && pos.y < dim.y && pos.z < dim.z;
 }

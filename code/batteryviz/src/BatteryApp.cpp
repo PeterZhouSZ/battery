@@ -685,6 +685,10 @@ void BatteryApp::solveBICGSTABGPU()
 	tp.dir = Dir(_options["Diffusion"].get<int>("direction"));
 	tp.tolerance = pow(10.0, -_options["Diffusion"].get<int>("Tolerance"));
 
+	auto & mask = _volume->getChannel(CHANNEL_BATTERY);
+	mask.getCurrentPtr().allocCPU();
+	mask.getCurrentPtr().retrieve();
+
 	auto tau0 = getTortuosity<double>(_volume->getChannel(CHANNEL_BATTERY), tp, DSOLVER_BICGSTABGPU);
 	std::cout << "BICGSTABGPU\t\t" << tau0 << std::endl;
 	
