@@ -118,6 +118,24 @@ float blib::VolumeChannel::differenceSum()
 	return result;
 }
 
+void blib::VolumeChannel::sum(void * result)
+{
+	assert(result != nullptr);
+
+	const size_t reduceN = Volume_Reduce_RequiredBufferSize(dim().x * dim().y * dim().z);
+
+	PrimitiveType reductionType = _type;
+	if (_type == TYPE_CHAR || _type == TYPE_UCHAR || _type == TYPE_INT || _type == TYPE_UINT) {
+		reductionType = TYPE_UINT64;
+	}
+	
+	DataPtr aux;
+	aux.alloc(reduceN, primitiveSizeof(reductionType));	
+
+	Volume_Reduce(*getCUDAVolume(), REDUCE_OP_SUM, reductionType, aux.gpu, aux.cpu, result);
+
+}
+
 size_t blib::VolumeChannel::nonZeroElems() const
 {
 	const size_t reduceN = Volume_Reduce_RequiredBufferSize(dim().x * dim().y * dim().z);

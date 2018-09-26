@@ -57,7 +57,7 @@ namespace blib {
 	template <typename T>
 	BLIB_EXPORT T getReactiveAreaDensity(
 		const VolumeChannel & mask, 
-		ivec3 res, float isovalue,
+		ivec3 res, float isovalue, float smooth,
 		uint * vboOut = nullptr, //If not null, a triangle mesh will be generated and saved to vbo
 		size_t * NvertsOut = nullptr
 	);

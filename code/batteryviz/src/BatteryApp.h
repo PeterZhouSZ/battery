@@ -55,6 +55,8 @@ protected:
 
 	virtual void reset();
 
+	void runAreaDensity();
+
 	OptionSet _options;
 
 	/*

@@ -173,7 +173,33 @@ BatteryApp::BatteryApp()
 
 void BatteryApp::update(double dt)
 {
+	
+	{
+		static float iso = _options["Render"].get<float>("MarchingCubesIso");
+		static int res = _options["Render"].get<int>("MarchingCubesRes");		
+		static float smooth = _options["Render"].get<float>("MarchingCubesSmooth");
+
+		float newIso = _options["Render"].get<float>("MarchingCubesIso");
+		float newSmooth = _options["Render"].get<float>("MarchingCubesSmooth");
+		int newRes = _options["Render"].get<int>("MarchingCubesRes");
+		if (newRes < 8) newRes = 8;
+
+		if (newIso != iso || newRes != res || newSmooth != smooth) {
+			res = newRes;
+			iso = newIso;
+			smooth = newSmooth;
+			runAreaDensity();
+		}		
+
+
+	}
+	
+	
+	
 	if (!_autoUpdate) return;
+
+
+
 
 
 	return;
@@ -315,42 +341,7 @@ void BatteryApp::render(double dt)
 	//Render marching cubes volume
 	{
 
-		{
-			static float iso = 0.1f;
-			static int res = 8;
-			static bool nonce = true;
-
-			float newIso = _options["Render"].get<float>("MarchingCubesIso");
-			int newRes = _options["Render"].get<int>("MarchingCubesRes");
-			if (newRes < 8) newRes = 8;
-			
-			if (newIso != iso || newRes != res || nonce) {
-				uint vboIndex;
-				size_t Nverts = 0;
-				res = newRes;
-				iso = newIso;
-
-				double a = blib::getReactiveAreaDensity<double>(_volume->getChannel(CHANNEL_BATTERY), ivec3(res), iso, &vboIndex, &Nverts);
-				
-				/*{
-					size_t totalVerts = newRes *newRes *newRes;
-					blib::CUDA_VBO cudaVBO = blib::createMappedVBO(totalVerts * sizeof(blib::CUDA_VBO::DefaultAttrib));
-					vboIndex = cudaVBO.getVBO();
-					Nverts = totalVerts;
-				}*/
-				
-				if (Nverts > 0) {
-					_volumeMC = std::move(VertexBuffer<VertexData>(vboIndex, Nverts));
-				}
-				else {
-					_volumeMC = std::move(VertexBuffer<VertexData>());
-				}
-			}
-			
-			nonce = false;
-
-			
-		}
+		
 
 		RenderList rl;
 
@@ -396,6 +387,30 @@ void BatteryApp::render(double dt)
 }
 
 
+
+void BatteryApp::runAreaDensity()
+{
+	uint vboIndex;
+	size_t Nverts = 0;
+
+	float iso = _options["Render"].get<float>("MarchingCubesIso");
+	int res = _options["Render"].get<int>("MarchingCubesRes");
+	float smooth = float(res) / _volume->getChannel(CHANNEL_BATTERY).dim().x;
+	
+	
+
+	double a = blib::getReactiveAreaDensity<double>(_volume->getChannel(CHANNEL_BATTERY), ivec3(res), iso, smooth, &vboIndex, &Nverts);
+
+	std::cout << "Reactive area density: " << a;
+	std::cout << ", Avg: " << a / (res * res * res);
+	std::cout << std::endl;
+	if (Nverts > 0) {
+		_volumeMC = std::move(VertexBuffer<VertexData>(vboIndex, Nverts));
+	}
+	else {
+		_volumeMC = std::move(VertexBuffer<VertexData>());
+	}
+}
 
 
 
@@ -805,6 +820,7 @@ void BatteryApp::reset()
 
 
 		if (_options["Input"].get<bool>("Sphere")) {
+			
 			auto d = _volume->getChannel(CHANNEL_BATTERY).dim();
 
 			auto & c = _volume->getChannel(batteryID);
@@ -816,9 +832,9 @@ void BatteryApp::reset()
 
 						auto index = linearIndex(c.dim(), { i,j,k });
 
-
-
+						
 						vec3 normPos = { i / float(d[0] - 1),j / float(d[1] - 1), k / float(d[2] - 1), };
+
 
 
 						int border = 0;
@@ -828,8 +844,7 @@ void BatteryApp::reset()
 						
 						else {
 							data[index] = 255;
-						}
-										
+						}										
 
 					}
 				}
@@ -861,6 +876,8 @@ void BatteryApp::reset()
 
 		bool genSphere = _options["Input"].get<bool>("Sphere");
 		if (genSphere) {
+
+			bool hollow = _options["Input"].get<bool>("SphereHollow");
 		
 			auto & c = _volume->getChannel(batteryID);
 			uchar* data = (uchar*)c.getCurrentPtr().getCPU();
@@ -873,19 +890,32 @@ void BatteryApp::reset()
 
 
 
-						if (i > d[0] / 2)
+						/*if (i > d[0] / 2)
 							data[index] = 255;
 						else
 							data[index] = 0;
-
+						*/
 						vec3 normPos = { i / float(d[0] - 1),j / float(d[1] - 1), k / float(d[2] - 1), };
 
 						
-						float distC = glm::length(normPos - vec3(0.5f));						
-						if (distC < 0.45f && distC > 0.35f)
-							data[index] = 255;
-						else
-							data[index] = 0;
+
+						float distC = glm::length(normPos - vec3(0.5f));		
+
+						if (hollow) {
+							if (distC < 0.45f && distC > 0.35f)
+								data[index] = 255;
+							else
+								data[index] = 0;
+						}
+						else {
+							if (distC < 0.5f)
+								data[index] = 255;
+							else
+								data[index] = 0;
+
+						}
+
+
 					}
 				}
 			}
@@ -918,7 +948,7 @@ void BatteryApp::reset()
 	}
 
 
-	
+	runAreaDensity();
 	
 
 	_volumeRaycaster->setVolume(*_volume, 0);

@@ -18,7 +18,19 @@
 	uint * vertCountScan;
 };*/
 
-void  VolumeSurface_MarchingCubesMesh(const CUDA_Volume & input, uint3 MCRes, float isovalue, uint * vboOut, size_t * NvertsOut);
+struct VolumeSurface_MCParams {
+	uint3 res;
+	float isovalue;
+	float smoothingOffset;
+};
+
+void  VolumeSurface_MarchingCubesMesh(const CUDA_Volume & input, const VolumeSurface_MCParams & params,  uint * vboOut, size_t * NvertsOut);
+
+void  VolumeSurface_MarchingCubesArea(
+	const CUDA_Volume & input, 
+	const VolumeSurface_MCParams & params,
+	CUDA_Volume & output
+	);
 
 //Simple voxel edge count 
 void countVolumeInterface(	

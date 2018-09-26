@@ -237,18 +237,34 @@ namespace blib {
 	}
 
 	template <typename T>
-	BLIB_EXPORT T getReactiveAreaDensity(const VolumeChannel & mask, ivec3 res, float isovalue, uint * vboOut, size_t * NvertsOut)
+	BLIB_EXPORT T getReactiveAreaDensity(const VolumeChannel & mask, ivec3 res, float isovalue, float smoothing, uint * vboOut, size_t * NvertsOut)
 	{
 		
 		assert(mask.getCurrentPtr().hasTextureObject());
+		assert(res.x >= 2 && res.y >= 2 && res.z >= 2);
 
-		if (vboOut && NvertsOut) {
-			uint3 MCres = make_uint3(res.x, res.y, res.z);
-			cudaPrintMemInfo();
-			VolumeSurface_MarchingCubesMesh(*mask.getCUDAVolume(), MCres, isovalue, vboOut, NvertsOut);
+		if (!mask.getCurrentPtr().hasTextureObject()) {
+			std::cerr << "ERROR: Mask does not have associated a texture object." << std::endl;
 		}
 
-		return T(0);
+		
+
+		VolumeSurface_MCParams params;
+		params.res = make_uint3(res.x, res.y, res.z);
+		params.isovalue = isovalue;
+		params.smoothingOffset = smoothing;
+
+		if (vboOut && NvertsOut) {
+			VolumeSurface_MarchingCubesMesh(*mask.getCUDAVolume(), params, vboOut, NvertsOut);
+		}
+
+		VolumeChannel areas(res, primitiveTypeof<T>(), false, "Temp area channel");
+		VolumeSurface_MarchingCubesArea(*mask.getCUDAVolume(), params, *areas.getCUDAVolume());
+
+		T area = 0.0f;
+		areas.sum(&area);
+		
+		return area;		
 	}
 
 
@@ -264,6 +280,6 @@ namespace blib {
 	template BLIB_EXPORT float getPorosity<float>(const VolumeChannel &);
 	template BLIB_EXPORT double getPorosity<double>(const VolumeChannel &);
 
-	template BLIB_EXPORT float getReactiveAreaDensity<float>(const VolumeChannel &, ivec3, float, uint *, size_t * );
-	template BLIB_EXPORT double getReactiveAreaDensity<double>(const VolumeChannel &, ivec3, float, uint *, size_t *);
+	template BLIB_EXPORT float getReactiveAreaDensity<float>(const VolumeChannel &, ivec3, float, float,  uint *, size_t * );
+	template BLIB_EXPORT double getReactiveAreaDensity<double>(const VolumeChannel &, ivec3, float, float, uint *, size_t *);
 }

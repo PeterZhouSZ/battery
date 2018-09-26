@@ -45,6 +45,8 @@ namespace blib{
 		//Current = Current - Next; Sum(Current);
 		BLIB_EXPORT float differenceSum();
 
+		BLIB_EXPORT void sum(void * result);
+
 		
 		BLIB_EXPORT size_t nonZeroElems() const;
 

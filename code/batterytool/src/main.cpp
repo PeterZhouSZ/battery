@@ -149,6 +149,9 @@ bool tortuosity() {
 	c.getCurrentPtr().allocCPU();
 	c.getCurrentPtr().retrieve();
 
+
+	
+
 	//Resize volume if desired
 	if (argSubvolume.Get() != 0) {
 		auto dim = c.dim();
@@ -188,6 +191,10 @@ bool tortuosity() {
 
 	tp.porosity = getPorosity<double>(c);
 	tp.porosityPrecomputed = true;
+
+	//Get area density
+	c.getCurrentPtr().createTexture();
+	T areaDensity = getReactiveAreaDensity<T>(c, c.dim(), 0.1f, 1.0f);
 	
 
 	for (auto i = 0; i < dirs.size(); i++) {
@@ -202,7 +209,7 @@ bool tortuosity() {
 		auto t0 = std::chrono::system_clock::now();
 
 		blib::VolumeChannel *outPtr = (argVolumeExport.Get()) ? &volume.getChannel(IDConc) : nullptr;		
-		T tau = getTortuosity<T>(c, tp, solverType, outPtr);				
+		T tau = getTortuosity<T>(c, tp, solverType, outPtr);		
 
 		taus[i] = tau;
 
@@ -259,7 +266,7 @@ bool tortuosity() {
 
 		//Header 
 		if(isNewFile){
-			os << "path,porosity,dir,tau,t,dimx,dimy,dimz,solver" << '\n';
+			os << "path,porosity,dir,tau,alpha,t,dimx,dimy,dimz,solver" << '\n';
 		}
 
 		for(auto i =0 ; i < taus.size(); i++){
@@ -270,6 +277,8 @@ bool tortuosity() {
 			os << dirString(dirs[i]) << ",\t";
 			
 			os << taus[i] << ",\t";
+
+			os << areaDensity << ",\t";
 			
 
 			//double avgTime = std::accumulate(times.begin(), times.end(), 0.0) / times.size();

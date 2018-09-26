@@ -552,7 +552,7 @@ bool blib::Texture3DPtr::createTexture()
 	td.addressMode[2] = cudaAddressModeClamp;
 	td.readMode = cudaReadModeNormalizedFloat;
 	td.sRGB = 0;
-	td.filterMode = cudaFilterModeLinear;
+	td.filterMode = cudaFilterModeLinear; //cudaFilterModeLinear;
 	
 	td.maxAnisotropy = 16;
 	td.mipmapFilterMode = cudaFilterModeLinear;
@@ -667,7 +667,7 @@ blib::CUDA_VBO::~CUDA_VBO()
 blib::CUDA_VBO blib::createMappedVBO(size_t bytesize)
 {
 
-	cudaPrintMemInfo();
+	
 	GLuint vbo;
 
 	

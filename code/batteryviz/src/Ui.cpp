@@ -419,7 +419,7 @@ void Ui::update(double dt)
 		_app.solveBICGSTABGPU();
 	}
 
-	if (ImGui::Button("Reactive Area Density")) {
+	/*if (ImGui::Button("Reactive Area Density")) {
 
 		
 		uint vboIndex;
@@ -436,7 +436,7 @@ void Ui::update(double dt)
 		_app._volumeMC = std::move(VertexBuffer<VertexData>(vboIndex, Nverts));
 
 		std::cout << "Reactive area density: " << a << std::endl;
-	}
+	}*/
 	
 	static bool particleAsBoundary = false;
 	ImGui::Checkbox("part", &particleAsBoundary);

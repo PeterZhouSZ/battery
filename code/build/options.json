@@ -45,7 +45,7 @@
     },
     "Input": {
         "Default": {
-            "data": true,
+            "data": false,
             "type": 5
         },
         "GenResolution": {
@@ -53,6 +53,10 @@
             "type": 2
         },
         "Sphere": {
+            "data": true,
+            "type": 5
+        },
+        "SphereHollow": {
             "data": false,
             "type": 5
         }
@@ -119,8 +123,12 @@
             "type": 3
         },
         "MarchingCubesRes": {
-            "data": 64,
+            "data": 128,
             "type": 2
+        },
+        "MarchingCubesSmooth": {
+            "data": 0.0,
+            "type": 3
         },
         "MarchingCubesWire": {
             "data": false,

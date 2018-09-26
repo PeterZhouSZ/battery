@@ -215,16 +215,16 @@ inline __device__ uint3 periodicVox(const uint3 & res, uint3 vox, Dir dir) {
 Templated surface write
 */
 template <typename T>
-inline __device__ void write(cudaSurfaceObject_t surf, const uint3 & vox, const T & val);
+inline __device__ void write(cudaSurfaceObject_t surf, const uint3 & vox, const T & val) {
+#ifdef __CUDA_ARCH__
+	surf3Dwrite(val, surf, vox.x * sizeof(T), vox.y, vox.z);
+#endif
+}
 
 template <typename T>
-inline __device__ void write(cudaSurfaceObject_t surf, const int3 & vox, const T & val);
-
-
-template<>
-inline __device__ void write(cudaSurfaceObject_t surf, const uint3 & vox, const float & val) {
+inline __device__ void write(cudaSurfaceObject_t surf, const int3 & vox, const T & val) {
 #ifdef __CUDA_ARCH__
-	surf3Dwrite(val, surf, vox.x * sizeof(float), vox.y, vox.z);
+	surf3Dwrite(val, surf, vox.x * sizeof(T), vox.y, vox.z);
 #endif
 }
 
