@@ -66,6 +66,8 @@ protected:
 	uint _currentRenderChannel;
 	std::unique_ptr<VolumeRaycaster> _volumeRaycaster;
 	Scene _scene;
+
+	VertexBuffer<VertexData> _volumeMC;
 	
 	
 	vec3 _quadric;

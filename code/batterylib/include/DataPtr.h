@@ -50,6 +50,9 @@ namespace blib {
 
 		BLIB_EXPORT ~DataPtr();
 
+	private:
+		void _free();
+
 	};
 
 	
@@ -140,6 +143,10 @@ namespace blib {
 			return _surface; 
 		}
 
+		BLIB_EXPORT cudaTextureObject_t getTexture() const {
+			return _texture;
+		}
+
 		/*
 			Copies cuda surface handle to specified device memory
 		*/
@@ -163,13 +170,21 @@ namespace blib {
 		BLIB_EXPORT bool fillSlow(void * elem);
 
 		BLIB_EXPORT PrimitiveType type() const { return _type; }
+
+		BLIB_EXPORT bool createTexture();
+
+
+		BLIB_EXPORT bool hasTextureObject() const {
+			return _textureCreated;
+		}
 		
 	private:
 
+		void _free();
 		/*
 			Creates surface object
 		*/
-		bool createSurface();
+		bool createSurface();		
 
 		/*
 			Sets channel description depending on type
@@ -181,11 +196,64 @@ namespace blib {
 		cudaGraphicsResource * _gpuRes; //for GL  interop
 		cudaSurfaceObject_t _surface;
 
+		bool _textureCreated;
+		cudaTextureObject_t _texture;
+
 		cudaChannelFormatDesc _desc;
 		cudaExtent _extent;
 		uint _glID;
 		PrimitiveType _type;		
 		
 	};
+
+	struct CUDA_VBO {
+
+		BLIB_EXPORT CUDA_VBO(uint vbo);
+		BLIB_EXPORT ~CUDA_VBO();
+
+		BLIB_EXPORT CUDA_VBO(const CUDA_VBO &) = delete;
+		BLIB_EXPORT CUDA_VBO & operator = (const CUDA_VBO &) = delete;
+
+		BLIB_EXPORT CUDA_VBO(CUDA_VBO &&other);
+		BLIB_EXPORT CUDA_VBO & operator = (CUDA_VBO &&other);
+
+		BLIB_EXPORT void * getPtr() {
+			return _ptr;
+		}
+
+		BLIB_EXPORT const void * getPtr() const {
+			return _ptr;
+		}
+
+		BLIB_EXPORT uint getVBO() const {
+			return _vbo;
+		}
+
+		BLIB_EXPORT void retrieveTo(void * ptr) const;
+
+		struct DefaultAttrib {
+			float pos[3]; 
+			float normal[3];
+			float uv[2];
+			float color[4];
+		};
+
+
+	private:
+
+		void _free();
+		uint _vbo;
+		cudaGraphicsResource_t _resource;
+		void * _ptr;
+		size_t _bytes;		
+	};
+
+	/*
+		Allocates an OpenGL VBO and maps it for CUDA.
+		! The structure does not own the vbo, it must be destroyed manually. !
+	*/
+	BLIB_EXPORT CUDA_VBO createMappedVBO(size_t bytesize);
+
+	
 
 }

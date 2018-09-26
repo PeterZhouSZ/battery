@@ -11,6 +11,15 @@
 	Calculates area for each voxel
 */
 
+/*struct VolumeSurface_MarchingCubesState {
+	uint activeVoxels;
+	uint totalVerts;
+	uint * compacted;
+	uint * vertCountScan;
+};*/
+
+void  VolumeSurface_MarchingCubesMesh(const CUDA_Volume & input, uint3 MCRes, float isovalue, uint * vboOut, size_t * NvertsOut);
+
 //Simple voxel edge count 
 void countVolumeInterface(	
 	const CUDA_Volume & input,
@@ -35,3 +44,6 @@ void sumOverVolume(
 	void * auxBufferCPU,
 	void * result
 );
+
+
+

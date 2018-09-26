@@ -6,6 +6,10 @@
 #include "DiffusionSolver.h"
 #include "MGGPU.h"
 
+#include "VolumeSurface.cuh"
+
+#include "../src/cuda/CudaUtility.h"
+
 #include <numeric>
 #include <iostream>
 
@@ -232,6 +236,22 @@ namespace blib {
 		return T(mask.nonZeroElems()) / T(mask.totalElems());		
 	}
 
+	template <typename T>
+	BLIB_EXPORT T getReactiveAreaDensity(const VolumeChannel & mask, ivec3 res, float isovalue, uint * vboOut, size_t * NvertsOut)
+	{
+		
+		assert(mask.getCurrentPtr().hasTextureObject());
+
+		if (vboOut && NvertsOut) {
+			uint3 MCres = make_uint3(res.x, res.y, res.z);
+			cudaPrintMemInfo();
+			VolumeSurface_MarchingCubesMesh(*mask.getCUDAVolume(), MCres, isovalue, vboOut, NvertsOut);
+		}
+
+		return T(0);
+	}
+
+
 
 
 
@@ -243,4 +263,7 @@ namespace blib {
 
 	template BLIB_EXPORT float getPorosity<float>(const VolumeChannel &);
 	template BLIB_EXPORT double getPorosity<double>(const VolumeChannel &);
+
+	template BLIB_EXPORT float getReactiveAreaDensity<float>(const VolumeChannel &, ivec3, float, uint *, size_t * );
+	template BLIB_EXPORT double getReactiveAreaDensity<double>(const VolumeChannel &, ivec3, float, uint *, size_t *);
 }

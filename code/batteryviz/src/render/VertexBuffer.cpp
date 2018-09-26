@@ -4,7 +4,9 @@
 
 //template class IndexedBuffer<VertexData>;
 //template class IndexedBuffer<VertexDataExtended>;
-
+#ifdef TRACK_GPU_ALLOC
+#include <iostream>
+#endif
 
 VertexAttribArray::VertexAttribArray()
 {
@@ -73,33 +75,78 @@ VertexBuffer<T>::VertexBuffer(GLenum usage, GLenum primitiveType) :
 	
 	glGenBuffers(1, &m_buffer);
 	glGenVertexArrays(1, &m_vao);
-
 	glGenBuffers(1, &m_indexBuffer);
+
+#ifdef TRACK_GPU_ALLOC
+	std::cout << "GenBuffer " << m_buffer << ", " << __FILE__ << ":" << __LINE__ << std::endl;
+#endif
 
 	//LOG(toString("% Created buffer %", this, m_buffer));
 
 	setAttribs(T::vertexAttribArray);
 	m_size = 0;
 	GLError(THIS_LINE);
+	
+	m_allocated = true;
+
 }
+
+
+template <typename T>
+VertexBuffer<T>::VertexBuffer(GLuint vboIndex, size_t N, GLenum usage /*= GL_DYNAMIC_DRAW */, GLenum primitiveType /*= GL_TRIANGLES*/) :
+	m_primitiveType(primitiveType),
+	m_usage(usage),
+	m_buffer(vboIndex),
+	m_size(N),
+	m_vao(0),
+	m_indexBuffer(0),
+	m_indexCount(0)
+{
+
+	glGenVertexArrays(1, &m_vao);
+	glGenBuffers(1, &m_indexBuffer);
+	setAttribs(T::vertexAttribArray);
+
+	GLError(THIS_LINE);
+
+	m_allocated = true;
+
+}
+
 
 template <typename T>
 VertexBuffer<T>::~VertexBuffer()
-{
-
-	//LOG(toString("% Deleted buffer %", this, m_buffer));
-	glDeleteVertexArrays(1, &m_vao);
-	glDeleteBuffers(1, &m_buffer);
-	glDeleteBuffers(1, &m_indexBuffer);
-	//TODO fix this destructor
-	//GLError(THIS_LINE);
-	m_buffer = 0;
-	m_vao = 0;
+{	
+	_free();
 }
 
+
 template <typename T>
-VertexBuffer<T>::VertexBuffer(VertexBuffer<T> &&other) {
-	m_buffer = other.m_buffer;	
+void VertexBuffer<T>::_free()
+{
+	if (m_allocated) {
+		glDeleteVertexArrays(1, &m_vao);
+		glDeleteBuffers(1, &m_buffer);
+#ifdef TRACK_GPU_ALLOC
+		std::cout << "DeleteBuffer " << m_buffer << ", " << __FILE__ << ":" << __LINE__ << std::endl;
+#endif
+		glDeleteBuffers(1, &m_indexBuffer);
+		GLError(THIS_LINE);
+	}
+	m_buffer = 0;
+	m_vao = 0;
+	m_indexBuffer = 0;
+	m_allocated = false;
+}
+
+
+template <typename T>
+VertexBuffer<T>::VertexBuffer(VertexBuffer<T> &&other) {	
+	memcpy(this, &other, sizeof(other));
+	memset(&other, 0, sizeof(VertexBuffer<T>));	
+	
+
+/*	m_buffer = other.m_buffer;	
 	m_vao = other.m_vao;
 	m_size = other.m_size;
 	m_usage = other.m_usage;
@@ -112,13 +159,18 @@ VertexBuffer<T>::VertexBuffer(VertexBuffer<T> &&other) {
 
 	other.m_buffer = 0;
 	other.m_vao = 0;
-	other.m_indexBuffer = 0;
+	other.m_indexBuffer = 0;*/
 }
 
 template <typename T>
 VertexBuffer<T> & VertexBuffer<T>::operator = (VertexBuffer<T> &&other) {
 	if (this != &other) {
-		m_buffer = other.m_buffer;
+		this->_free();
+		memcpy(this, &other, sizeof(other));
+		memset(&other, 0, sizeof(VertexBuffer<T>));
+		
+
+		/*m_buffer = other.m_buffer;
 		m_vao = other.m_vao;
 		m_size = other.m_size;
 		m_usage = other.m_usage;
@@ -131,7 +183,7 @@ VertexBuffer<T> & VertexBuffer<T>::operator = (VertexBuffer<T> &&other) {
 
 		other.m_buffer = 0;
 		other.m_vao = 0;
-		other.m_indexBuffer = 0;
+		other.m_indexBuffer = 0;*/
 	}
 	return *this;
 }

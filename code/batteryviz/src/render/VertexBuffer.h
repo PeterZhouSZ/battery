@@ -63,7 +63,18 @@ public:
 	
 	
 
-	explicit VertexBuffer(GLenum usage = GL_STATIC_DRAW, GLenum primitiveType = GL_TRIANGLES) ;
+	VertexBuffer(GLenum usage = GL_STATIC_DRAW, GLenum primitiveType = GL_TRIANGLES) ;
+
+
+	//Constructor for buffer allocated outside of this class
+	VertexBuffer(
+		GLuint vboIndex,
+		size_t N,
+		GLenum usage = GL_DYNAMIC_DRAW,
+		GLenum primitiveType = GL_TRIANGLES		
+		);
+
+
 	~VertexBuffer();
 	VertexBuffer(VertexBuffer<T> &&other);
 	VertexBuffer & operator = (VertexBuffer<T> &&other);
@@ -98,6 +109,7 @@ public:
 	
 
 protected:
+	void _free();
 	bool setAttribs(const VertexAttribArray & vao);
 
 	GLuint m_buffer;
@@ -112,6 +124,8 @@ protected:
 	GLenum m_indexType;
 	GLbyte m_indexTypeSize;
 	size_t m_indexCount;
+
+	bool m_allocated;
 };
 
 ////////////////////////////////

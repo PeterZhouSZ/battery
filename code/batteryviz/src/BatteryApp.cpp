@@ -189,27 +189,13 @@ void BatteryApp::render(double dt)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	
 	
-
-	/*
-		Volume slices
-	*/
 	float sliceHeight = 0;
-	if (_options["Render"].get<bool>("slices")){
+	if (_options["Render"].get<bool>("slices")) {
 		sliceHeight = 1.0f / 3.0f;
-
-		mat3 R[3] = {
-			mat3(),
-			mat3(glm::rotate(mat4(), glm::radians(90.0f), vec3(0, 0, 0))),
-			mat3(glm::rotate(mat4(), glm::radians(90.0f), vec3(1, 0, 0)))
-		};
-
-		int yoffset = 0;
-		int ysize = static_cast<int>(_window.height  * sliceHeight);
-
-		_volumeRaycaster->renderSlice(0, ivec2(_window.width / 3 * 0, yoffset), ivec2(_window.width / 3, ysize));
-		_volumeRaycaster->renderSlice(1, ivec2(_window.width / 3 * 1, yoffset), ivec2(_window.width / 3, ysize));
-		_volumeRaycaster->renderSlice(2, ivec2(_window.width / 3 * 2, yoffset), ivec2(_window.width / 3, ysize));
 	}
+	
+
+	
 
 
 
@@ -272,9 +258,16 @@ void BatteryApp::render(double dt)
 	
 	}
 
+
+	
+
 	/*
 	Volume raycaster
 	*/
+	ivec4 viewport = {
+		0, _window.height * sliceHeight, _window.width, _window.height - _window.height * sliceHeight
+	};
+
 	if (_options["Render"].get<bool>("volume")) {
 		
 		//update current channel to render
@@ -306,24 +299,95 @@ void BatteryApp::render(double dt)
 		
 			
 
-		_camera.setWindowDimensions(_window.width, _window.height - static_cast<int>(_window.height * sliceHeight));
+		_camera.setWindowDimensions(_window.width, _window.height - static_cast<int>(_window.height * sliceHeight));	
 
-		ivec4 viewport = {
-			0, _window.height * sliceHeight, _window.width, _window.height - _window.height * sliceHeight
-		};
-
-		_volumeRaycaster->render(_camera, viewport);
-
-		if (_options["Render"].get<bool>("volumeGrid")) {
-			_volumeRaycaster->renderGrid(_camera, viewport, *_shaders[SHADER_FLAT],
-				_options["Render"].get<float>("volumeGridOpacity")
-
-			);
-		}
+		_volumeRaycaster->render(_camera, viewport);	
 
 	}
 
+	if (_options["Render"].get<bool>("volumeGrid")) {
+		_volumeRaycaster->renderGrid(_camera, viewport, *_shaders[SHADER_FLAT],
+			_options["Render"].get<float>("volumeGridOpacity")
+
+		);
+	}
+
+	//Render marching cubes volume
+	{
+
+		{
+			static float iso = 0.1f;
+			static int res = 8;
+			static bool nonce = true;
+
+			float newIso = _options["Render"].get<float>("MarchingCubesIso");
+			int newRes = _options["Render"].get<int>("MarchingCubesRes");
+			if (newRes < 8) newRes = 8;
+			
+			if (newIso != iso || newRes != res || nonce) {
+				uint vboIndex;
+				size_t Nverts = 0;
+				res = newRes;
+				iso = newIso;
+
+				double a = blib::getReactiveAreaDensity<double>(_volume->getChannel(CHANNEL_BATTERY), ivec3(res), iso, &vboIndex, &Nverts);
+				
+				/*{
+					size_t totalVerts = newRes *newRes *newRes;
+					blib::CUDA_VBO cudaVBO = blib::createMappedVBO(totalVerts * sizeof(blib::CUDA_VBO::DefaultAttrib));
+					vboIndex = cudaVBO.getVBO();
+					Nverts = totalVerts;
+				}*/
+				
+				if (Nverts > 0) {
+					_volumeMC = std::move(VertexBuffer<VertexData>(vboIndex, Nverts));
+				}
+				else {
+					_volumeMC = std::move(VertexBuffer<VertexData>());
+				}
+			}
+			
+			nonce = false;
+
+			
+		}
+
+		RenderList rl;
+
+		mat4 M = mat4(1.0f);
+		ShaderOptions so = {
+			{ "M", M },
+			{ "NM", M },
+			{ "PV", _camera.getPV() }			
+		};
+
+
+		const GLenum fill = _options["Render"].get<bool>("MarchingCubesWire") ? GL_LINE : GL_FILL;
+
+		RenderList::RenderItem item = { _volumeMC, so, fill, GL_BACK };
+		rl.add(_shaders[SHADER_PHONG], item);
+		rl.render();
+	}
+
 	
+	/*
+	Volume slices
+	*/	
+	if (_options["Render"].get<bool>("slices")) {
+		mat3 R[3] = {
+			mat3(),
+			mat3(glm::rotate(mat4(), glm::radians(90.0f), vec3(0, 0, 0))),
+			mat3(glm::rotate(mat4(), glm::radians(90.0f), vec3(1, 0, 0)))
+		};
+
+		int yoffset = 0;
+		int ysize = static_cast<int>(_window.height  * sliceHeight);
+
+		_volumeRaycaster->renderSlice(0, ivec2(_window.width / 3 * 0, yoffset), ivec2(_window.width / 3, ysize));
+		_volumeRaycaster->renderSlice(1, ivec2(_window.width / 3 * 1, yoffset), ivec2(_window.width / 3, ysize));
+		_volumeRaycaster->renderSlice(2, ivec2(_window.width / 3 * 2, yoffset), ivec2(_window.width / 3, ysize));
+	}
+
 
 	/*
 		UI render and update
@@ -383,7 +447,9 @@ void BatteryApp::callbackKey(GLFWwindow * w, int key, int scancode, int action, 
 	if (action == GLFW_RELEASE || action == GLFW_REPEAT) {
 		
 		if (key == GLFW_KEY_R) {
+			std::cout << "Reloading shaders ...";
 			std::cerr << loadShaders(_shaders) << std::endl;			
+			std::cout << "Done." << std::endl;
 		}
 
 		if (key == GLFW_KEY_SPACE)
@@ -789,7 +855,7 @@ void BatteryApp::reset()
 		//Add concetration channel
 		auto concetrationID = _volume->addChannel(
 			_volume->getChannel(CHANNEL_BATTERY).dim(),
-			TYPE_FLOAT
+			TYPE_DOUBLE
 		);
 		assert(concetrationID == CHANNEL_CONCETRATION);
 
@@ -835,6 +901,10 @@ void BatteryApp::reset()
 	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");	
 
 
+	_volume->getChannel(CHANNEL_BATTERY).getCurrentPtr().createTexture();
+	
+
+
 	//Startup tests	
 	const bool multigridTest = false;
 	const bool MGGPUTest = false;
@@ -847,6 +917,9 @@ void BatteryApp::reset()
 		solveMGGPU();
 	}
 
+
+	
+	
 
 	_volumeRaycaster->setVolume(*_volume, 0);
 }

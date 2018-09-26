@@ -3,7 +3,7 @@
 #include "BatteryLibDef.h"
 #include <GL/glew.h>
 
-#ifdef DEBUG
+#ifdef _DEBUG
 
 #ifdef _WIN32
 #define THIS_FUNCTION __FUNCTION__

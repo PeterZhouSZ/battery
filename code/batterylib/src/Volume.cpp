@@ -296,6 +296,7 @@ std::shared_ptr<CUDA_Volume> blib::VolumeChannel::getCUDAVolume() const
 	v->surf = getCurrentPtr().getSurface();
 	v->res = make_uint3(dim().x, dim().y, dim().z);
 	v->type = type();	
+	v->tex = getCurrentPtr().getTexture();
 	return v;
 }
 
@@ -325,6 +326,7 @@ std::shared_ptr<CUDA_Volume> blib::Volume::getCUDAVolume(int ID) const
 	v->res = make_uint3(c.dim().x, c.dim().y, c.dim().z);
 	v->type = c.type();
 	v->cpu = nullptr;
+	v->tex = c.getCurrentPtr().getTexture();
 	return v;
 }
 
@@ -337,6 +339,7 @@ std::shared_ptr<CUDA_Volume> blib::Volume::getCUDAVolume(int ID)
 	v->res = make_uint3(c.dim().x, c.dim().y, c.dim().z);
 	v->type = c.type();
 	v->cpu = c.getCurrentPtr().getCPU();
+	v->tex = c.getCurrentPtr().getTexture();
 	return v;
 }
 

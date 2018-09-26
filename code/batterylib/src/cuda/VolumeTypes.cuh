@@ -140,7 +140,18 @@ inline __device__ __host__ bool _isValidPos(const uint3 & dim, const int3 & pos)
 		pos.x < int(dim.x) && pos.y < int(dim.y) && pos.z < int(dim.z);
 }
 
+
 inline __device__ __host__ int3 posFromLinear(const int3 & dim, int index) {
+
+	int3 pos;
+	pos.x = (index % dim.x);
+	index = (index - pos.x) / dim.x;
+	pos.y = (index % dim.y);
+	pos.z = (index / dim.y);
+	return pos;
+}
+
+inline __device__ __host__ int3 posFromLinear(const int3 & dim, uint index) {
 
 	int3 pos;
 	pos.x = (index % dim.x);
@@ -168,6 +179,14 @@ inline __device__ __host__ T & _at(VecType & vec, int index) {
 template <typename T, typename VecType>
 inline __device__ __host__ const T & _at(const VecType & vec, int index) {
 	return ((T*)&vec)[index];
+}
+
+
+inline __device__ int3 clampedVox(const uint3 & res, int3 vox, int3 delta) {
+	int3 newVox = vox + delta;
+	if (_isValidPos(res, newVox))
+		return newVox;	
+	return vox;
 }
 
 
@@ -232,34 +251,19 @@ inline __device__ void write(cudaSurfaceObject_t surf, const int3 & vox, const d
 Templated surface read (direct)
 */
 template <typename T>
-inline __device__ T read(cudaSurfaceObject_t surf, const uint3 & vox);
+inline __device__ T read(cudaSurfaceObject_t surf, const uint3 & vox) {
+	T val = 0;
+#ifdef __CUDA_ARCH__
+	surf3Dread(&val, surf, vox.x * sizeof(T), vox.y, vox.z);
+#endif
+	return val;
+}
 
 template <typename T>
-inline __device__ T read(cudaSurfaceObject_t surf, const int3 & vox);
-
-template<>
-inline __device__ float read(cudaSurfaceObject_t surf, const uint3 & vox) {
-	float val = 0.0f;
+inline __device__ T read(cudaSurfaceObject_t surf, const int3 & vox) {
+	T val = 0;
 #ifdef __CUDA_ARCH__
-	surf3Dread(&val, surf, vox.x * sizeof(float), vox.y, vox.z);
-#endif
-	return val;
-}
-
-template<>
-inline __device__ uchar read(cudaSurfaceObject_t surf, const uint3 & vox) {
-	uchar val = 0;
-#ifdef __CUDA_ARCH__
-	surf3Dread(&val, surf, vox.x * sizeof(uchar), vox.y, vox.z);
-#endif
-	return val;
-}
-
-template<>
-inline __device__ char read(cudaSurfaceObject_t surf, const uint3 & vox) {
-	char val = 0;
-#ifdef __CUDA_ARCH__
-	surf3Dread(&val, surf, vox.x * sizeof(char), vox.y, vox.z);
+	surf3Dread(&val, surf, vox.x * sizeof(T), vox.y, vox.z);
 #endif
 	return val;
 }
@@ -293,6 +297,7 @@ struct CUDA_Volume {
 	uint3 res;
 	PrimitiveType type;
 	cudaSurfaceObject_t surf;
+	cudaTextureObject_t tex;
 
 	//ID given by Host code
 	int ID;

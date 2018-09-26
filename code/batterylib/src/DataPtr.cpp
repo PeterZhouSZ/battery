@@ -17,6 +17,11 @@
 #endif
 
 
+#ifdef TRACK_GPU_ALLOC
+#include <iostream>
+#endif
+
+
 blib::DataPtr::DataPtr()
 {
 	memset(this, 0, sizeof(DataPtr));	
@@ -24,11 +29,16 @@ blib::DataPtr::DataPtr()
 
 blib::DataPtr::~DataPtr()
 {
+	_free();
+}
+
+void blib::DataPtr::_free()
+{
 	if (cpu) {
-		delete[] ((uchar*)cpu);		
+		delete[]((uchar*)cpu);
 	}
 	if (gpu) {
-		_CUDA(cudaFree(gpu));		
+		_CUDA(cudaFree(gpu));
 	}
 
 	memset(this, 0, sizeof(DataPtr));
@@ -36,8 +46,11 @@ blib::DataPtr::~DataPtr()
 
 blib::DataPtr & blib::DataPtr::operator=(blib::DataPtr &&other)
 {
-	memcpy(this, &other, sizeof(other));
-	memset(&other, 0, sizeof(DataPtr));
+	if (this != &other) {
+		this->_free();
+		memcpy(this, &other, sizeof(other));
+		memset(&other, 0, sizeof(DataPtr));
+	}
 	return *this;
 }
 
@@ -167,33 +180,24 @@ blib::Texture3DPtr::Texture3DPtr()
 
 blib::Texture3DPtr & blib::Texture3DPtr::operator=(blib::Texture3DPtr &&other)
 {
-	memcpy(this, &other, sizeof(other));	
-	memset(&other, 0, sizeof(Texture3DPtr));
+	if (this != &other) {
+		this->_free();
+		memcpy(this, &other, sizeof(other));
+		memset(&other, 0, sizeof(Texture3DPtr));
+	}
 	return *this;
 }
 
 blib::Texture3DPtr::Texture3DPtr(blib::Texture3DPtr &&other)
 {
+
 	memcpy(this, &other, sizeof(other));
 	memset(&other, 0, sizeof(Texture3DPtr));
 }
 
 blib::Texture3DPtr::~Texture3DPtr()
 {
-	if (_cpu.ptr) {
-		delete[] _cpu.ptr;		
-	}
-
-	if (_gpu) {		
-		_CUDA(cudaDestroySurfaceObject(_surface));	
-		if (_glID != 0) {
-			_CUDA(cudaGraphicsUnregisterResource(_gpuRes));			
-			GL(glBindTexture(GL_TEXTURE_3D, _glID));			
-			GL(glDeleteTextures(1, &_glID));
-		}		
-	}
-
-	memset(this, 0, sizeof(Texture3DPtr));
+	_free();
 }
 
 bool blib::Texture3DPtr::alloc(PrimitiveType type, ivec3 dim, bool alsoOnCPU)
@@ -504,6 +508,24 @@ bool blib::Texture3DPtr::fillSlow(void * elem)
 
 }
 
+void blib::Texture3DPtr::_free()
+{
+	if (_cpu.ptr) {
+		delete[] _cpu.ptr;
+	}
+
+	if (_gpu) {
+		_CUDA(cudaDestroySurfaceObject(_surface));
+		if (_glID != 0) {
+			_CUDA(cudaGraphicsUnregisterResource(_gpuRes));
+			GL(glBindTexture(GL_TEXTURE_3D, _glID));
+			GL(glDeleteTextures(1, &_glID));
+		}
+	}
+
+	memset(this, 0, sizeof(Texture3DPtr));
+}
+
 bool blib::Texture3DPtr::createSurface()
 {
 	cudaResourceDesc resDesc; 
@@ -513,6 +535,38 @@ bool blib::Texture3DPtr::createSurface()
 	resDesc.res.array.array = _gpu;
 	
 	return _CUDA(cudaCreateSurfaceObject(&_surface, &resDesc));
+}
+
+bool blib::Texture3DPtr::createTexture()
+{
+	cudaResourceDesc resDesc;
+
+	memset(&resDesc, 0, sizeof(cudaResourceDesc));
+	resDesc.resType = cudaResourceTypeArray;
+	resDesc.res.array.array = _gpu;
+
+	cudaTextureDesc td;
+	td.normalizedCoords = 1;
+	td.addressMode[0] = cudaAddressModeClamp;
+	td.addressMode[1] = cudaAddressModeClamp;
+	td.addressMode[2] = cudaAddressModeClamp;
+	td.readMode = cudaReadModeNormalizedFloat;
+	td.sRGB = 0;
+	td.filterMode = cudaFilterModeLinear;
+	
+	td.maxAnisotropy = 16;
+	td.mipmapFilterMode = cudaFilterModeLinear;
+	td.minMipmapLevelClamp = 0;
+	td.maxMipmapLevelClamp = 0;
+	td.mipmapLevelBias = 0;
+
+	//cudaResourceViewDesc resd;
+
+	bool res = _CUDA(cudaCreateTextureObject(&_texture, &resDesc, &td, nullptr));
+	if (res)
+		_textureCreated = true;
+	
+	return res;
 }
 
 void blib::Texture3DPtr::setDesc(PrimitiveType type)
@@ -560,4 +614,75 @@ void blib::Texture3DPtr::setDesc(PrimitiveType type)
 
 	_type = type;
 
+}
+
+blib::CUDA_VBO::CUDA_VBO(uint vbo)
+{
+	memset(this, 0, sizeof(CUDA_VBO));
+	_vbo = vbo;
+	_CUDA(cudaGraphicsGLRegisterBuffer(&_resource, vbo, cudaGraphicsMapFlagsWriteDiscard));
+	_CUDA(cudaGraphicsMapResources(1, &_resource, 0));
+	_CUDA(cudaGraphicsResourceGetMappedPointer(&_ptr, &_bytes, _resource));
+	
+}
+
+
+void blib::CUDA_VBO::retrieveTo(void * ptr) const
+{
+	glBindBuffer(GL_ARRAY_BUFFER, _vbo);
+	glGetBufferSubData(GL_ARRAY_BUFFER, 0, _bytes, ptr);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void blib::CUDA_VBO::_free()
+{
+	if (_ptr) {
+		_CUDA(cudaGraphicsUnmapResources(1, &_resource, 0));
+		_CUDA(cudaGraphicsUnregisterResource(_resource));
+	}
+	memset(this, 0, sizeof(CUDA_VBO));
+}
+
+blib::CUDA_VBO & blib::CUDA_VBO::operator=(CUDA_VBO &&other)
+{
+	if (this != &other) {
+		this->_free();
+		memcpy(this, &other, sizeof(other));
+		memset(&other, 0, sizeof(CUDA_VBO));
+	}
+	return *this;
+}
+
+ blib::CUDA_VBO::CUDA_VBO(CUDA_VBO &&other)
+{
+	 memcpy(this, &other, sizeof(other));
+	 memset(&other, 0, sizeof(CUDA_VBO));
+}
+
+blib::CUDA_VBO::~CUDA_VBO()
+{
+	_free();
+}
+
+blib::CUDA_VBO blib::createMappedVBO(size_t bytesize)
+{
+
+	cudaPrintMemInfo();
+	GLuint vbo;
+
+	
+	glGenBuffers(1, &vbo);
+#ifdef TRACK_GPU_ALLOC
+	std::cout << "GenBuffer " << vbo << ", " << __FILE__ << ":" << __LINE__ << std::endl;
+#endif
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);	
+	glBufferData(GL_ARRAY_BUFFER, bytesize, 0, GL_DYNAMIC_DRAW);
+#ifdef TRACK_GPU_ALLOC
+	std::cout << "glBufferData " << vbo << ", size: " << bytesize << ", " << __FILE__ << ":" << __LINE__ << std::endl;
+#endif
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+
+
+	return CUDA_VBO(vbo);
 }

@@ -10,6 +10,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <batterylib/include/VolumeIO.h>
+#include <batterylib/include/VolumeMeasures.h>
 
 #include <chrono>
 #include <iostream>
@@ -418,6 +419,24 @@ void Ui::update(double dt)
 		_app.solveBICGSTABGPU();
 	}
 
+	if (ImGui::Button("Reactive Area Density")) {
+
+		
+		uint vboIndex;
+		size_t Nverts;
+
+		float newIso = _app._options["Render"].get<float>("MarchingCubesIso");
+		int newRes = _app._options["Render"].get<int>("MarchingCubesRes");
+		if (newRes < 8) newRes = 8;
+
+		double a = blib::getReactiveAreaDensity<double>(_app._volume->getChannel(CHANNEL_BATTERY), 
+			ivec3(newRes),
+			newIso,
+			&vboIndex, &Nverts);
+		_app._volumeMC = std::move(VertexBuffer<VertexData>(vboIndex, Nverts));
+
+		std::cout << "Reactive area density: " << a << std::endl;
+	}
 	
 	static bool particleAsBoundary = false;
 	ImGui::Checkbox("part", &particleAsBoundary);

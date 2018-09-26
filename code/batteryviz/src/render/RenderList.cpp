@@ -29,6 +29,7 @@ void RenderList::render() {
             shaderOpt.second);
       }
 	  	  
+	  glCullFace(item.cullFace);
 	  glPolygonMode(GL_FRONT_AND_BACK, item.polygonMode);
 
       item.vbo.render();
