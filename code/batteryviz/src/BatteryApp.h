@@ -29,7 +29,7 @@
 struct Shader;
 
 #define OPTIONS_FILENAME "options.json"
-#define CHANNEL_BATTERY 0
+#define CHANNEL_MASK 0
 #define CHANNEL_CONCETRATION 1
 
 class BatteryApp : public App {
@@ -53,8 +53,8 @@ protected:
 	virtual void reset();
 	void runAreaDensity();
 
-	bool loadFromFile(const std::string & filename);
-	
+	bool loadFromFile(const std::string & folder);
+	bool loadFromMask(blib::VolumeChannel && mask);
 
 	OptionSet _options;
 

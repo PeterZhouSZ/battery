@@ -28,19 +28,45 @@
             "data": 1,
             "type": 2
         },
+        "maxIter": {
+            "data": 10000,
+            "type": 2
+        },
         "voxelSize": {
             "data": 1.0,
             "type": 3
         }
     },
     "Generator": {
-        "SphereCount": {
-            "data": 128,
+        "Resolution": {
+            "data": 64,
             "type": 2
         },
-        "SphereRadius": {
-            "data": 0.200000002980232,
-            "type": 3
+        "Spheres": {
+            "MaxTries": {
+                "data": 1000000,
+                "type": 2
+            },
+            "N": {
+                "data": 64,
+                "type": 2
+            },
+            "Overlapping": {
+                "data": false,
+                "type": 5
+            },
+            "RadiusMax": {
+                "data": 0.100000001490116,
+                "type": 3
+            },
+            "RadiusMin": {
+                "data": 0.100000001490116,
+                "type": 3
+            },
+            "WithinBounds": {
+                "data": true,
+                "type": 5
+            }
         }
     },
     "Input": {
@@ -48,8 +74,12 @@
             "data": false,
             "type": 5
         },
+        "DefaultPath": {
+            "data": "../../data/graphiteSections/SL43_C5_1c5bar_Data/SL43_C5_1c5bar_section001/",
+            "type": 0
+        },
         "GenResolution": {
-            "data": 16,
+            "data": 64,
             "type": 2
         },
         "Sphere": {

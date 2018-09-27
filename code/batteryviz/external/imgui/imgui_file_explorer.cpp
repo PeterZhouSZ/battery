@@ -48,7 +48,7 @@ tuple<string, string>  imguiFileExplorer(
 
 	ImGui::PushID(ID);
 
-	ImGui::BeginChildFrame(ID, ImVec2(ImGui::GetWindowContentRegionWidth(), 400));
+	ImGui::BeginChildFrame(ID, ImVec2(ImGui::GetWindowContentRegionWidth(), 300));
 
 	ImGui::Text(path.string().c_str());
 

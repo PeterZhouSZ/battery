@@ -31,7 +31,6 @@
 
 
 
-#define DATA_FOLDER "../../data/graphiteSections/SL43_C5_1c5bar_Data/SL43_C5_1c5bar_section001/"
 
 
 using namespace std;
@@ -57,7 +56,7 @@ RNGUniformInt uniformDistInt(0, INT_MAX);
 void generateSpheresVolume(blib::Volume & volume, uint sphereCount, float sphereRadius) {
 
 	{
-		auto & c = volume.getChannel(CHANNEL_BATTERY);
+		auto & c = volume.getChannel(CHANNEL_MASK);
 		
 		uchar * arr = (uchar *)c.getCurrentPtr().getCPU();
 
@@ -99,7 +98,7 @@ void generateSpheresVolume(blib::Volume & volume, uint sphereCount, float sphere
 
 	}
 
-	volume.binarize(CHANNEL_BATTERY, 1.0f);
+	volume.binarize(CHANNEL_MASK, 1.0f);
 }
 
 
@@ -143,7 +142,12 @@ BatteryApp::BatteryApp()
 
 	
 	//INIT
-	reset();
+	//reset();
+
+	bool res = loadFromFile(_options["Input"].get<std::string>("DefaultPath"));
+	if (!res)
+		std::cerr << "Failed to load default path" << std::endl;
+	
 
 
 	/*
@@ -290,7 +294,7 @@ void BatteryApp::render(double dt)
 		0, _window.height * sliceHeight, _window.width, _window.height - _window.height * sliceHeight
 	};
 
-	if (_options["Render"].get<bool>("volume")) {
+	if (_options["Render"].get<bool>("volume") && _volume->numChannels() > 0) {
 		
 		//update current channel to render
 		_currentRenderChannel = _options["Render"].get<int>("channel");
@@ -300,7 +304,7 @@ void BatteryApp::render(double dt)
 		
 
 		if (_options["Render"].get<bool>("transferDefault")) {
-			if (_currentRenderChannel == CHANNEL_BATTERY)
+			if (_currentRenderChannel == CHANNEL_MASK)
 				_volumeRaycaster->setTransferGray();
 			else
 				_volumeRaycaster->setTransferJet();
@@ -388,14 +392,18 @@ void BatteryApp::runAreaDensity()
 
 	float iso = _options["Render"].get<float>("MarchingCubesIso");
 	int res = _options["Render"].get<int>("MarchingCubesRes");
-	float smooth = float(res) / _volume->getChannel(CHANNEL_BATTERY).dim().x;
+	auto & mask = _volume->getChannel(CHANNEL_MASK);
+	//float smooth = float(res) / mask.dim().x;
 	
-	
+	//ivec3 mcres = mask.dim();
+	ivec3 mcres = ivec3(res);
 
-	double a = blib::getReactiveAreaDensity<double>(_volume->getChannel(CHANNEL_BATTERY), ivec3(res), iso, smooth, &vboIndex, &Nverts);
-	double sf = blib::getShapeFactor(a, blib::getPorosity<double>(_volume->getChannel(CHANNEL_BATTERY)));
+	double a = blib::getReactiveAreaDensity<double>(mask, mcres, iso, 1.0f, &vboIndex, &Nverts);
+	double sf = blib::getShapeFactor(a, blib::getPorosity<double>(_volume->getChannel(CHANNEL_MASK)));
 
-	std::cout << "Reactive Area Density: " << a << ", Shape Factor: " << sf << "\n";	
+	size_t N = mask.dim().x * mask.dim().y  *mask.dim().z;
+
+	std::cout << "Reactive Area Density: " << a << ", Shape Factor: " << sf << ", normalized a: " << a / N << "\n";	
 	
 	if (Nverts > 0) {
 		_volumeMC = std::move(VertexBuffer<VertexData>(vboIndex, Nverts));
@@ -517,79 +525,58 @@ void BatteryApp::callbackChar(GLFWwindow * w, unsigned int code)
 	_ui.callbackChar(w, code);
 }
 
-void BatteryApp::reset()
+bool BatteryApp::loadFromFile(const std::string & folder)
 {
 
-	
+	try {
+		VolumeChannel c = loadTiffFolder(folder.c_str());
 
-	
-	bool loadDefault = _options["Input"].get<bool>("Default");
-	
-	_volume = make_unique<blib::Volume>();	
-
-	if (loadDefault) {
-		auto batteryID = _volume->emplaceChannel(loadTiffFolder(DATA_FOLDER));
-		assert(batteryID == CHANNEL_BATTERY);
-
-
-		
 		ivec3 userSize = ivec3(_options["Input"].get<int>("GenResolution"));
-		ivec3 size = glm::min(_volume->getChannel(CHANNEL_BATTERY).dim(), userSize);
+		ivec3 size = glm::min(c.dim(), userSize);
+		c.resize(ivec3(0), ivec3(size));
 
-		_volume->getChannel(CHANNEL_BATTERY).resize(ivec3(0), ivec3(size)  );
-		_volume->binarize(CHANNEL_BATTERY, 1.0f);
-
-		//Add concetration channel
-		auto concetrationID = _volume->addChannel(
-			_volume->getChannel(CHANNEL_BATTERY).dim(),
-			TYPE_DOUBLE
-		);
-		assert(concetrationID == CHANNEL_CONCETRATION);
-
-		_volume->getChannel(CHANNEL_CONCETRATION).clear();
-				
-
-		auto dim = _volume->getChannel(CHANNEL_BATTERY).dim();
-		std::cout << "Resolution: " << dim.x << " x " << dim.y << " x " << dim.z <<
-			" = " << dim.x*dim.y*dim.z << " voxels (" << (dim.x*dim.y*dim.z) / (1024 * 1024.0f) << "M)" << std::endl;
-
-
-		if (_options["Input"].get<bool>("Sphere")) {
-			
-			auto d = _volume->getChannel(CHANNEL_BATTERY).dim();
-
-			auto & c = _volume->getChannel(batteryID);
-			uchar* data = (uchar*)c.getCurrentPtr().getCPU();
-
-			for (auto i = 0; i < d[0] - 0; i++) {
-				for (auto j = 0; j < d[1] - 0; j++) {
-					for (auto k = 0; k < d[2] - 0; k++) {
-
-						auto index = linearIndex(c.dim(), { i,j,k });
-
-						
-						vec3 normPos = { i / float(d[0] - 1),j / float(d[1] - 1), k / float(d[2] - 1), };
-
-
-
-						int border = 0;
-						if (i <= border || i >= d[0] - border - 1) {
-							data[index] = 0;
-						}
-						
-						else {
-							data[index] = 255;
-						}										
-
-					}
-				}
-			}
-
-			c.getCurrentPtr().commit();
-		}
-
+		return loadFromMask(std::move(c));		
 	}
-	else {
+	catch (const char * msg) {
+		std::cerr << msg << std::endl;
+		return false;
+	}
+
+	return true;
+}
+
+
+bool BatteryApp::loadFromMask(blib::VolumeChannel && mask)
+{
+
+	reset();
+
+	_volume->emplaceChannel(std::move(mask));
+	_volume->binarize(CHANNEL_MASK, 1.0f);
+
+	auto concetrationID = _volume->addChannel(
+		_volume->getChannel(CHANNEL_MASK).dim(),
+		TYPE_DOUBLE
+	);
+	_volume->getChannel(CHANNEL_CONCETRATION).clear();
+
+
+	_volume->getChannel(CHANNEL_MASK).setName("Mask");
+	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");
+	_volume->getChannel(CHANNEL_MASK).getCurrentPtr().createTexture();
+	runAreaDensity();
+	_volumeRaycaster->setVolume(*_volume, 0);
+
+	return true;
+}
+
+void BatteryApp::reset()
+{	
+	_volume = make_unique<blib::Volume>();	
+	_volumeMC = std::move(VertexBuffer<VertexData>());
+
+	
+	/*{
 		int res = _options["Input"].get<int>("GenResolution");
 		if (res == 0) {
 			res = 32;
@@ -604,7 +591,7 @@ void BatteryApp::reset()
 
 		//Add concetration channel
 		auto concetrationID = _volume->addChannel(
-			_volume->getChannel(CHANNEL_BATTERY).dim(),
+			_volume->getChannel(CHANNEL_MASK).dim(),
 			TYPE_DOUBLE
 		);
 		assert(concetrationID == CHANNEL_CONCETRATION);
@@ -625,11 +612,11 @@ void BatteryApp::reset()
 
 
 
-						/*if (i > d[0] / 2)
+						/ *if (i > d[0] / 2)
 							data[index] = 255;
 						else
 							data[index] = 0;
-						*/
+						* /
 						vec3 normPos = { i / float(d[0] - 1),j / float(d[1] - 1), k / float(d[2] - 1), };
 
 						
@@ -660,15 +647,10 @@ void BatteryApp::reset()
 			
 		}		
 
-	}
+	}*/
 	
-	_volume->getChannel(CHANNEL_BATTERY).setName("Battery");
-	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");	
-	_volume->getChannel(CHANNEL_BATTERY).getCurrentPtr().createTexture();
 	
 
 
-	runAreaDensity();	
-
-	_volumeRaycaster->setVolume(*_volume, 0);
+	
 }

@@ -11,6 +11,7 @@
 
 #include <batterylib/include/VolumeIO.h>
 #include <batterylib/include/VolumeMeasures.h>
+#include <batterylib/include/VolumeGenerator.h>
 
 #include <chrono>
 #include <iostream>
@@ -298,6 +299,10 @@ void Ui::update(double dt)
 	/*
 		Options
 	*/
+	ImGui::Separator();
+	ImGui::Text("Options");
+	ImGui::Separator();
+
 	if (ImGui::Button("Save")) {
 		std::ofstream optFile(OPTIONS_FILENAME);		
 			optFile << _app._options;		
@@ -311,6 +316,10 @@ void Ui::update(double dt)
 	renderOptionSet("Options", _app._options, 0);
 
 	
+	ImGui::Separator();
+	ImGui::Text("View");
+	ImGui::Separator();
+
 	ImGui::SliderFloat3("Slice (Min)", reinterpret_cast<float*>(&_app._options["Render"].get<vec3>("sliceMin")), -1, 1);
 	ImGui::SliderFloat3("Slice (Max)", reinterpret_cast<float*>(&_app._options["Render"].get<vec3>("sliceMax")), -1, 1);
 
@@ -344,76 +353,43 @@ void Ui::update(double dt)
 		0, _app._volume->numChannels() - 1
 	);
 
-	auto & renderChannel = _app._volume->getChannel(_app._options["Render"].get<int>("channel"));
+	
+	if (_app._volume->numChannels() > 0) {
+		auto & renderChannel = _app._volume->getChannel(_app._options["Render"].get<int>("channel"));
 
-	ImGui::TextColored(ImVec4(1, 1, 0, 1), "%s",
-		renderChannel.getName().c_str()
-	);
-	ImGui::TextColored(ImVec4(1, 1, 0, 1), "%d %d %d",
-		renderChannel.dim().x, renderChannel.dim().y, renderChannel.dim().z
-	);
+		ImGui::TextColored(ImVec4(1, 1, 0, 1), "%s",
+			renderChannel.getName().c_str()
+		);
+		ImGui::TextColored(ImVec4(1, 1, 0, 1), "%d %d %d",
+			renderChannel.dim().x, renderChannel.dim().y, renderChannel.dim().z
+		);
+
+		ImGui::SameLine(); 
+
+		if(ImGui::Button("Clear Channel"))
+			renderChannel.clear();
+	}
+	else {
+		ImGui::TextColored(ImVec4(1, 0, 0, 1), "No VolumeChannels Loaded");
+	}
 
 
 	/*
 	Volume
 	*/
 
-	bool tempDisabled = false;
-	if (!tempDisabled) {
-		static std::string curDir = "../../data";
-		std::string filename;
-		std::tie(curDir, filename) = imguiFileExplorer(curDir, ".tiff", true);
-
-
-		if (filename != "") {
-			try {
-				auto id = _app._volume->emplaceChannel(
-					blib::loadTiffFolder(curDir.c_str())
-				);
-				_app._volumeRaycaster->setVolume(*_app._volume, id);
-			}
-			catch (const char * ex) {
-				std::cerr << ex << std::endl;
-			}
-		}
-	}
-
 	
-
-
-
-	if (ImGui::Button("Reload")) {
-		_app.reset();
-	}
-
-
-	ImGui::SameLine();
-	if (ImGui::Button("Clear C0")) {
-		_app._volume->getChannel(0).clear();
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Clear C1")) {
-		_app._volume->getChannel(1).clear();
-	}
-
-	//_app._volume->getChannel(1).clear();
-
-	//check
-	/*_app._options["Diffusion"].get<int>("direction") =
-		std::clamp(_app._options["Diffusion"].get<int>("direction"), 0, 5);
-
-	Dir dir = Dir(_app._options["Diffusion"].get<int>("direction"));*/
 	
+	
+	ImGui::Separator();
+	ImGui::Text("Measurements");
+	ImGui::Separator();
 
 	static bool enableMGGPU = false;
 	static bool enableBiCGCPU = false;
-	static bool enableBiCGGPU = true;
+	static bool enableBiCGGPU = true;	
 
-
-	ImGui::Checkbox("MG", &enableMGGPU); ImGui::SameLine();
-	ImGui::Checkbox("BiCG-C", &enableBiCGCPU); ImGui::SameLine();
-	ImGui::Checkbox("BiCG-G", &enableBiCGGPU); ImGui::SameLine();
-
+	
 	if (ImGui::Button("Tortuosity")) {
 		
 
@@ -427,8 +403,9 @@ void Ui::update(double dt)
 		};
 		tp.dir = Dir(_app._options["Diffusion"].get<int>("direction"));
 		tp.tolerance = pow(10.0, -_app._options["Diffusion"].get<int>("Tolerance"));
+		tp.maxIter = size_t(_app._options["Diffusion"].get<int>("maxIter"));
 
-		auto & mask = _app._volume->getChannel(CHANNEL_BATTERY);					
+		auto & mask = _app._volume->getChannel(CHANNEL_MASK);					
 
 		if (enableMGGPU) {
 			auto tau = blib::getTortuosity<double>(mask, tp, blib::DiffusionSolverType::DSOLVER_MGGPU, &_app._volume->getChannel(CHANNEL_CONCETRATION));
@@ -447,84 +424,13 @@ void Ui::update(double dt)
 			auto tau = blib::getTortuosity<double>(mask, tp, blib::DiffusionSolverType::DSOLVER_EIGEN, &_app._volume->getChannel(CHANNEL_CONCETRATION));
 			std::cout << "BiCGCPU\t\t" << tau << std::endl;
 		}
-
-
-
 	}
 
-	/*if (ImGui::Button("Reactive Area Density")) {
+	ImGui::SameLine();
+	ImGui::Checkbox("MG", &enableMGGPU); ImGui::SameLine();
+	ImGui::Checkbox("BiCG-C", &enableBiCGCPU); ImGui::SameLine();
+	ImGui::Checkbox("BiCG-G", &enableBiCGGPU); 
 
-		
-		uint vboIndex;
-		size_t Nverts;
-
-		float newIso = _app._options["Render"].get<float>("MarchingCubesIso");
-		int newRes = _app._options["Render"].get<int>("MarchingCubesRes");
-		if (newRes < 8) newRes = 8;
-
-		double a = blib::getReactiveAreaDensity<double>(_app._volume->getChannel(CHANNEL_BATTERY), 
-			ivec3(newRes),
-			newIso,
-			&vboIndex, &Nverts);
-		_app._volumeMC = std::move(VertexBuffer<VertexData>(vboIndex, Nverts));
-
-		std::cout << "Reactive area density: " << a << std::endl;
-	}*/
-	
-
-
-	
-		
-	
-	//Output
-	{
-
-		static char outputPath[256] = "volOut.vol";
-
-		if (ImGui::Button("Save Current Channel")) {
-
-			auto & c = _app._volume->getChannel(_app._options["Render"].get<int>("channel"));
-
-			//Update from GPU
-			c.getCurrentPtr().retrieve();			
-
-			blib::saveVolumeBinary(
-				outputPath,
-				c
-			);
-
-		}
-
-		ImGui::SameLine();		
-		ImGui::InputText("outVol", outputPath, 256);
-	}
-
-	//Input	
-	{
-
-		static char inputPath[256] = "volOut.vol";
-
-		
-		if (ImGui::Button("Load to Current Channel")) {
-
-			try {
-				_app._volume->emplaceChannel(
-					blib::loadVolumeBinary(inputPath),
-					_app._options["Render"].get<int>("channel")
-				);
-			}
-			catch (const char * ex) {
-				std::cout << ex << std::endl;
-			}
-		}
-
-		ImGui::SameLine();
-		ImGui::InputText("inVol", inputPath, 256);
-	}	
-
-	if (ImGui::Button("Difference sum")){
-		_app._volume->getChannel(1).differenceSum();
-	}
 	
 
 
@@ -533,6 +439,8 @@ void Ui::update(double dt)
 	ImGui::Checkbox("Concetration Graph", &concGraph);
 	
 	if(concGraph){
+
+		ImGui::SameLine();
 
 		const uint channel = CHANNEL_CONCETRATION;
 		const Dir dir = Dir(_app._options["Diffusion"].get<int>("direction"));		
@@ -557,14 +465,98 @@ void Ui::update(double dt)
 			std::vector<float> tmp;
 			for (auto f : vals) tmp.push_back(float(f));
 
-			ImGui::PlotLines("C", tmp.data(), int(tmp.size()), 0, nullptr, 0.0f, 1.0f, ImVec2(400, 300));
-		}
-
-
-	
+			ImGui::PlotLines("C", tmp.data(), int(tmp.size()), 0, nullptr, 0.0f, 1.0f, ImVec2(200, 300));
+		}	
 	}
 
+	ImGui::Separator();
+	ImGui::Text("Load .TIFF");
+	ImGui::Separator();
+	{
+		static std::string curDir = "../../data";
+		std::string filename;
+		std::tie(curDir, filename) = imguiFileExplorer(curDir, ".tiff", true);
+		if (filename != "") {
+			_app.loadFromFile(curDir);
+		}
+	}
 
+	{
+		if (ImGui::Button("Load Default")) {
+			_app.loadFromFile(_app._options["Input"].get<std::string>("DefaultPath"));
+		}
+
+		ImGui::SameLine();
+
+		if (ImGui::Button("Reset")) {
+			_app.reset();
+		}
+
+	}
+
+	ImGui::Separator();
+	ImGui::Text("Generate volume");
+	ImGui::Separator();
+
+	
+
+
+	renderOptionSet("Generator Options", _app._options["Generator"], 0);
+
+	int genResX = _app._options["Generator"].get<int>("Resolution");
+	ivec3 genRes = ivec3(genResX);
+
+	if (ImGui::Button("Spheres")) {
+		auto & opt = _app._options["Generator"]["Spheres"];
+
+		blib::GeneratorSphereParams p;
+		p.N = opt.get<int>("N");
+		p.rmin = opt.get<float>("RadiusMin");
+		p.rmax = opt.get<float>("RadiusMax");
+		p.maxTries = opt.get<int>("MaxTries");
+		p.overlapping = opt.get<bool>("Overlapping");
+		p.withinBounds = opt.get<bool>("WithinBounds");
+
+
+		
+		bool result;
+		_app.loadFromMask(
+			blib::generateSpheres(genRes, p, &result)
+		);
+
+		if (!result) {
+			std::cerr << "Failed to generate spheres" << std::endl;
+		}
+	}
+
+	ImGui::SameLine();
+	if (ImGui::Button("Max Spheres")) {
+		auto & opt = _app._options["Generator"]["Spheres"];
+
+		blib::GeneratorSphereParams p;
+		p.N = opt.get<int>("N");
+		p.maxTries = opt.get<int>("MaxTries");
+		p.rmin = opt.get<float>("RadiusMin");
+		p.rmax = opt.get<float>("RadiusMax");		
+		p.withinBounds = opt.get<bool>("WithinBounds");
+		p.overlapping = false;
+
+		
+		while (true) {
+
+			bool result;
+			_app.loadFromMask(
+				blib::generateSpheres(genRes, p, &result)
+			);
+
+			if (!result) break;
+			p.N += 1;
+		}
+
+		
+		std::cerr << "Max N " << p.N << std::endl;
+		
+	}
 
 	ImGui::End();
 
