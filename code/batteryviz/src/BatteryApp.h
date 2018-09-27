@@ -48,35 +48,38 @@ protected:
 	virtual void callbackKey(GLFWwindow * w, int key, int scancode, int action, int mods) override;
 	virtual void callbackScroll(GLFWwindow * w, double xoffset, double yoffset) override;
 	virtual void callbackChar(GLFWwindow * w, unsigned int code) override;
-
-	void solveMultigridCPU();	
-	void solveMGGPU();
-	void solveBICGSTABGPU();
+	
 
 	virtual void reset();
-
 	void runAreaDensity();
+
+	bool loadFromFile(const std::string & filename);
+	
 
 	OptionSet _options;
 
 	/*
-		Render
+		Render Settings
 	*/
 	Camera _camera;	
 	ShaderDB _shaders;
-
 	uint _currentRenderChannel;
+
+	/*
+		Renderers
+	*/
+	
 	std::unique_ptr<VolumeRaycaster> _volumeRaycaster;
+
+	/*
+		Renderable objects
+	*/
 	Scene _scene;
-
 	VertexBuffer<VertexData> _volumeMC;
-	
-	
-	vec3 _quadric;
 
-	
 	
 	std::unique_ptr<blib::Volume> _volume;
+	
 
 
 	bool _autoUpdate;
@@ -90,20 +93,12 @@ protected:
 		std::vector<blib::Ellipsoid>
 	> _saEllipsoid;
 
-
-	blib::DiffusionSolver<double> _diffSolver;
-	blib::MultigridSolver<double> _multiSolver;	
-	blib::MGGPU<double> _mggpu;
-	blib::BICGSTABGPU<double> _bicgstabgpu;
-
-
+	
 	friend Ui;
 	Ui _ui;	
 
 	
-	double _simulationTime;
-	double _convergenceTime;
-	float _residual;
+	
 	
 
 private:

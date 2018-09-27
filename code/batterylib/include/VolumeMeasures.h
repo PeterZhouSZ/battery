@@ -61,5 +61,14 @@ namespace blib {
 		uint * vboOut = nullptr, //If not null, a triangle mesh will be generated and saved to vbo
 		size_t * NvertsOut = nullptr
 	);
+
+	template <typename T>
+	BLIB_EXPORT T getShapeFactor(		
+		T reactiveAreaDensity,
+		T porosity,
+		T totalVolume = 1.0
+	);
 	
-	}
+	
+
+}

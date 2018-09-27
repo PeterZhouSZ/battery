@@ -13,6 +13,8 @@
 #include <numeric>
 #include <iostream>
 
+#include <glm/gtc/constants.inl>
+
 namespace blib {
 
 	template <typename T>
@@ -267,6 +269,14 @@ namespace blib {
 		return area;		
 	}
 
+	template <typename T>
+	BLIB_EXPORT T getShapeFactor(T reactiveAreaDensity, T porosity, T totalVolume)
+	{
+		const T particleVolume = (T(1.0) - porosity) * totalVolume;		
+		const T numeratorCoeff = glm::pow(T(3.0 / 4.0) * glm::pi<T>(), T(1.0 / 3.0));
+		return (numeratorCoeff * reactiveAreaDensity) / glm::pow(particleVolume, T(2.0 / 3.0));
+	}
+
 
 
 
@@ -282,4 +292,8 @@ namespace blib {
 
 	template BLIB_EXPORT float getReactiveAreaDensity<float>(const VolumeChannel &, ivec3, float, float,  uint *, size_t * );
 	template BLIB_EXPORT double getReactiveAreaDensity<double>(const VolumeChannel &, ivec3, float, float, uint *, size_t *);
+
+
+	template BLIB_EXPORT double getShapeFactor<double>(double,double,double);
+	template BLIB_EXPORT float getShapeFactor<float>(float, float, float);
 }

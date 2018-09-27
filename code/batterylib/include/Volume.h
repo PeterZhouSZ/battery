@@ -62,6 +62,8 @@ namespace blib{
 		BLIB_EXPORT uint dimInDirection(Dir dir);
 		BLIB_EXPORT uint sliceElemCount(Dir dir);
 
+		BLIB_EXPORT void sumInDir(Dir dir, void * output);
+
 		BLIB_EXPORT bool isDoubleBuffered() const;
 
 		BLIB_EXPORT ivec3 dim() const;
@@ -111,7 +113,7 @@ namespace blib{
 		BLIB_EXPORT void binarize(uint channel, float threshold = 1.0f);
 		
 		//Reduces for each slice in dir and writes result to output
-		BLIB_EXPORT void reduceSlice(uint channel, Dir dir, void * output);
+		
 
 		BLIB_EXPORT void diffuse(
 			uint maskChannel,

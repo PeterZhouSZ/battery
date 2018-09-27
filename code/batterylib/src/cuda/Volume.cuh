@@ -44,7 +44,7 @@ void launchSubtractKernel(uint3 res, cudaSurfaceObject_t A, cudaSurfaceObject_t 
 float launchReduceSumKernel(uint3 res, cudaSurfaceObject_t surf);
 
 
-float launchReduceSumSlice(uint3 res, cudaSurfaceObject_t surf, Dir dir, void * output);
+
 
 enum ReduceOpType {
 	REDUCE_OP_SUM,
@@ -77,6 +77,8 @@ void Volume_Reduce(
 	uint3 begin = make_uint3(0), 
 	uint3 end = make_uint3(static_cast<uint>(-1))
 );
+
+
 
 inline size_t Volume_Reduce_RequiredBufferSize(size_t origSize) {
 	return (origSize + VOLUME_REDUCTION_BLOCKSIZE - 1) / VOLUME_REDUCTION_BLOCKSIZE;

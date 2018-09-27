@@ -337,7 +337,7 @@ void Ui::update(double dt)
 
 	
 
-	ImGui::SliderFloat3("Quadric", reinterpret_cast<float*>(&_app._quadric), 0, 10);
+	
 
 	ImGui::SliderInt("RenderChannel", 
 		&_app._options["Render"].get<int>("channel"),
@@ -358,11 +358,11 @@ void Ui::update(double dt)
 	Volume
 	*/
 
-	bool tempDisabled = true;
+	bool tempDisabled = false;
 	if (!tempDisabled) {
 		static std::string curDir = "../../data";
 		std::string filename;
-		std::tie(curDir, filename) = imguiFileExplorer(curDir, ".tif", true);
+		std::tie(curDir, filename) = imguiFileExplorer(curDir, ".tiff", true);
 
 
 		if (filename != "") {
@@ -399,24 +399,57 @@ void Ui::update(double dt)
 	//_app._volume->getChannel(1).clear();
 
 	//check
-	_app._options["Diffusion"].get<int>("direction") =
+	/*_app._options["Diffusion"].get<int>("direction") =
 		std::clamp(_app._options["Diffusion"].get<int>("direction"), 0, 5);
 
-	Dir dir = Dir(_app._options["Diffusion"].get<int>("direction"));
+	Dir dir = Dir(_app._options["Diffusion"].get<int>("direction"));*/
 	
 
-	if (ImGui::Button("MG GPU")) {
-		_app.solveMGGPU();
-	}
+	static bool enableMGGPU = false;
+	static bool enableBiCGCPU = false;
+	static bool enableBiCGGPU = true;
 
-	ImGui::SameLine();
 
-	if (ImGui::Button("MG CPU")) {
-		_app.solveMultigridCPU();
-	}
+	ImGui::Checkbox("MG", &enableMGGPU); ImGui::SameLine();
+	ImGui::Checkbox("BiCG-C", &enableBiCGCPU); ImGui::SameLine();
+	ImGui::Checkbox("BiCG-G", &enableBiCGGPU); ImGui::SameLine();
 
-	if (ImGui::Button("BICGSTAB GPU")) {
-		_app.solveBICGSTABGPU();
+	if (ImGui::Button("Tortuosity")) {
+		
+
+		/*
+		Prepare
+		*/
+		blib::TortuosityParams tp;
+		tp.coeffs = {
+			_app._options["Diffusion"].get<float>("D_zero"),
+			_app._options["Diffusion"].get<float>("D_one")
+		};
+		tp.dir = Dir(_app._options["Diffusion"].get<int>("direction"));
+		tp.tolerance = pow(10.0, -_app._options["Diffusion"].get<int>("Tolerance"));
+
+		auto & mask = _app._volume->getChannel(CHANNEL_BATTERY);					
+
+		if (enableMGGPU) {
+			auto tau = blib::getTortuosity<double>(mask, tp, blib::DiffusionSolverType::DSOLVER_MGGPU, &_app._volume->getChannel(CHANNEL_CONCETRATION));
+			std::cout << "MGGPU\t\t" << tau << std::endl;
+		}
+
+		if (enableBiCGGPU) {
+			auto tau = blib::getTortuosity<double>(mask, tp, blib::DiffusionSolverType::DSOLVER_BICGSTABGPU, &_app._volume->getChannel(CHANNEL_CONCETRATION));
+			std::cout << "BICGSTABGPU\t\t" << tau << std::endl;
+		}
+
+		if (enableBiCGCPU) {
+			mask.getCurrentPtr().allocCPU();
+			mask.getCurrentPtr().retrieve();
+
+			auto tau = blib::getTortuosity<double>(mask, tp, blib::DiffusionSolverType::DSOLVER_EIGEN, &_app._volume->getChannel(CHANNEL_CONCETRATION));
+			std::cout << "BiCGCPU\t\t" << tau << std::endl;
+		}
+
+
+
 	}
 
 	/*if (ImGui::Button("Reactive Area Density")) {
@@ -438,83 +471,11 @@ void Ui::update(double dt)
 		std::cout << "Reactive area density: " << a << std::endl;
 	}*/
 	
-	static bool particleAsBoundary = false;
-	ImGui::Checkbox("part", &particleAsBoundary);
-	ImGui::SameLine();		
+
 
 	
 		
-	if (ImGui::Button("Eigen Solver")) {
-		decltype(_app._diffSolver)::value_type tol = 
-			powf(10.0f, -_app._options["Diffusion"].get<int>("Tolerance"));
-
-		
-		std::chrono::duration<double> tPrep;
-		std::chrono::duration<double> tSolve;
-		std::chrono::duration<double> tTort;
-
-		if (particleAsBoundary) {
-			_app._diffSolver.solveWithoutParticles(
-				_app._volume->getChannel(CHANNEL_BATTERY),
-				&_app._volume->getChannel(CHANNEL_CONCETRATION),
-				_app._options["Diffusion"].get<float>("D_zero"),
-				_app._options["Diffusion"].get<float>("D_one"),
-				tol
-			);
-		}
-		else {
-			
-			auto t0 = std::chrono::system_clock::now();
-			_app._diffSolver.prepare(
-				_app._volume->getChannel(CHANNEL_BATTERY), dir,
-				_app._options["Diffusion"].get<float>("D_zero"),
-				_app._options["Diffusion"].get<float>("D_one")
-			);
-			auto t1 = std::chrono::system_clock::now();
-			_app._diffSolver.solve(tol, 2600, 100);
-			auto t2 = std::chrono::system_clock::now();
-
-			tPrep = t1 - t0;
-			tSolve = t2 - t1;
-
-			_app._diffSolver.resultToVolume(_app._volume->getChannel(CHANNEL_CONCETRATION));			
-		}
-
-		//Update to GPU
-		_app._volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().commit();
-
-		auto tt0 = std::chrono::system_clock::now();
-		float tau = _app._diffSolver.tortuosity(
-			_app._volume->getChannel(CHANNEL_BATTERY),			
-			dir
-		);
-		auto tt1 = std::chrono::system_clock::now();
-
-		tTort = tt1 - tt0;
-
-		std::cout << "tau = " << tau << "\n";
-
-		std::cout << "Time " << 
-			"| Prep: " << tPrep.count() << 
-			"s | Solve: " << tSolve.count() << 
-			"s | Tau: " << tTort.count() << "\n";
-
-		std::cout << "Iterations: " << _app._diffSolver.iterations() << std::endl;
-
-		
-	}
-
-	ImGui::SameLine();
-	if (ImGui::Button("Tortuosity")) {
-		float tau = _app._diffSolver.tortuosity(
-			_app._volume->getChannel(CHANNEL_BATTERY),			
-			dir
-		);
-		std::cout << "tau = " << tau << "\n";
-	}
-
-
-
+	
 	//Output
 	{
 
@@ -566,32 +527,38 @@ void Ui::update(double dt)
 	}
 	
 
-	ImGui::Text("Simulation time: %.6fs (%.1fm), dC/dt: %.6f", float(_app._simulationTime), float(_app._simulationTime / 60.0), _app._residual);
 
-	if (_app._convergenceTime >= 0.0f) {
-		ImGui::Text("Convergence time: %.6f", float(_app._convergenceTime));
-	}
 
 	static bool concGraph = false;
 	ImGui::Checkbox("Concetration Graph", &concGraph);
 	
 	if(concGraph){
 
-		const uint channel = 1;
-
-		const Dir dir = Dir(_app._options["Diffusion"].get<int>("direction"));
+		const uint channel = CHANNEL_CONCETRATION;
+		const Dir dir = Dir(_app._options["Diffusion"].get<int>("direction"));		
 		
-		std::vector<float> vals;
+		static std::vector<double> vals;	
+
 
 		auto & c = _app._volume->getChannel(channel);
-		vals.resize(c.dimInDirection(dir),0.0f);
-		_app._volume->reduceSlice(channel, dir, vals.data());
-
-		auto sliceElemCount = float(c.sliceElemCount(dir));
-		for (auto & v : vals)
-			v /= sliceElemCount;
+		assert(c.type() == TYPE_DOUBLE);
 		
-		ImGui::PlotLines("C", vals.data(), int(vals.size()), 0, nullptr, 0.0f, 1.0f, ImVec2(400,300));
+		if (ImGui::Button("Refresh")) {
+			vals.resize(c.dimInDirection(dir), 0.0f);
+			c.sumInDir(dir, vals.data());
+
+			auto sliceElemCount = float(c.sliceElemCount(dir));
+			for (auto & v : vals)
+				v /= sliceElemCount;
+
+		}
+
+		{
+			std::vector<float> tmp;
+			for (auto f : vals) tmp.push_back(float(f));
+
+			ImGui::PlotLines("C", tmp.data(), int(tmp.size()), 0, nullptr, 0.0f, 1.0f, ImVec2(400, 300));
+		}
 
 
 	

@@ -107,11 +107,7 @@ BatteryApp::BatteryApp()
 	: App("BatteryViz"),
 	_camera(Camera::defaultCamera(_window.width, _window.height)),	
 	_ui(*this),
-	_currentRenderChannel(0),
-	_simulationTime(0.0f),
-	_diffSolver(true),
-	_multiSolver(true),
-	_bicgstabgpu(true)
+	_currentRenderChannel(0)	
 {	
 
 
@@ -142,7 +138,7 @@ BatteryApp::BatteryApp()
 	);
 	
 		
-	_quadric = { 0.988,1.605,1.084 };
+	
 	_autoUpdate = false;
 
 	
@@ -340,9 +336,6 @@ void BatteryApp::render(double dt)
 
 	//Render marching cubes volume
 	{
-
-		
-
 		RenderList rl;
 
 		mat4 M = mat4(1.0f);
@@ -400,10 +393,10 @@ void BatteryApp::runAreaDensity()
 	
 
 	double a = blib::getReactiveAreaDensity<double>(_volume->getChannel(CHANNEL_BATTERY), ivec3(res), iso, smooth, &vboIndex, &Nverts);
+	double sf = blib::getShapeFactor(a, blib::getPorosity<double>(_volume->getChannel(CHANNEL_BATTERY)));
 
-	std::cout << "Reactive area density: " << a;
-	std::cout << ", Avg: " << a / (res * res * res);
-	std::cout << std::endl;
+	std::cout << "Reactive Area Density: " << a << ", Shape Factor: " << sf << "\n";	
+	
 	if (Nverts > 0) {
 		_volumeMC = std::move(VertexBuffer<VertexData>(vboIndex, Nverts));
 	}
@@ -524,270 +517,12 @@ void BatteryApp::callbackChar(GLFWwindow * w, unsigned int code)
 	_ui.callbackChar(w, code);
 }
 
-
-
-void BatteryApp::solveMultigridCPU()
-{
-
-	//		_volume->getChannel(CHANNEL_BATTERY).clear();
-
-	auto & c = _volume->getChannel(CHANNEL_BATTERY);
-	uchar* data = (uchar*)c.getCurrentPtr().getCPU();
-
-	auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
-	auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
-	auto exactSolveDim = 4;
-	int levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
-	//int levels = 2;
-
-
-	Dir dir = Dir(_options["Diffusion"].get<int>("direction"));
-
-	std::cout << "Multigrid solver levels " << levels << std::endl;
-
-	_multiSolver.setVerbose(false);
-
-	auto t0 = std::chrono::system_clock::now();
-	vec3 cellDim = vec3(1.0 / maxDim);
-	_multiSolver.prepare(*_volume,
-		data,
-		c.dim(),
-		dir,
-		_options["Diffusion"].get<float>("D_zero"),
-		_options["Diffusion"].get<float>("D_one"),
-		levels,
-		cellDim
-	);
-	auto t1 = std::chrono::system_clock::now();
-
-	std::chrono::duration<double> prepTime = t1 - t0;
-	std::cout << "Prep time: " << prepTime.count() << std::endl;
-
-	double tol = pow(10.0, -_options["Diffusion"].get<int>("Tolerance"));
-
-	_multiSolver.solve(*_volume, tol, 1024);
-	//_multiSolver.solve(*_volume, 1e-6, 3);
-
-
-
-	//	_multiSolver.generateErrorVolume(*_volume);
-	_multiSolver.setVerbose(true);
-	_multiSolver.tortuosity(_volume->getChannel(CHANNEL_BATTERY), dir);
-	auto t2 = std::chrono::system_clock::now();
-
-	_multiSolver.resultToVolume(_volume->getChannel(CHANNEL_CONCETRATION));
-	_volume->getChannel(CHANNEL_CONCETRATION).getCurrentPtr().commit();
-
-
-
-	std::chrono::duration<double> solveTime = t2 - t1;
-
-
-	std::cout << "Solve time: " << solveTime.count() << std::endl;
-	std::cout << "TOTAL time: " << prepTime.count() + solveTime.count() << std::endl;
-	std::cout << "Iterations: " << _multiSolver.iterations() << std::endl;
-	std::cout << "--------------" << std::endl;
-
-}
-
-
-void BatteryApp::solveMGGPU()
-{
-
-
-	/*
-		Prepare
-	*/
-
-	
-	
-	while (_volume->numChannels() > 2) {
-		_volume->removeChannel(_volume->numChannels() - 1);
-	}
-
-	
-
-	MGGPU<double>::PrepareParams p;
-	p.levels = 5;
-	p.dir = X_NEG;
-	p.d0 = _options["Diffusion"].get<float>("D_zero");
-	p.d1 = _options["Diffusion"].get<float>("D_one");
-
-	auto & c = _volume->getChannel(CHANNEL_BATTERY);
-	auto maxDim = std::max(c.dim().x, std::max(c.dim().y, c.dim().z));
-	auto minDim = std::min(c.dim().x, std::min(c.dim().y, c.dim().z));
-	auto exactSolveDim = 4;
-	p.cellDim = vec3(1.0 / maxDim);
-	p.levels = std::log2(minDim) - std::log2(exactSolveDim) + 1;
-	p.dir = Dir(_options["Diffusion"].get<int>("direction"));
-
-	std::cout << "Multigrid solver levels " << p.levels << std::endl;
-
-	auto t0 = std::chrono::system_clock::now();
-	bool resPrep = false;
-	
-	resPrep = _mggpu.prepare(_volume->getChannel(CHANNEL_BATTERY), p,  &_volume->getChannel(CHANNEL_CONCETRATION));
-	
-	auto t1 = std::chrono::system_clock::now();
-
-	
-
-	std::chrono::duration<double> prepTime = t1 - t0;
-	std::cout << "Prep time: " << prepTime.count() << "s" << std::endl;
-
-	if (!resPrep) {
-		std::cout << "Preparation failed" << std::endl;
-		return;
-	}
-
-	std::cout << "=================================" << std::endl;
-
-	
-	//One solve
-	if (true) {
-		MGGPU<double>::SolveParams sp; //default
-
-		/*{
-			sp.alpha = 1.45;
-			sp.cycleType = MGGPU<double>::CycleType::V_CYCLE;
-			sp.verbose = true;
-		}*/
-
-		sp.alpha = 1.0;
-		sp.verbose = true;
-		sp.cycleType = MGGPU<double>::CycleType::V_CYCLE;
-		sp.postN = 1; //0 for post or pre makes it worse
-		sp.preN = 1;
-		
-
-		auto ts0 = std::chrono::system_clock::now();
-		double err;
-		
-		err = _mggpu.solve(
-			sp
-		);		
-		
-		auto ts1 = std::chrono::system_clock::now();
-
-		if (err < 0.0) {
-			std::cout << "DIVERGED";
-		}
-		else if (err > 1e-6) {
-			std::cout << "NOT CONVERGED";
-		}
-		else {
-			std::cout << " iter: " << _mggpu.iterations() << ", error: " << err;			
-		}
-		std::cout << std::endl;
-
-
-		//double tau = _mggpu.tortuosity();
-		std::cout << "TORTUOSITY: use tortusity<T> instead" << std::endl;
-
-		std::chrono::duration<double> solveTime = ts1 - ts0;
-		std::cout << "Solve time: " << solveTime.count() << "s" << std::endl;
-		std::cout << "TOTAL time: " << solveTime.count() + prepTime.count() << "s" << std::endl;
-		std::cout << "MGGPU END =================================" << std::endl;
-	}
-
-	//std::ofstream f("alpha.txt");
-
-	if (false) {
-
-
-		int N = 50;
-		for (auto i = 0; i < N; i++) {
-			double start = 0.1;
-			double end = 1.99;
-
-			auto & f = std::cout;
-
-
-			MGGPU<double>::SolveParams sp; //default
-			sp.alpha = start + (end - start) / (N - 1) * i;
-			sp.maxIter = 64;
-			sp.postN = 1;
-			sp.preN = 1;
-			sp.verbose = false;
-			sp.cycleType = MGGPU<double>::CycleType::V_CYCLE;
-
-			Timer timer(true);
-			double err = _mggpu.solve(sp);
-			double t = timer.time();
-
-			f << "Alpha: " << sp.alpha << ", ";
-			if (err < 0.0) {
-				f << "DIVERGED";
-			}
-			else if (err > 1e-6) {
-				f << "NOT CONVERGED";
-			}
-			else {
-				f << " iter: " << _mggpu.iterations() << ", error: " << err;
-				f << ", t: " << t << "s";
-			}
-
-
-			f << std::endl;
-
-			_mggpu.reset();
-
-
-		}
-
-	}
-
-
-	/*for (int i = 0; i < _volume->numChannels(); i++) {
-		auto &chan = _volume->getChannel(i);
-		std::cout << chan.getName() << std::endl;
-		chan.normalize();
-		auto & ptr = chan.getCurrentPtr();
-		ptr.retrieve();
-		
-		char b;
-		b = 0;
-	}
-	_volume->synchronize();*/
-
-
-}
-
-void BatteryApp::solveBICGSTABGPU()
-{
-	/*
-	Prepare
-	*/
-	TortuosityParams tp;
-	tp.coeffs = {
-		_options["Diffusion"].get<float>("D_zero"),
-		_options["Diffusion"].get<float>("D_one")
-	};
-	tp.dir = Dir(_options["Diffusion"].get<int>("direction"));
-	tp.tolerance = pow(10.0, -_options["Diffusion"].get<int>("Tolerance"));
-
-	auto & mask = _volume->getChannel(CHANNEL_BATTERY);
-	mask.getCurrentPtr().allocCPU();
-	mask.getCurrentPtr().retrieve();
-
-	auto tau0 = getTortuosity<double>(_volume->getChannel(CHANNEL_BATTERY), tp, DSOLVER_BICGSTABGPU);
-	std::cout << "BICGSTABGPU\t\t" << tau0 << std::endl;
-	
-	auto tau1 = getTortuosity<double>(_volume->getChannel(CHANNEL_BATTERY), tp, DSOLVER_EIGEN, &_volume->getChannel(CHANNEL_CONCETRATION));
-	std::cout << "EIGEN\t\t" << tau1 << std::endl;
-
-	auto tau2 = getTortuosity<double>(_volume->getChannel(CHANNEL_BATTERY), tp, DSOLVER_MGGPU);
-	std::cout << "MGGPU\t\t" << tau2 << std::endl;
-}
-
 void BatteryApp::reset()
 {
 
 	
 
-	_simulationTime = 0.0f;
-	_convergenceTime = -1.0f;
-
+	
 	bool loadDefault = _options["Input"].get<bool>("Default");
 	
 	_volume = make_unique<blib::Volume>();	
@@ -929,27 +664,11 @@ void BatteryApp::reset()
 	
 	_volume->getChannel(CHANNEL_BATTERY).setName("Battery");
 	_volume->getChannel(CHANNEL_CONCETRATION).setName("Concetration");	
-
-
 	_volume->getChannel(CHANNEL_BATTERY).getCurrentPtr().createTexture();
 	
 
 
-	//Startup tests	
-	const bool multigridTest = false;
-	const bool MGGPUTest = false;
-
-	if(multigridTest){
-		solveMultigridCPU();
-	}
-
-	if (MGGPUTest) {
-		solveMGGPU();
-	}
-
-
-	runAreaDensity();
-	
+	runAreaDensity();	
 
 	_volumeRaycaster->setVolume(*_volume, 0);
 }

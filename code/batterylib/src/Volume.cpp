@@ -200,6 +200,56 @@ uint blib::VolumeChannel::sliceElemCount(Dir dir)
 	return dim()[(index + 1) % 3] * dim()[(index + 2) % 3];
 }
 
+template <typename T>
+void _sumInDir(ivec3 dim, Dir dir, T * in, T * out){
+	
+	int primary = getDirIndex(dir);
+	int secondary[2] = { (primary + 1) % 3, (primary + 2) % 3 };
+	int sgn = getDirSgn(dir);
+
+//	#pragma omp parallel
+	for (auto i = 0; i < dim[primary]; i++) {
+
+		T sum = 0.0f;
+		for (auto j = 0; j < dim[secondary[0]]; j++) {
+			for (auto k = 0; k < dim[secondary[1]]; k++) {
+
+				ivec3 pos;
+				pos[primary] = i;
+				pos[secondary[0]] = j;
+				pos[secondary[1]] = k;
+
+				sum += in[linearIndex(dim, pos)];
+			}
+		}
+
+		if(sgn > 0)
+			out[i] = sum;	
+		else
+			out[dim[primary] - 1 - i] = sum;
+	}
+
+}
+
+void blib::VolumeChannel::sumInDir(Dir dir, void * output)
+{
+	auto & ptr = getCurrentPtr();
+	ptr.allocCPU();
+	ptr.retrieve();
+		
+	
+	if (_type == TYPE_FLOAT) {
+		_sumInDir<float>(_dim, dir, static_cast<float*>(ptr.getCPU()), static_cast<float*>(output));
+	}
+	else if (_type == TYPE_DOUBLE) {
+		_sumInDir<double>(_dim, dir, static_cast<double*>(ptr.getCPU()), static_cast<double*>(output));
+	}	
+	else {
+		assert("NOT IMPLEMENTED");
+	}
+
+}
+
 bool blib::VolumeChannel::isDoubleBuffered() const
 {
 	return _doubleBuffered;
@@ -448,21 +498,7 @@ void blib::Volume::heat(uint channel)
 	 
 }
 
- void blib::Volume::reduceSlice(uint channel, Dir dir, void * output)
- {
-	 auto & c = getChannel(channel);
-	 
-	 //Only float supported at the moment
-	 assert(c.type() == TYPE_FLOAT);
 
-  	 launchReduceSumSlice(
-		 make_uint3(c.dim().x, c.dim().y, c.dim().z),
-		 c.getCurrentPtr().getSurface(),
-		 dir,
-		 output
-	 );
-
- }
 
  void blib::Volume::diffuse(
 	 uint maskChannel,
