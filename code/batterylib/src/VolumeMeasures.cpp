@@ -273,7 +273,7 @@ namespace blib {
 	BLIB_EXPORT T getShapeFactor(T reactiveAreaDensity, T porosity, T totalVolume)
 	{
 		const T particleVolume = (T(1.0) - porosity) * totalVolume;		
-		const T numeratorCoeff = glm::pow(T(3.0 / 4.0) * glm::pi<T>(), T(1.0 / 3.0));
+		const T numeratorCoeff = glm::pow(T(3.0 / (4.0 * glm::pi<T>())), T(1.0 / 3.0));
 		return (numeratorCoeff * reactiveAreaDensity) / glm::pow(particleVolume, T(2.0 / 3.0));
 	}
 
