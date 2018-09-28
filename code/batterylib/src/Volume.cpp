@@ -136,14 +136,14 @@ void blib::VolumeChannel::sum(void * result)
 
 }
 
-size_t blib::VolumeChannel::nonZeroElems() const
+size_t blib::VolumeChannel::sumZeroElems() const
 {
 	const size_t reduceN = Volume_Reduce_RequiredBufferSize(dim().x * dim().y * dim().z);
 	DataPtr aux;
 	aux.alloc(reduceN, primitiveSizeof(TYPE_UINT64));	
 
 	uint64 result;
-	Volume_Reduce(*getCUDAVolume(), REDUCE_OP_SUM_NONZERO, TYPE_UINT64, aux.gpu, aux.cpu, &result);
+	Volume_Reduce(*getCUDAVolume(), REDUCE_OP_SUM_ZEROELEM, TYPE_UINT64, aux.gpu, aux.cpu, &result);
 
 	return size_t(result);
 

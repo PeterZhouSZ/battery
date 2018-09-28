@@ -235,7 +235,7 @@ namespace blib {
 	template <typename T>
 	BLIB_EXPORT T getPorosity(const VolumeChannel & mask)
 	{
-		return T(mask.nonZeroElems()) / T(mask.totalElems());		
+		return T(mask.sumZeroElems()) / T(mask.totalElems());		
 	}
 
 	template <typename T>
@@ -270,11 +270,11 @@ namespace blib {
 	}
 
 	template <typename T>
-	BLIB_EXPORT T getShapeFactor(T reactiveAreaDensity, T porosity, T totalVolume)
-	{
-		const T particleVolume = (T(1.0) - porosity) * totalVolume;		
+	BLIB_EXPORT T getShapeFactor(T averageParticleArea, T averageParticleVolume)
+	{	
 		const T numeratorCoeff = glm::pow(T(3.0 / (4.0 * glm::pi<T>())), T(1.0 / 3.0));
-		return (numeratorCoeff * reactiveAreaDensity) / glm::pow(particleVolume, T(2.0 / 3.0));
+
+		return (numeratorCoeff * averageParticleArea) / glm::pow(averageParticleVolume, T(2.0 / 3.0));
 	}
 
 
@@ -294,6 +294,6 @@ namespace blib {
 	template BLIB_EXPORT double getReactiveAreaDensity<double>(const VolumeChannel &, ivec3, float, float, uint *, size_t *);
 
 
-	template BLIB_EXPORT double getShapeFactor<double>(double,double,double);
-	template BLIB_EXPORT float getShapeFactor<float>(float, float, float);
+	template BLIB_EXPORT double getShapeFactor<double>(double,double);
+	template BLIB_EXPORT float getShapeFactor<float>(float, float);
 }

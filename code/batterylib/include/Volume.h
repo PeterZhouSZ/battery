@@ -48,7 +48,7 @@ namespace blib{
 		BLIB_EXPORT void sum(void * result);
 
 		
-		BLIB_EXPORT size_t nonZeroElems() const;
+		BLIB_EXPORT size_t sumZeroElems() const;
 
 		/*
 			Clears both buffers

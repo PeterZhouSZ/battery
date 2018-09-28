@@ -64,9 +64,8 @@ namespace blib {
 
 	template <typename T>
 	BLIB_EXPORT T getShapeFactor(		
-		T reactiveAreaDensity,
-		T porosity,
-		T totalVolume = 1.0
+		T averageParticleArea,
+		T averageParticleVolume
 	);
 	
 	

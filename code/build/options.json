@@ -39,7 +39,7 @@
     },
     "Generator": {
         "Resolution": {
-            "data": 64,
+            "data": 256,
             "type": 2
         },
         "Spheres": {
@@ -48,7 +48,7 @@
                 "type": 2
             },
             "N": {
-                "data": 64,
+                "data": 500,
                 "type": 2
             },
             "Overlapping": {
@@ -56,11 +56,11 @@
                 "type": 5
             },
             "RadiusMax": {
-                "data": 0.100000001490116,
+                "data": 0.0500000007450581,
                 "type": 3
             },
             "RadiusMin": {
-                "data": 0.100000001490116,
+                "data": 0.0500000007450581,
                 "type": 3
             },
             "WithinBounds": {
@@ -149,7 +149,7 @@
     },
     "Render": {
         "MarchingCubesIso": {
-            "data": 0.355045795440674,
+            "data": 0.5,
             "type": 3
         },
         "MarchingCubesRes": {

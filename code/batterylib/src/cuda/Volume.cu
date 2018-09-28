@@ -608,7 +608,7 @@ __device__ R opSquare(T & a) {
 }
 
 template <typename T, typename R = T>
-__device__ R opNonzero(T & a) {
+__device__ R opZeroElem(T & a) {
 	return (a == T(0)) ? R(1) : R(0);
 }
 
@@ -855,8 +855,8 @@ void _Volume_Reduce_Out(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType ou
 		return _Volume_Reduce_Op<In, Out, opSum<Out>, opSquare<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	case REDUCE_OP_PROD:
 		return _Volume_Reduce_Op<In, Out, opProd<Out>, opIdentity<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
-	case REDUCE_OP_SUM_NONZERO:
-		return _Volume_Reduce_Op<In, Out, opSum<Out>, opNonzero<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
+	case REDUCE_OP_SUM_ZEROELEM:
+		return _Volume_Reduce_Op<In, Out, opSum<Out>, opZeroElem<In, Out>>(vol, opType, outputType, auxBufferGPU, auxBufferCPU, result, begin, end);
 	default:
 		assert("Unsupported reduction op");
 		exit(0);

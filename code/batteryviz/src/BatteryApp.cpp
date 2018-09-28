@@ -399,11 +399,16 @@ void BatteryApp::runAreaDensity()
 	ivec3 mcres = ivec3(res);
 
 	double a = blib::getReactiveAreaDensity<double>(mask, mcres, iso, 1.0f, &vboIndex, &Nverts);
-	double sf = blib::getShapeFactor(a, blib::getPorosity<double>(_volume->getChannel(CHANNEL_MASK)));
+
+	int nparticles = _options["Generator"]["Spheres"].get<int>("N");
+	double porosity = blib::getPorosity<double>(_volume->getChannel(CHANNEL_MASK));
+	double volume = 1.0 - porosity;
+	std::cout << "Porosity : " << porosity << ", Particle volume: " << volume << std::endl;
+	double sf = blib::getShapeFactor(a / nparticles, volume / nparticles);
 
 	size_t N = mask.dim().x * mask.dim().y  *mask.dim().z;
 
-	std::cout << "Reactive Area Density: " << a << ", Shape Factor: " << sf << ", normalized a: " << a / N << "\n";	
+	std::cout << "Reactive Area Density: " << a << ", Shape Factor: " << sf << " per " << nparticles << " particles, normalized a: " << a / N << "\n";	
 	
 	if (Nverts > 0) {
 		_volumeMC = std::move(VertexBuffer<VertexData>(vboIndex, Nverts));

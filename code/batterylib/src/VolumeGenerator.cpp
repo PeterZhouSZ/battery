@@ -3,6 +3,8 @@
 
 #include <glm/gtx/norm.hpp>
 
+#include "VolumeMeasures.h"
+
 #include <iostream>
 
 namespace blib {
@@ -178,6 +180,9 @@ namespace blib {
 
 		if (p.withinBounds) {
 			std::cout << "[ANALYTIC] Total surface area: " << totalArea << ", volume: " << totalVolume << " porosity: " << 1.0 - totalVolume << std::endl;
+			std::cout << "[ANALYTIC] Shape Factor: " << getShapeFactor(totalArea / spheres.size(), totalVolume / spheres.size()) << std::endl;
+			float alpha = 0.5f;
+			std::cout << "[ANALYTIC] Tortuosity: " << glm::pow((1.0f - totalVolume), -alpha) << std::endl;
 		}
 
 
