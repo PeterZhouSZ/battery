@@ -79,7 +79,7 @@
             "type": 0
         },
         "GenResolution": {
-            "data": 64,
+            "data": 16,
             "type": 2
         },
         "Sphere": {
@@ -237,7 +237,7 @@
             "type": 5
         },
         "volumeFiltering": {
-            "data": true,
+            "data": false,
             "type": 5
         },
         "volumeGrid": {

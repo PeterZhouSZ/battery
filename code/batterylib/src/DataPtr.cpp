@@ -298,8 +298,15 @@ bool blib::Texture3DPtr::allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnC
 			GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, dim.x, dim.y, dim.z, 0, GL_RED, GL_FLOAT, NULL));
 			break;
 		case TYPE_DOUBLE:
-			//Double ~ reinterpreted int2
+		case TYPE_UINT64:
+			//Double or uint64 ~ reinterpreted int2
 			GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_RG32I, dim.x, dim.y, dim.z, 0, GL_RG_INTEGER, GL_UNSIGNED_INT, NULL));
+			break;
+		case TYPE_INT:					
+			GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_R32I, dim.x, dim.y, dim.z, 0, GL_RED_INTEGER, GL_INT, NULL));
+			break;
+		case TYPE_UINT:			
+			GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_R32UI, dim.x, dim.y, dim.z, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, NULL));			
 			break;
 		default:
 			assert("Not implemented");
@@ -595,11 +602,26 @@ void blib::Texture3DPtr::setDesc(PrimitiveType type)
 		_desc.f = cudaChannelFormatKindFloat;
 		break;
 	case TYPE_DOUBLE:
+	case TYPE_UINT64:
 		_desc.x = (sizeof(int2) / 2) * 8;
 		_desc.y = (sizeof(int2) / 2) * 8;
 		_desc.z = 0;
 		_desc.w = 0;
 		_desc.f = cudaChannelFormatKindSigned;
+		break;
+	case TYPE_INT:
+		_desc.x = sizeof(int) * 8;
+		_desc.y = 0;
+		_desc.z = 0;
+		_desc.w = 0;
+		_desc.f = cudaChannelFormatKindSigned;
+		break;
+	case TYPE_UINT:
+		_desc.x = sizeof(uint) * 8;
+		_desc.y = 0;
+		_desc.z = 0;
+		_desc.w = 0;
+		_desc.f = cudaChannelFormatKindUnsigned;
 		break;
 	case TYPE_UCHAR:
 		//

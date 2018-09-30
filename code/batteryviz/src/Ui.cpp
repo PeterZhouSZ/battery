@@ -13,6 +13,7 @@
 #include <batterylib/include/VolumeMeasures.h>
 #include <batterylib/include/VolumeGenerator.h>
 
+
 #include <chrono>
 #include <iostream>
 #include <fstream>
@@ -556,6 +557,21 @@ void Ui::update(double dt)
 		
 		std::cerr << "Max N " << p.N << std::endl;
 		
+	}
+
+
+	ImGui::Separator();
+
+	static int label = 0;
+	ImGui::InputInt("Label CCL", &label, 8, 8*8);
+
+
+	if (ImGui::Button("CCL")) {
+		_app._volume->emplaceChannel(std::move(
+			getVolumeCCL(_app._volume->getChannel(0), label)
+		));
+		
+
 	}
 
 	ImGui::End();

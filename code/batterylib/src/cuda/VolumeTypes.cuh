@@ -161,6 +161,16 @@ inline __device__ __host__ int3 posFromLinear(const int3 & dim, uint index) {
 	return pos;
 }
 
+inline __device__ __host__ uint3 posFromLinear(const uint3 & dim, uint index) {
+
+	uint3 pos;
+	pos.x = (index % dim.x);
+	index = (index - pos.x) / dim.x;
+	pos.y = (index % dim.y);
+	pos.z = (index / dim.y);
+	return pos;
+}
+
 
 inline __device__ __host__ int _getDirSgn(Dir dir) {
 	return -((dir % 2) * 2 - 1);
@@ -246,6 +256,24 @@ inline __device__ void write(cudaSurfaceObject_t surf, const int3 & vox, const d
 #endif
 }
 
+template<>
+inline __device__ void write(cudaSurfaceObject_t surf, const uint3 & vox, const uint64 & val) {
+
+#ifdef __CUDA_ARCH__
+	const uint2 * valInt = (uint2*)&val;
+	surf3Dwrite(*valInt, surf, vox.x * sizeof(uint2), vox.y, vox.z);
+#endif
+}
+
+template<>
+inline __device__ void write(cudaSurfaceObject_t surf, const int3 & vox, const uint64 & val) {
+
+#ifdef __CUDA_ARCH__
+	const uint2 * valInt = (uint2*)&val;
+	surf3Dwrite(*valInt, surf, vox.x * sizeof(uint2), vox.y, vox.z);
+#endif
+}
+
 
 /*
 Templated surface read (direct)
@@ -292,6 +320,35 @@ inline __device__ double read(cudaSurfaceObject_t surf, const int3 & vox) {
 #endif
 }
 
+
+template<>
+inline __device__ uint64 read(cudaSurfaceObject_t surf, const uint3 & vox) {
+
+#ifdef __CUDA_ARCH__
+	uint2 val;
+	surf3Dread(&val, surf, vox.x * sizeof(uint2), vox.y, vox.z);
+	return __hiloint2double(val.y, val.x);
+	uint64 res;
+	asm("mov.b64 %0, {%1,%2};" : "=l"(res) : "r"(val.x), "r"(val.y));
+	return res;
+#else
+	return 0.0;
+#endif
+}
+template<>
+inline __device__ uint64 read(cudaSurfaceObject_t surf, const int3 & vox) {
+
+#ifdef __CUDA_ARCH__
+	uint2 val;
+	surf3Dread(&val, surf, vox.x * sizeof(uint2), vox.y, vox.z);
+	return __hiloint2double(val.y, val.x);
+	uint64 res;
+	asm("mov.b64 %0, {%1,%2};" : "=l"(res) : "r"(val.x), "r"(val.y));
+	return res;
+#else
+	return 0.0;
+#endif
+}
 
 struct CUDA_Volume {	
 	uint3 res;

@@ -7,6 +7,7 @@
 #include "MGGPU.h"
 
 #include "VolumeSurface.cuh"
+#include "VolumeCCL.cuh"
 
 #include "../src/cuda/CudaUtility.h"
 
@@ -277,10 +278,36 @@ namespace blib {
 		return (numeratorCoeff * averageParticleArea) / glm::pow(averageParticleVolume, T(2.0 / 3.0));
 	}
 
+	
+	BLIB_EXPORT blib::VolumeChannel getVolumeCCL(const VolumeChannel & mask, uint label)
+	{
+		VolumeChannel out(mask.dim(), TYPE_UCHAR, false, "CCL");
+
+		/*CUDATimer tprep(true);
+		auto p = VolumeCCL_Prepare(*mask.getCUDAVolume());
+		std::cout << "CCL prep time: " << tprep.timeMs() << "ms" << std::endl;
+
+		//No objects
+		if (p.spanCount == 0) {
+			out.clear();
+			return out;
+		}
 
 
+		VolumeChannel span(ivec3(p.spanCount * 2, mask.dim().y, mask.dim().z), TYPE_UINT, false, "CCLSpan");
+		VolumeChannel label(ivec3(p.spanCount, mask.dim().y, mask.dim().z), TYPE_UINT, false, "CCLLabel");
 
+		p.spanVolume = *span.getCUDAVolume();
+		p.labelVolume = *label.getCUDAVolume();*/
+		
 
+		CUDATimer tc(true);
+		VolumeCCL_Compute(*mask.getCUDAVolume(), *out.getCUDAVolume(), label);
+		std::cout << "CCL compute time: " << tc.timeMs() << "ms" << std::endl;
+
+		return out;
+
+	}
 
 	template BLIB_EXPORT double getTortuosity<double>(const VolumeChannel &, const TortuosityParams &, DiffusionSolverType, VolumeChannel *);
 	template BLIB_EXPORT float getTortuosity<float>(const VolumeChannel &, const TortuosityParams &, DiffusionSolverType, VolumeChannel *);

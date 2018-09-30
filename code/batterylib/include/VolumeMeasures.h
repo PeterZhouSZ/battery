@@ -68,6 +68,10 @@ namespace blib {
 		T averageParticleVolume
 	);
 	
+	BLIB_EXPORT VolumeChannel getVolumeCCL(
+		const VolumeChannel & mask,
+		uint label
+	);
 	
 
 }
