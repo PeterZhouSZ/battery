@@ -17,7 +17,18 @@ uint VolumeCCL(
 	uchar background
 );
 
+/*
+	Assigns colors to different labels.
+	Outputs uchar4 volume
+*/
 void VolumeCCL_Colorize(
-	const CUDA_Volume & input, //TYPE_UINT	
-	CUDA_Volume & output //TYPE_FLOAT3
+	const CUDA_Volume & labels, //TYPE_UINT	
+	CUDA_Volume & output //TYPE_UCHAR4
+);
+
+
+void VolumeCCL_BoundaryLabels(
+	const CUDA_Volume & labels,
+	uint numLabels,
+	bool * labelOnBoundary
 );

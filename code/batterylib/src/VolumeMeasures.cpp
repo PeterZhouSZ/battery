@@ -13,6 +13,7 @@
 
 #include <numeric>
 #include <iostream>
+#include <vector>
 
 #include <glm/gtc/constants.inl>
 
@@ -286,7 +287,7 @@ namespace blib {
 		
 		
 		CUDATimer tc(true);
-		VolumeCCL(*mask.getCUDAVolume(), *out.getCUDAVolume(), background);
+		uint numLabels = VolumeCCL(*mask.getCUDAVolume(), *out.getCUDAVolume(), background);
 		std::cout << "CCL compute time: " << tc.timeMs() << "ms" << std::endl;
 
 		
@@ -298,7 +299,21 @@ namespace blib {
 
 		outViz.getCurrentPtr().retrieve();
 		uchar4 * colors = (uchar4*)(outViz.getCurrentPtr().getCPU());
+		
 
+		std::vector<uchar> boundaryMap((numLabels+1) * 6);
+		VolumeCCL_BoundaryLabels(*out.getCUDAVolume(), numLabels, (bool*)boundaryMap.data());
+
+		std::array<std::vector<uint>,6> boundaryLabels;
+		int ptr = 0;
+		for (auto i = 0; i < 6; i++){
+			for (auto j = 0; j < numLabels + 1; j++) {
+				if (boundaryMap[i * (numLabels + 1) + j]) {
+					boundaryLabels[i].push_back(j);
+				}
+			}			
+			std::cout << "Boundary: " << i << " has " << boundaryLabels[i].size() << " labels" << std::endl;
+		}
 
 		return outViz;
 

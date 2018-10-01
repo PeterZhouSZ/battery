@@ -152,7 +152,7 @@ void main(){
 			color = texture(volumeTexture,pos).rgba;		
 			color.a = 0.09;
 			if(color.x == 0 && color.y == 0 && color.z == 0)
-				color.a = 0;
+				color.a = blackOpacity;
 		}
 
 		pos += stepVec;		

@@ -38,13 +38,14 @@ __device__ __constant__ uchar3 const_colors[COLOR_N];
 
 uchar3 colors_CAP[COLOR_N] = {
 	{ 0, 0, 0},
-	{ 240,163,255 },
-	{ 0,117,220 },
+	{ 0,117,220 }, //blue
+	{ 43,206,72 }, //green
+	{ 255,0,16 }, //red
+	{ 240,163,255 },	
 	{ 153,63,0 },
 	{ 76,0,92 },
 	{ 25,25,25 },
-	{ 0,92,49 },
-	{ 43,206,72 },
+	{ 0,92,49 },	
 	{ 255,204,153 },
 	{ 128,128,128 },
 	{ 148,255,181 },
@@ -54,8 +55,7 @@ uchar3 colors_CAP[COLOR_N] = {
 	{ 0,51,128 },
 	{ 255,164,5 },
 	{ 255,168,187 },
-	{ 66,102,0 },
-	{ 255,0,16 },
+	{ 66,102,0 },	
 	{ 94,241,242 },
 	{ 0,153,143 },
 	{ 224,255,102 },
@@ -601,9 +601,10 @@ uint VolumeCCL(const CUDA_Volume & input, CUDA_Volume & output, uchar background
 
 		//Need outputs:
 		/*
-			a) uint, 0 = background, 1..N labels (for storage/representation)
-			b) float3, colormap/randomized -> outside of this function (for visualization)
-			c) uchar, 0 none, 1 selected label(s) -> for reactive area density / filtering
+			a) uint, 0 = background, 1..N labels (for storage/representation) | done
+			b) float3, colormap/randomized -> outside of this function (for visualization) | done
+			c) uchar, 0 none, 1 selected label(s) -> for reactive area density / filtering | todo:
+				need to know labels in a boundary slice
 		*/
 		
 
@@ -663,3 +664,81 @@ void VolumeCCL_Colorize(const CUDA_Volume & input, CUDA_Volume & output )
 
 
 
+__global__ void ___boundaryLabelsKernel(
+	CUDA_Volume input,
+	uint3 res, 
+	uint3 offset,
+	bool * labelBitmap
+){	
+	VOLUME_VOX_GUARD(res);
+	vox += offset;
+
+	uint label = read<uint>(input.surf, vox);
+
+	if (label) {
+		labelBitmap[label] = true;
+	}
+
+}
+
+
+void VolumeCCL_BoundaryLabels(const CUDA_Volume & labels, uint numLabels, bool * labelOnBoundary)
+{
+
+	assert(labels.type == TYPE_UINT);
+	assert(labelOnBoundary != nullptr);
+
+	numLabels += 1; //Include 0 label
+		
+	size_t boundaries = 6;	
+
+	bool * boolmap;
+	size_t boolmapBytesize = boundaries * numLabels * sizeof(bool);
+	cudaMalloc(&boolmap, boolmapBytesize);
+	cudaMemset(boolmap, 0, boolmapBytesize);
+	
+
+	for (int i = 0; i < DIR_NONE; i++) {	
+		Dir dir = Dir(i);
+
+		int primaryDir = getDirIndex(dir);
+		int secondaryDirs[2] = { (primaryDir + 1) % 3, (primaryDir + 2) % 3 };
+
+		uint _res[3];
+		_res[primaryDir] = 1;
+		_res[secondaryDirs[0]] = ((uint*)&labels.res)[secondaryDirs[0]];
+		_res[secondaryDirs[1]] = ((uint*)&labels.res)[secondaryDirs[1]];
+
+		uint3 res = make_uint3(_res[0], _res[1], _res[2]);
+
+		uint _block[3];
+		_block[primaryDir] = 1;
+		_block[secondaryDirs[0]] = 32;
+		_block[secondaryDirs[1]] = 32;
+
+		uint3 offset = make_uint3(0);
+		if (getDirSgn(dir) == 1) {
+			((uint*)&offset)[primaryDir] = ((uint*)&labels.res)[primaryDir] - 1;
+		}
+
+		//printf("dir %d, %u %u %u\n", i, res[0], res[1], res[2]);
+		BLOCKS3D_INT3(_block[0],_block[1],_block[2], res);
+
+		___boundaryLabelsKernel << < numBlocks, block >> > (
+			labels, 
+			res,
+			offset,
+			boolmap + i*numLabels
+		);
+	}
+
+	cudaMemcpy(labelOnBoundary, boolmap, boolmapBytesize, cudaMemcpyDeviceToHost);
+	cudaFree(boolmap);
+
+	return;
+		
+
+
+
+
+}
