@@ -18,6 +18,6 @@ uint VolumeCCL(
 );
 
 void VolumeCCL_Colorize(
-	const CUDA_Volume & input, //TYPE_UINT
+	const CUDA_Volume & input, //TYPE_UINT	
 	CUDA_Volume & output //TYPE_FLOAT3
 );

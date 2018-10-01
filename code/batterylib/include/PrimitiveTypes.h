@@ -17,6 +17,8 @@ enum PrimitiveType {
 	TYPE_FLOAT3,
 	TYPE_FLOAT4,	
 	TYPE_DOUBLE,
+	TYPE_UCHAR3,
+	TYPE_UCHAR4,
 	TYPE_UNKNOWN
 };
 
@@ -34,6 +36,10 @@ PrimitiveType primitiveTypeof() {
 		return TYPE_UINT;
 	else if (std::is_same<T, uint64>::value)
 		return TYPE_UINT64;
+	else if (std::is_same<T, uchar3>::value)
+		return TYPE_UCHAR3;
+	else if (std::is_same<T, uchar4>::value)
+		return TYPE_UCHAR4;
 	/*else if (std::is_same<T, float3>::value)
 		return TYPE_FLOAT3;
 	else if (std::is_same<T, float4>::value)
@@ -62,6 +68,10 @@ inline uint primitiveSizeof(PrimitiveType type) {
 		return sizeof(float) * 3;
 	case TYPE_FLOAT4:
 		return sizeof(float) * 4;
+	case TYPE_UCHAR3:
+		return sizeof(uchar) * 3;
+	case TYPE_UCHAR4:
+		return sizeof(uchar) * 3;
 	}
 	return 0;
 }
@@ -82,9 +92,7 @@ inline float primitiveToFloat(PrimitiveType type, void * ptr) {
 		return float(*((uint*)ptr));;
 	case TYPE_UINT64:
 		return float(*((uint64*)ptr));;
-	case TYPE_FLOAT3:
-		return std::nanf("");
-	case TYPE_FLOAT4:
+	default:
 		return std::nanf("");
 	}
 	return std::nanf("");
@@ -106,9 +114,7 @@ inline double primitiveToDouble(PrimitiveType type, void * ptr) {
 		return double(*((uint*)ptr));
 	case TYPE_UINT64:
 		return double(*((uint64*)ptr));;
-	case TYPE_FLOAT3:
-		return std::nan("");
-	case TYPE_FLOAT4:
+	default:
 		return std::nan("");
 	}
 

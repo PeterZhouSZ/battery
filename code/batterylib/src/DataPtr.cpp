@@ -294,6 +294,9 @@ bool blib::Texture3DPtr::allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnC
 		case TYPE_CHAR:	
 			GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_R8, dim.x, dim.y, dim.z, 0, GL_RED, GL_UNSIGNED_BYTE, NULL));	
 			break;	
+		case TYPE_UCHAR4:
+			GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, dim.x, dim.y, dim.z, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL));
+			break;
 		case TYPE_FLOAT:	
 			GL(glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, dim.x, dim.y, dim.z, 0, GL_RED, GL_FLOAT, NULL));
 			break;
@@ -621,6 +624,13 @@ void blib::Texture3DPtr::setDesc(PrimitiveType type)
 		_desc.y = 0;
 		_desc.z = 0;
 		_desc.w = 0;
+		_desc.f = cudaChannelFormatKindUnsigned;
+		break;
+	case TYPE_UCHAR4:
+		_desc.x = sizeof(uchar) * 8;
+		_desc.y = sizeof(uchar) * 8;
+		_desc.z = sizeof(uchar) * 8;
+		_desc.w = sizeof(uchar) * 8;
 		_desc.f = cudaChannelFormatKindUnsigned;
 		break;
 	case TYPE_UCHAR:

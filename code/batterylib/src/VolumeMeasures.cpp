@@ -282,12 +282,25 @@ namespace blib {
 	BLIB_EXPORT blib::VolumeChannel getVolumeCCL(const VolumeChannel & mask, uchar background)
 	{
 		VolumeChannel out(mask.dim(), TYPE_UINT, false, "CCL");
+		VolumeChannel outViz(mask.dim(), TYPE_UCHAR4, false, "CCLViz");
+		
 		
 		CUDATimer tc(true);
 		VolumeCCL(*mask.getCUDAVolume(), *out.getCUDAVolume(), background);
 		std::cout << "CCL compute time: " << tc.timeMs() << "ms" << std::endl;
 
-		return out;
+		
+		/*out.getCurrentPtr().retrieve();
+		uint * labels = (uint*)(out.getCurrentPtr().getCPU());*/
+		
+
+		VolumeCCL_Colorize(*out.getCUDAVolume(), *outViz.getCUDAVolume());
+
+		outViz.getCurrentPtr().retrieve();
+		uchar4 * colors = (uchar4*)(outViz.getCurrentPtr().getCPU());
+
+
+		return outViz;
 
 	}
 

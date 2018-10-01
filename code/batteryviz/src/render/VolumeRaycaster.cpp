@@ -193,15 +193,15 @@ void VolumeRaycaster::render(const Camera &camera, ivec4 viewport) {
 		GL(glBindTexture(GL_TEXTURE_3D, _volTexture));
 
 		
-		if (_volType == TYPE_DOUBLE) {
-			shader["isDouble"] = true;
+		shader["volumeType"] = _volType;
+		if (_volType == TYPE_DOUBLE || 
+			_volType == TYPE_UINT //etc
+			) {			
 			shader["volumeTextureI"] = int(GL_TEXTURE1 - GL_TEXTURE0);
 		}
-		else {
-			shader["isDouble"] = false;
+		else {			
 			shader["volumeTexture"] = int(GL_TEXTURE1 - GL_TEXTURE0);		
 		}
-
 		
 		shader["resolution"] =
 			vec3(1.0f / _volDim.x, 1.0f / _volDim.y,

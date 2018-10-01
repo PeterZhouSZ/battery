@@ -32,6 +32,41 @@ struct VolumeCCL_Params {
 	bool * hasChanged;
 };
 
+//https://en.wikipedia.org/wiki/Help:Distinguishable_colors
+#define COLOR_N 27
+__device__ __constant__ uchar3 const_colors[COLOR_N];
+
+uchar3 colors_CAP[COLOR_N] = {
+	{ 0, 0, 0},
+	{ 240,163,255 },
+	{ 0,117,220 },
+	{ 153,63,0 },
+	{ 76,0,92 },
+	{ 25,25,25 },
+	{ 0,92,49 },
+	{ 43,206,72 },
+	{ 255,204,153 },
+	{ 128,128,128 },
+	{ 148,255,181 },
+	{ 143,124,0 },
+	{ 157,204,0 },
+	{ 194,0,136 },
+	{ 0,51,128 },
+	{ 255,164,5 },
+	{ 255,168,187 },
+	{ 66,102,0 },
+	{ 255,0,16 },
+	{ 94,241,242 },
+	{ 0,153,143 },
+	{ 224,255,102 },
+	{ 116,10,255 },
+	{ 153,0,0 },
+	{ 255,255,128 },
+	{ 255,255,0 },
+	{ 255,80,5 }
+};
+
+
 
 template <typename T>
 inline __device__ bool opEqual(const T & a, const T &  b, const T & threshold = 0) {
@@ -344,7 +379,9 @@ __global__ void __reindexLabels(VolumeCCL_Params p) {
 uint VolumeCCL(const CUDA_Volume & input, CUDA_Volume & output, uchar background)
 {
 	assert(input.type == TYPE_UCHAR);
-	//assert(output.type == TYPE_UINT);
+	
+	const uint YZBlockSize = 32;
+
 	
 	VolumeCCL_Params p;	
 	p.res = input.res;
@@ -356,7 +393,7 @@ uint VolumeCCL(const CUDA_Volume & input, CUDA_Volume & output, uchar background
 
 	//Count spands
 	{
-		BLOCKS3D_INT3(1, 8, 8, make_uint3(1, input.res.y, input.res.z));
+		BLOCKS3D_INT3(1, YZBlockSize, YZBlockSize, make_uint3(1, input.res.y, input.res.z));
 		//Summing in ascending X direction
 		
 		if (input.type == TYPE_UCHAR) {			
@@ -403,7 +440,7 @@ uint VolumeCCL(const CUDA_Volume & input, CUDA_Volume & output, uchar background
 		cudaMemset(p.hasChanged, 0, 1);
 
 		{
-			BLOCKS3D_INT3(1, 8, 8, make_uint3(1, input.res.y, input.res.z));
+			BLOCKS3D_INT3(1, YZBlockSize, YZBlockSize, make_uint3(1, input.res.y, input.res.z));
 			if (input.type == TYPE_UCHAR) {				
 				uchar threshold = 1;				
 				__buildMatricesKernel<uchar, opEqual<uchar>> << < numBlocks, block >> > (input, p, background, threshold);			
@@ -431,7 +468,7 @@ uint VolumeCCL(const CUDA_Volume & input, CUDA_Volume & output, uchar background
 		int iteration = 0;
 		do
 		{
-			BLOCKS3D_INT3(1, 8, 8, make_uint3(1, input.res.y, input.res.z));
+			BLOCKS3D_INT3(1, YZBlockSize, YZBlockSize, make_uint3(1, input.res.y, input.res.z));
 			__updateContinuityKernel << < numBlocks, block >> >(p);
 			cudaMemcpy(&hasChangedHost, p.hasChanged, 1, cudaMemcpyDeviceToHost);
 			cudaMemset(p.hasChanged, 0, 1);
@@ -492,7 +529,7 @@ uint VolumeCCL(const CUDA_Volume & input, CUDA_Volume & output, uchar background
 		{
 			//label matrix where first labeled (label == data idnex) is marked as 1, otherwise 0
 			{
-				BLOCKS3D_INT3(1, 8, 8, make_uint3(1, input.res.y, input.res.z));
+				BLOCKS3D_INT3(1, YZBlockSize, YZBlockSize, make_uint3(1, input.res.y, input.res.z));
 				__markRootLabelsKernel << < numBlocks, block >> > (p);
 
 #ifdef DEBUG_CPU
@@ -524,7 +561,7 @@ uint VolumeCCL(const CUDA_Volume & input, CUDA_Volume & output, uchar background
 			
 			//reindex
 			{
-				BLOCKS3D_INT3(1, 8, 8, make_uint3(1, input.res.y, input.res.z));
+				BLOCKS3D_INT3(1, YZBlockSize, YZBlockSize, make_uint3(1, input.res.y, input.res.z));
 				__reindexLabels << < numBlocks, block >> > (p);
 
 #ifdef DEBUG_CPU
@@ -557,8 +594,8 @@ uint VolumeCCL(const CUDA_Volume & input, CUDA_Volume & output, uchar background
 		}*/
 
 		{
-			assert(output.type == TYPE_UCHAR);
-			BLOCKS3D_INT3(1, 8, 8, make_uint3(1, input.res.y, input.res.z));
+			assert(output.type == TYPE_UINT);
+			BLOCKS3D_INT3(1, YZBlockSize, YZBlockSize, make_uint3(1, input.res.y, input.res.z));
 			__labelOutputKernel << < numBlocks, block >> > (p, output);
 		}
 
@@ -578,6 +615,51 @@ uint VolumeCCL(const CUDA_Volume & input, CUDA_Volume & output, uchar background
 	return numLabels;
 }
 
+
+__global__ void __colorizeKernel(CUDA_Volume input, CUDA_Volume output) {
+	
+	VOLUME_IVOX_GUARD(input.res);
+
+	uint label = read<uint>(input.surf, ivox);
+	
+
+	size_t colorIndex = label % COLOR_N;
+
+	uchar3 rgb = const_colors[colorIndex];
+	uchar4 color = make_uchar4(rgb.x, rgb.y, rgb.z, 255);
+	
+	
+
+	write<uchar4>(output.surf, ivox, color);
+
+}
+
+void VolumeCCL_Colorize(const CUDA_Volume & input, CUDA_Volume & output )
+{
+	
+
+	cudaError_t res = cudaMemcpyToSymbol(
+		const_colors,
+		&colors_CAP,
+		sizeof(uchar3) * COLOR_N,
+		0,
+		cudaMemcpyHostToDevice
+	);
+	assert(res == cudaSuccess);
+
+
+
+	assert(input.type == TYPE_UINT);
+	assert(output.type == TYPE_UCHAR4);
+
+
+	BLOCKS3D(8, input.res);
+
+	__colorizeKernel << < numBlocks, block >> > (input, output);
+
+	
+
+}
 
 
 

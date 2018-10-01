@@ -9,6 +9,8 @@
 ////////////////////////////////////////
 #pragma FRAGMENT
 
+#include "primitives.glsl"
+
 in vec3 vposition;
 out vec4 fragColor;
 
@@ -36,7 +38,7 @@ const vec3 lightDir = vec3(1.0,0.0,1.0);
 uniform vec3 resolution;
 
 uniform bool showGradient = false;
-uniform bool isDouble = false;
+uniform int volumeType = TYPE_FLOAT;
 
 uniform float normalizeLow = 0.0;
 uniform float normalizeHigh = 0.0;
@@ -130,25 +132,30 @@ void main(){
 	
 	for(float i=0; i < N; i+=1.0){
 
-		float volumeVal;
+		
+		vec4 color;
 
-		if(isDouble){
+		if(volumeType == TYPE_DOUBLE){
 			ivec2 val = texture(volumeTextureI,pos).rg;		
 			uvec2 valu = uvec2(val.x, val.y);
 			double dval = packDouble2x32(valu);		
-			volumeVal = float(dval);
+			float volumeVal = float(dval);
+			volumeVal = (volumeVal - normalizeLow) / (normalizeHigh - normalizeLow);
+			color = texture(transferFunc,volumeVal);
 		}
-		else {
-			 volumeVal = texture(volumeTexture,pos).r;		
+		else if(volumeType == TYPE_FLOAT || volumeType == TYPE_UCHAR ){
+			float volumeVal = texture(volumeTexture,pos).r;		
+			volumeVal = (volumeVal - normalizeLow) / (normalizeHigh - normalizeLow);
+			color = texture(transferFunc,volumeVal);
+		}
+		else if(volumeType == TYPE_UCHAR4){
+			color = texture(volumeTexture,pos).rgba;		
+			color.a = 0.09;
+			if(color.x == 0 && color.y == 0 && color.z == 0)
+				color.a = 0;
 		}
 
-		volumeVal = (volumeVal - normalizeLow) / (normalizeHigh - normalizeLow);
-
-
-		pos += stepVec;
-
-		vec4 color = texture(transferFunc,volumeVal);
-		
+		pos += stepVec;		
 
 		vec3 gradient = getGradient(pos);
 		float glen = length(gradient);
