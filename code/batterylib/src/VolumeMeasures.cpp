@@ -7,7 +7,7 @@
 #include "MGGPU.h"
 
 #include "VolumeSurface.cuh"
-#include "VolumeCCL.cuh"
+
 
 #include "../src/cuda/CudaUtility.h"
 
@@ -280,38 +280,7 @@ namespace blib {
 	}
 
 	
-	BLIB_EXPORT blib::VolumeChannel getVolumeCCL(const VolumeChannel & mask, uchar background)
-	{
-		VolumeChannel out(mask.dim(), TYPE_UINT, false, "CCL");
-		VolumeChannel outViz(mask.dim(), TYPE_UCHAR4, false, "CCLViz");
-		
-		
-		
-		CUDATimer tc(true);
-		uint numLabels = VolumeCCL(*mask.getCUDAVolume(), *out.getCUDAVolume(), background);
-		std::cout << "CCL compute time: " << tc.timeMs() << "ms" << std::endl;
 	
-		VolumeCCL_Colorize(*out.getCUDAVolume(), *outViz.getCUDAVolume());
-
-		std::vector<uchar> boundaryMap((numLabels) * 6);
-		VolumeCCL_BoundaryLabels(*out.getCUDAVolume(), numLabels, (bool*)boundaryMap.data());
-
-		std::array<std::vector<uint>,6> boundaryLabels;
-		int ptr = 0;
-		for (auto i = 0; i < 6; i++){
-			for (auto j = 0; j < numLabels; j++) {
-				if (boundaryMap[i * (numLabels) + j]) {
-					boundaryLabels[i].push_back(j);
-				}
-			}			
-			std::cout << "Boundary: " << i << " has " << boundaryLabels[i].size() << " labels" << std::endl;
-		}
-
-		VolumeChannel boundary(mask.dim(), TYPE_UCHAR, false, "CCLBoundary");
-		VolumeCCL_GenerateVolume(*out.getCUDAVolume(), numLabels, (bool*)&boundaryMap[0], *boundary.getCUDAVolume());
-
-		return boundary;
-	}
 
 	template BLIB_EXPORT double getTortuosity<double>(const VolumeChannel &, const TortuosityParams &, DiffusionSolverType, VolumeChannel *);
 	template BLIB_EXPORT float getTortuosity<float>(const VolumeChannel &, const TortuosityParams &, DiffusionSolverType, VolumeChannel *);

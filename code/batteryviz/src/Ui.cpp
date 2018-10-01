@@ -12,6 +12,7 @@
 #include <batterylib/include/VolumeIO.h>
 #include <batterylib/include/VolumeMeasures.h>
 #include <batterylib/include/VolumeGenerator.h>
+#include <batterylib/include/VolumeSegmentation.h>
 
 
 #include <chrono>
@@ -562,14 +563,22 @@ void Ui::update(double dt)
 
 	ImGui::Separator();
 
-	static int label = 0;
-	ImGui::InputInt("Label CCL", &label, 8, 8*8);
+	static int backgroundValue = 0;
+	ImGui::InputInt("Background CCL", &backgroundValue, 8, 255);
 
 
 	if (ImGui::Button("CCL")) {
-		_app._volume->emplaceChannel(std::move(
-			getVolumeCCL(_app._volume->getChannel(0), label)
-		));
+
+		
+		auto ccl = getVolumeCCL(_app._volume->getChannel(0), backgroundValue);
+		
+		for (auto i = 0; i < 6; i++) {
+			auto vol = generateBoundaryConnectedVolume(ccl, Dir(i));			
+			_app._volume->emplaceChannel(generateCCLVisualization(ccl, &vol));
+			//_app._volume->emplaceChannel(generateBoundaryConnectedVolume(ccl, Dir(i)));
+		}
+
+		_app._volume->emplaceChannel(generateCCLVisualization(ccl));
 		
 
 	}

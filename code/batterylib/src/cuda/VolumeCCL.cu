@@ -33,11 +33,11 @@ struct VolumeCCL_Params {
 };
 
 //https://en.wikipedia.org/wiki/Help:Distinguishable_colors
-#define COLOR_N 27
+#define COLOR_N 26
 __device__ __constant__ uchar3 const_colors[COLOR_N];
 
-uchar3 colors_CAP[COLOR_N] = {
-	{ 0, 0, 0},
+uchar3 colors_CAP[COLOR_N] = {	
+	{ 255,80,5 },
 	{ 0,117,220 }, //blue
 	{ 43,206,72 }, //green
 	{ 255,0,16 }, //red
@@ -62,8 +62,7 @@ uchar3 colors_CAP[COLOR_N] = {
 	{ 116,10,255 },
 	{ 153,0,0 },
 	{ 255,255,128 },
-	{ 255,255,0 },
-	{ 255,80,5 }
+	{ 255,255,0 }	
 };
 
 
@@ -376,7 +375,7 @@ __global__ void __reindexLabels(VolumeCCL_Params p) {
 #define DEBUG_CPU
 #endif
 
-uint VolumeCCL(const CUDA_Volume & input, CUDA_Volume & output, uchar background)
+uint VolumeCCL_Label(const CUDA_Volume & input, CUDA_Volume & output, uchar background)
 {
 	assert(input.type == TYPE_UCHAR);
 	
@@ -623,23 +622,66 @@ __global__ void __colorizeKernel(CUDA_Volume input, CUDA_Volume output) {
 	VOLUME_IVOX_GUARD(input.res);
 
 	uint label = read<uint>(input.surf, ivox);
-	
-
-	size_t colorIndex = label % COLOR_N;
-
-	uchar3 rgb = const_colors[colorIndex];
-	uchar4 color = make_uchar4(rgb.x, rgb.y, rgb.z, 255);
-	
-	
-
-	write<uchar4>(output.surf, ivox, color);
+	if (label != 0) {
+		size_t colorIndex = label % COLOR_N;
+		uchar3 rgb = const_colors[colorIndex];
+		uchar4 color = make_uchar4(rgb.x, rgb.y, rgb.z, 255);
+		write<uchar4>(output.surf, ivox, color);
+	}
+	else {
+		write<uchar4>(output.surf, ivox, make_uchar4(0,0,0,0));
+	}
 
 }
 
-void VolumeCCL_Colorize(const CUDA_Volume & input, CUDA_Volume & output )
+__global__ void __colorizeMaskedLabelsKernel(CUDA_Volume input, CUDA_Volume output, bool * mask) {
+
+	VOLUME_IVOX_GUARD(input.res);
+
+	uint label = read<uint>(input.surf, ivox);
+	if (!mask[label])
+		return;
+
+	if (label != 0) {
+		size_t colorIndex = label % COLOR_N;
+		uchar3 rgb = const_colors[colorIndex];
+		uchar4 color = make_uchar4(rgb.x, rgb.y, rgb.z, 255);
+		write<uchar4>(output.surf, ivox, color);
+	}
+	else {
+		write<uchar4>(output.surf, ivox, make_uchar4(0, 0, 0, 0));
+	}
+}
+
+__global__ void __colorizeMaskedVolumeKernel(CUDA_Volume input, CUDA_Volume output, CUDA_Volume mask, uchar maskVal) {
+
+	VOLUME_IVOX_GUARD(input.res);
+
+	if (read<uchar>(mask.surf, ivox) != maskVal)
+		return;
+
+	uint label = read<uint>(input.surf, ivox);
+	if (label != 0) {
+		size_t colorIndex = label % COLOR_N;
+		uchar3 rgb = const_colors[colorIndex];
+		uchar4 color = make_uchar4(rgb.x, rgb.y, rgb.z, 255);
+		write<uchar4>(output.surf, ivox, color);
+	}
+	else {
+		write<uchar4>(output.surf, ivox, make_uchar4(0, 0, 0, 0));
+	}
+}
+
+void VolumeCCL_Colorize(
+	const CUDA_Volume & input, 
+	CUDA_Volume & output, 
+	CUDA_Volume * maskVolume,
+	uchar maskVal,
+	const bool * maskOptional, 
+	uint numLabelsOptional
+)
 {
 	
-
 	cudaError_t res = cudaMemcpyToSymbol(
 		const_colors,
 		&colors_CAP,
@@ -657,7 +699,29 @@ void VolumeCCL_Colorize(const CUDA_Volume & input, CUDA_Volume & output )
 
 	BLOCKS3D(8, input.res);
 
-	__colorizeKernel << < numBlocks, block >> > (input, output);
+	if (maskVolume) {
+		__colorizeMaskedVolumeKernel << < numBlocks, block >> > (input, output, *maskVolume, maskVal);
+	}
+	else if (maskOptional && numLabelsOptional > 0) {
+		
+		bool * maskDevice;
+		{
+			size_t maskBytesize = numLabelsOptional * sizeof(bool);
+			cudaMalloc(&maskDevice, maskBytesize);
+			cudaMemset(maskDevice, 0, maskBytesize);
+			cudaMemcpy(maskDevice, maskDevice, maskBytesize, cudaMemcpyHostToDevice);
+		}
+
+		__colorizeMaskedLabelsKernel << < numBlocks, block >> > (input, output, maskDevice);
+
+		{
+			cudaFree(maskDevice);
+		}
+
+	}
+	else {
+		__colorizeKernel << < numBlocks, block >> > (input, output);
+	}
 
 	
 
@@ -761,7 +825,7 @@ __global__ void __generateVolumeFromLabelsKernel(
 void VolumeCCL_GenerateVolume(
 	const CUDA_Volume & labels,
 	uint numLabels,
-	bool * labelMask, 
+	const bool * labelMask, 
 	CUDA_Volume & output )
 {
 	assert(labels.type == TYPE_UINT);
@@ -772,7 +836,7 @@ void VolumeCCL_GenerateVolume(
 	bool * maskDevice;
 	cudaMalloc(&maskDevice, maskBytesize);
 	cudaMemset(maskDevice, 0, maskBytesize);
-	cudaMemcpy(maskDevice, labelMask, numLabels, cudaMemcpyHostToDevice);
+	cudaMemcpy(maskDevice, labelMask, maskBytesize, cudaMemcpyHostToDevice);
 
 
 	{
