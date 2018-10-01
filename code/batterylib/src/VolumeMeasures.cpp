@@ -279,30 +279,12 @@ namespace blib {
 	}
 
 	
-	BLIB_EXPORT blib::VolumeChannel getVolumeCCL(const VolumeChannel & mask, uint label)
+	BLIB_EXPORT blib::VolumeChannel getVolumeCCL(const VolumeChannel & mask, uchar background)
 	{
-		VolumeChannel out(mask.dim(), TYPE_UCHAR, false, "CCL");
-
-		/*CUDATimer tprep(true);
-		auto p = VolumeCCL_Prepare(*mask.getCUDAVolume());
-		std::cout << "CCL prep time: " << tprep.timeMs() << "ms" << std::endl;
-
-		//No objects
-		if (p.spanCount == 0) {
-			out.clear();
-			return out;
-		}
-
-
-		VolumeChannel span(ivec3(p.spanCount * 2, mask.dim().y, mask.dim().z), TYPE_UINT, false, "CCLSpan");
-		VolumeChannel label(ivec3(p.spanCount, mask.dim().y, mask.dim().z), TYPE_UINT, false, "CCLLabel");
-
-		p.spanVolume = *span.getCUDAVolume();
-		p.labelVolume = *label.getCUDAVolume();*/
+		VolumeChannel out(mask.dim(), TYPE_UINT, false, "CCL");
 		
-
 		CUDATimer tc(true);
-		VolumeCCL_Compute(*mask.getCUDAVolume(), *out.getCUDAVolume(), label);
+		VolumeCCL(*mask.getCUDAVolume(), *out.getCUDAVolume(), background);
 		std::cout << "CCL compute time: " << tc.timeMs() << "ms" << std::endl;
 
 		return out;

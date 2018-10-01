@@ -70,7 +70,7 @@ namespace blib {
 	
 	BLIB_EXPORT VolumeChannel getVolumeCCL(
 		const VolumeChannel & mask,
-		uint label
+		uchar background
 	);
 	
 
