@@ -32,3 +32,10 @@ void VolumeCCL_BoundaryLabels(
 	uint numLabels,
 	bool * labelOnBoundary
 );
+
+void VolumeCCL_GenerateVolume(
+	const CUDA_Volume & labels, //TYPE_UINT
+	uint numLabels,
+	bool * labelMask,
+	CUDA_Volume & output //TYPE_UCHAR
+);

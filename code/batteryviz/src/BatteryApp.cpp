@@ -304,7 +304,7 @@ void BatteryApp::render(double dt)
 		
 
 		if (_options["Render"].get<bool>("transferDefault")) {
-			if (_currentRenderChannel == CHANNEL_MASK)
+			if (_volume->getChannel(_currentRenderChannel).type() == TYPE_UCHAR)
 				_volumeRaycaster->setTransferGray();
 			else
 				_volumeRaycaster->setTransferJet();

@@ -286,37 +286,31 @@ namespace blib {
 		VolumeChannel outViz(mask.dim(), TYPE_UCHAR4, false, "CCLViz");
 		
 		
+		
 		CUDATimer tc(true);
 		uint numLabels = VolumeCCL(*mask.getCUDAVolume(), *out.getCUDAVolume(), background);
 		std::cout << "CCL compute time: " << tc.timeMs() << "ms" << std::endl;
-
-		
-		/*out.getCurrentPtr().retrieve();
-		uint * labels = (uint*)(out.getCurrentPtr().getCPU());*/
-		
-
+	
 		VolumeCCL_Colorize(*out.getCUDAVolume(), *outViz.getCUDAVolume());
 
-		outViz.getCurrentPtr().retrieve();
-		uchar4 * colors = (uchar4*)(outViz.getCurrentPtr().getCPU());
-		
-
-		std::vector<uchar> boundaryMap((numLabels+1) * 6);
+		std::vector<uchar> boundaryMap((numLabels) * 6);
 		VolumeCCL_BoundaryLabels(*out.getCUDAVolume(), numLabels, (bool*)boundaryMap.data());
 
 		std::array<std::vector<uint>,6> boundaryLabels;
 		int ptr = 0;
 		for (auto i = 0; i < 6; i++){
-			for (auto j = 0; j < numLabels + 1; j++) {
-				if (boundaryMap[i * (numLabels + 1) + j]) {
+			for (auto j = 0; j < numLabels; j++) {
+				if (boundaryMap[i * (numLabels) + j]) {
 					boundaryLabels[i].push_back(j);
 				}
 			}			
 			std::cout << "Boundary: " << i << " has " << boundaryLabels[i].size() << " labels" << std::endl;
 		}
 
-		return outViz;
+		VolumeChannel boundary(mask.dim(), TYPE_UCHAR, false, "CCLBoundary");
+		VolumeCCL_GenerateVolume(*out.getCUDAVolume(), numLabels, (bool*)&boundaryMap[0], *boundary.getCUDAVolume());
 
+		return boundary;
 	}
 
 	template BLIB_EXPORT double getTortuosity<double>(const VolumeChannel &, const TortuosityParams &, DiffusionSolverType, VolumeChannel *);

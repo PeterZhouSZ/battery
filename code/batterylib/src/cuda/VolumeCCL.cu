@@ -555,6 +555,7 @@ uint VolumeCCL(const CUDA_Volume & input, CUDA_Volume & output, uchar background
 			
 			{
 				cudaMemcpy(&numLabels, p.labelScan + p.spanRes.x * p.spanRes.y * p.spanRes.z - 1, sizeof(uint), cudaMemcpyDeviceToHost);
+				numLabels += 1; //Include 0 label -> not labeled
 			}
 
 			printf("Label count: %u\n", numLabels);			
@@ -675,7 +676,7 @@ __global__ void ___boundaryLabelsKernel(
 
 	uint label = read<uint>(input.surf, vox);
 
-	if (label) {
+	if (label > 0) {
 		labelBitmap[label] = true;
 	}
 
@@ -688,8 +689,7 @@ void VolumeCCL_BoundaryLabels(const CUDA_Volume & labels, uint numLabels, bool *
 	assert(labels.type == TYPE_UINT);
 	assert(labelOnBoundary != nullptr);
 
-	numLabels += 1; //Include 0 label
-		
+	
 	size_t boundaries = 6;	
 
 	bool * boolmap;
@@ -742,3 +742,46 @@ void VolumeCCL_BoundaryLabels(const CUDA_Volume & labels, uint numLabels, bool *
 
 
 }
+
+
+__global__ void __generateVolumeFromLabelsKernel(
+	CUDA_Volume labels,
+	bool * mask,
+	CUDA_Volume output
+) {
+	VOLUME_IVOX_GUARD(labels.res);
+
+	uint label = read<uint>(labels.surf, ivox);
+	if (mask[label]) {
+		write<uchar>(output.surf, ivox, 255);
+	}
+}
+
+
+void VolumeCCL_GenerateVolume(
+	const CUDA_Volume & labels,
+	uint numLabels,
+	bool * labelMask, 
+	CUDA_Volume & output )
+{
+	assert(labels.type == TYPE_UINT);
+	assert(output.type == TYPE_UCHAR);
+	assert(labelMask != nullptr);
+
+	size_t maskBytesize = numLabels * sizeof(bool);
+	bool * maskDevice;
+	cudaMalloc(&maskDevice, maskBytesize);
+	cudaMemset(maskDevice, 0, maskBytesize);
+	cudaMemcpy(maskDevice, labelMask, numLabels, cudaMemcpyHostToDevice);
+
+
+	{
+		BLOCKS3D(8, labels.res);
+		__generateVolumeFromLabelsKernel << < numBlocks, block >> > (labels, maskDevice, output);
+	}
+
+
+	cudaFree(maskDevice);
+
+}
+
