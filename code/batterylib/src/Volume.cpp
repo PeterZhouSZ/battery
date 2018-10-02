@@ -18,6 +18,8 @@ blib::VolumeChannel::VolumeChannel(ivec3 dim, PrimitiveType type, bool doubleBuf
 	_name(name)
 {	
 
+	if (dim.x == 0 || dim.y == 0 || dim.z == 0)
+		throw "VolumeChannel: Invalid dimension (0)";
 
 	//Allocate buffer(s)
 	if (VolumeChannel::enableOpenGLInterop) {
@@ -46,6 +48,9 @@ blib::VolumeChannel::VolumeChannel(ivec3 dim, PrimitiveType type, bool doubleBuf
 blib::VolumeChannel::VolumeChannel(Texture3DPtr && ptr, ivec3 dim, const std::string & name)
 	: _ptr{std::move(ptr)}, _dim(dim), _type(ptr.type()), _doubleBuffered(false), _name(name), _current(0)
 {
+
+	if (dim.x == 0 || dim.y == 0 || dim.z == 0)
+		throw "VolumeChannel: Invalid dimension (0)";
 
 }
 
@@ -134,6 +139,33 @@ void blib::VolumeChannel::sum(void * result)
 
 	Volume_Reduce(*getCUDAVolume(), REDUCE_OP_SUM, reductionType, aux.gpu, aux.cpu, result);
 
+}
+
+BLIB_EXPORT void blib::VolumeChannel::min(void * result)
+{
+	assert(result != nullptr);
+
+	const size_t reduceN = Volume_Reduce_RequiredBufferSize(dim().x * dim().y * dim().z);
+
+	PrimitiveType reductionType = _type;	
+	DataPtr aux;
+	aux.alloc(reduceN, primitiveSizeof(reductionType));
+
+	Volume_Reduce(*getCUDAVolume(), REDUCE_OP_MIN, reductionType, aux.gpu, aux.cpu, result);
+
+}
+
+BLIB_EXPORT void blib::VolumeChannel::max(void * result)
+{
+	assert(result != nullptr);
+
+	const size_t reduceN = Volume_Reduce_RequiredBufferSize(dim().x * dim().y * dim().z);
+
+	PrimitiveType reductionType = _type;
+	DataPtr aux;
+	aux.alloc(reduceN, primitiveSizeof(reductionType));
+
+	Volume_Reduce(*getCUDAVolume(), REDUCE_OP_MAX, reductionType, aux.gpu, aux.cpu, result);
 }
 
 size_t blib::VolumeChannel::sumZeroElems() const

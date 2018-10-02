@@ -13,6 +13,7 @@
 #include <batterylib/include/VolumeMeasures.h>
 #include <batterylib/include/VolumeGenerator.h>
 #include <batterylib/include/VolumeSegmentation.h>
+#include <batterylib/include/VolumeSurface.h>
 
 
 #include <chrono>
@@ -357,7 +358,12 @@ void Ui::update(double dt)
 
 	
 	if (_app._volume->numChannels() > 0) {
-		auto & renderChannel = _app._volume->getChannel(_app._options["Render"].get<int>("channel"));
+		int channelID = _app._options["Render"].get<int>("channel");
+		if (channelID >= _app._volume->numChannels()) {
+			channelID = _app._volume->numChannels() - 1;
+			_app._options["Render"].set<int>("channel", channelID);
+		}
+		auto & renderChannel = _app._volume->getChannel(channelID);
 
 		ImGui::TextColored(ImVec4(1, 1, 0, 1), "%s",
 			renderChannel.getName().c_str()
@@ -370,6 +376,23 @@ void Ui::update(double dt)
 
 		if(ImGui::Button("Clear Channel"))
 			renderChannel.clear();
+
+		ImGui::SameLine();
+		if (ImGui::Button("Normalize range")) {
+			
+			uchar buf[64];
+			renderChannel.min(buf);
+			float minVal = primitiveToNormFloat(renderChannel.type(), buf);
+			renderChannel.max(buf);
+			float maxVal = primitiveToNormFloat(renderChannel.type(), buf);
+
+			std::cout << "Min: " << minVal << ", Max: " << maxVal << std::endl;
+						
+			_app._options["Render"].set<float>("normalizeLow", float(minVal));
+			_app._options["Render"].set<float>("normalizeHigh",float(maxVal));
+
+		}
+
 	}
 	else {
 		ImGui::TextColored(ImVec4(1, 0, 0, 1), "No VolumeChannels Loaded");
@@ -433,6 +456,44 @@ void Ui::update(double dt)
 	ImGui::Checkbox("BiCG-C", &enableBiCGCPU); ImGui::SameLine();
 	ImGui::Checkbox("BiCG-G", &enableBiCGGPU); 
 
+	
+	static bool enableRADMesh = true;
+	
+	
+	if (ImGui::Button("Reactive Area Density")) {
+		auto ccl = blib::getVolumeCCL(_app._volume->getChannel(CHANNEL_MASK), 255);
+
+
+		if (enableRADMesh) {
+			Dir dir = Dir(_app._options["Diffusion"].get<int>("direction"));
+			blib::VolumeChannel boundaryVolume = blib::generateBoundaryConnectedVolume(ccl, dir);
+			boundaryVolume.getCurrentPtr().createTexture();
+
+			//blib::getVolumeArea(boundaryVolume);			
+			//_app._volume->emplaceChannel(std::move(boundaryVolume));
+			//_app._volume->emplaceChannel(std::move(areas));
+
+			uint vboIndex;
+			size_t Nverts = 0;
+			getVolumeAreaMesh(boundaryVolume, &vboIndex, &Nverts);
+			if (Nverts > 0) {
+				_app._volumeMC = std::move(VertexBuffer<VertexData>(vboIndex, Nverts));
+			}
+			else {
+				_app._volumeMC = std::move(VertexBuffer<VertexData>());
+			}
+
+		}
+
+		auto rad = blib::getReactiveAreaDensityTensor<double>(ccl);
+
+		for (auto i = 0; i < 6; i++) {
+			std::cout << "RAD (dir: " << i << "): " << rad[i] << std::endl;
+		}
+
+	}
+	ImGui::SameLine();
+	ImGui::Checkbox("Gen. Mesh", &enableRADMesh);
 	
 
 

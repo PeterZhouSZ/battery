@@ -3,10 +3,13 @@
 #include "BatteryLibDef.h"
 #include "Types.h"
 
+#include <array>
+
 namespace blib {
 
 	class Volume;
 	class VolumeChannel;
+	struct VolumeCCL;
 	
 
 	enum DiffusionSolverType {
@@ -60,6 +63,13 @@ namespace blib {
 		ivec3 res, float isovalue, float smooth,
 		uint * vboOut = nullptr, //If not null, a triangle mesh will be generated and saved to vbo
 		size_t * NvertsOut = nullptr
+	);
+
+	template <typename T>
+	BLIB_EXPORT std::array<T, 6> getReactiveAreaDensityTensor(
+		const VolumeCCL & ccl,
+		ivec3 res = ivec3(0,0,0),
+		float isovalue = 0.5f
 	);
 
 	template <typename T>

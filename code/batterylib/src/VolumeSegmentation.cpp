@@ -61,7 +61,9 @@ namespace blib {
 
 	BLIB_EXPORT VolumeChannel generateBoundaryConnectedVolume(const VolumeCCL & ccl, Dir dir)
 	{
-		VolumeChannel boundary(ccl.labels->dim(), TYPE_UCHAR, false, "CCLBoundary");
+		char buf[256];
+		sprintf(buf, "CCLBoundary_Dir_%d", int(dir));
+		VolumeChannel boundary(ccl.labels->dim(), TYPE_UCHAR, false, buf);
 
 		VolumeCCL_GenerateVolume(
 			*ccl.labels->getCUDAVolume(),

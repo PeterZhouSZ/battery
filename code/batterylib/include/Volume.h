@@ -46,6 +46,8 @@ namespace blib{
 		BLIB_EXPORT float differenceSum();
 
 		BLIB_EXPORT void sum(void * result);
+		BLIB_EXPORT void min(void * result);
+		BLIB_EXPORT void max(void * result);
 
 		
 		BLIB_EXPORT size_t sumZeroElems() const;

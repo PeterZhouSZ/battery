@@ -11,6 +11,7 @@
 #endif
 
 #include <fstream>
+#include <iostream>
 #include <algorithm>
 
 using namespace std;
@@ -55,6 +56,10 @@ bool readTiff(const char * path, void * buffer)
 	uint32_t height = TinyTIFFReader_getHeight(tiffr);
 
 	TinyTIFFReader_getSampleData(tiffr, buffer, 0);
+	if (TinyTIFFReader_wasError(tiffr)) {
+		std::cerr << "TinyTIFFReader Error: " << TinyTIFFReader_getLastError(tiffr) << std::endl;
+		return false;
+	}
 
 	TinyTIFFReader_close(tiffr);
 	return true;
@@ -118,7 +123,9 @@ VolumeChannel blib::loadTiffFolder(const char * folder, bool commitToGPU)
 		if (fs::is_directory(f)) continue;		
 		if (f.path().extension() != ".tiff" && f.path().extension() != ".tif") continue;
 		
-		readTiff(f.path().string().c_str(), ptr + (sliceIndex * x * y));
+		if (!readTiff(f.path().string().c_str(), ptr + (sliceIndex * x * y))) {
+			throw "Failed to read slices";
+		}
 
 		sliceIndex++;
 	}	

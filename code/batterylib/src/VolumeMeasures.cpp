@@ -5,8 +5,10 @@
 #include "BICGSTABGPU.h"
 #include "DiffusionSolver.h"
 #include "MGGPU.h"
+#include "VolumeSegmentation.h"
 
 #include "VolumeSurface.cuh"
+#include "VolumeSurface.h"
 
 
 #include "../src/cuda/CudaUtility.h"
@@ -15,7 +17,7 @@
 #include <iostream>
 #include <vector>
 
-#include <glm/gtc/constants.inl>
+#include <glm/gtc/constants.hpp>
 
 namespace blib {
 
@@ -241,34 +243,46 @@ namespace blib {
 	}
 
 	template <typename T>
-	BLIB_EXPORT T getReactiveAreaDensity(const VolumeChannel & mask, ivec3 res, float isovalue, float smoothing, uint * vboOut, size_t * NvertsOut)
+	BLIB_EXPORT T getReactiveAreaDensity(const VolumeChannel & mask, ivec3 res, float isovalue)
 	{
-		
-		assert(mask.getCurrentPtr().hasTextureObject());
-		assert(res.x >= 2 && res.y >= 2 && res.z >= 2);
+		VolumeChannel areas = getVolumeArea(mask, res, isovalue);
+		T area = 0.0f;
+		areas.sum(&area);		
+		return area;		
+	}
 
-		if (!mask.getCurrentPtr().hasTextureObject()) {
-			std::cerr << "ERROR: Mask does not have associated a texture object." << std::endl;
-		}
+	template <typename T>
+	BLIB_EXPORT std::array<T, 6> getReactiveAreaDensityTensor(const VolumeCCL & ccl, ivec3 res, float isovalue)
+	{
 
-		
+		std::array<T, 6> result;
 
 		VolumeSurface_MCParams params;
-		params.res = make_uint3(res.x, res.y, res.z);
+		if (res.x == 0 || res.y == 0 || res.z == 0) {
+			params.res = make_uint3(ccl.labels->dim().x, ccl.labels->dim().y, ccl.labels->dim().z);
+		}
+		else {
+			params.res = make_uint3(res.x, res.y, res.z);
+		}
 		params.isovalue = isovalue;
-		params.smoothingOffset = smoothing;
+		params.smoothingOffset = 1.0f;
 
-		if (vboOut && NvertsOut) {
-			VolumeSurface_MarchingCubesMesh(*mask.getCUDAVolume(), params, vboOut, NvertsOut);
+		
+		for (auto i = 0; i < 6; i++) {
+			
+			//Generate volume of empty space that is connected to i'th boundary
+			VolumeChannel boundaryVolume = blib::generateBoundaryConnectedVolume(ccl, Dir(i));
+			boundaryVolume.getCurrentPtr().createTexture();
+
+			//Run marching cubes on the volume
+			VolumeChannel areas = getVolumeArea(boundaryVolume, res, isovalue);
+
+			T area = 0.0f;
+			areas.sum(&area);
+			result[i] = area;
 		}
 
-		VolumeChannel areas(res, primitiveTypeof<T>(), false, "Temp area channel");
-		VolumeSurface_MarchingCubesArea(*mask.getCUDAVolume(), params, *areas.getCUDAVolume());
-
-		T area = 0.0f;
-		areas.sum(&area);
-		
-		return area;		
+		return result;
 	}
 
 	template <typename T>
@@ -290,8 +304,11 @@ namespace blib {
 	template BLIB_EXPORT float getPorosity<float>(const VolumeChannel &);
 	template BLIB_EXPORT double getPorosity<double>(const VolumeChannel &);
 
-	template BLIB_EXPORT float getReactiveAreaDensity<float>(const VolumeChannel &, ivec3, float, float,  uint *, size_t * );
-	template BLIB_EXPORT double getReactiveAreaDensity<double>(const VolumeChannel &, ivec3, float, float, uint *, size_t *);
+	template BLIB_EXPORT float getReactiveAreaDensity<float>(const VolumeChannel &, ivec3, float);
+	template BLIB_EXPORT double getReactiveAreaDensity<double>(const VolumeChannel &, ivec3, float);
+
+	template BLIB_EXPORT std::array<double, 6> getReactiveAreaDensityTensor(const VolumeCCL & ccl, ivec3 res, float isovalue);
+	template BLIB_EXPORT std::array<float, 6> getReactiveAreaDensityTensor(const VolumeCCL & ccl, ivec3 res, float isovalue);
 
 
 	template BLIB_EXPORT double getShapeFactor<double>(double,double);

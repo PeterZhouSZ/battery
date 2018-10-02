@@ -387,7 +387,7 @@ void BatteryApp::render(double dt)
 
 void BatteryApp::runAreaDensity()
 {
-	uint vboIndex;
+	/*uint vboIndex;
 	size_t Nverts = 0;
 
 	float iso = _options["Render"].get<float>("MarchingCubesIso");
@@ -415,7 +415,7 @@ void BatteryApp::runAreaDensity()
 	}
 	else {
 		_volumeMC = std::move(VertexBuffer<VertexData>());
-	}
+	}*/
 }
 
 

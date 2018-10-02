@@ -98,6 +98,26 @@ inline float primitiveToFloat(PrimitiveType type, void * ptr) {
 	return std::nanf("");
 }
 
+
+
+inline float primitiveToNormFloat(PrimitiveType type, void * ptr) {
+	float val = primitiveToFloat(type, ptr);	
+	switch (type) {	
+	case TYPE_CHAR:
+		return val / 127.0f;
+	case TYPE_UCHAR:
+		return val / 255.0f;
+	case TYPE_INT:
+		return val / 2147483648.0f;
+	case TYPE_UINT:
+		return val / float((uint(-1)));
+	case TYPE_UINT64:
+		return val / float((uint64(-1)));
+	default:
+		return val;
+	}
+}
+
 inline double primitiveToDouble(PrimitiveType type, void * ptr) {
 	switch (type) {
 	case TYPE_FLOAT:
