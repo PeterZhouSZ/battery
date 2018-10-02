@@ -3,9 +3,11 @@
 #include <args.h>
 
 #include <batterylib/include/VolumeMeasures.h>
+#include <batterylib/include/VolumeSegmentation.h>
 #include <batterylib/include/VolumeIO.h>
 
 #include <batterylib/src/cuda/CudaUtility.h>
+
 
 
 #include <chrono>
@@ -55,6 +57,8 @@ args::ValueFlag<int> argStep(group, "step", "Step", { "step" }, 250);
 args::ValueFlag<std::string> argSolver(group, "string", "Solver (BICGSTABGPU|BICGSTABCPU|MGGPU)", { "solver" }, "BICGSTABGPU");
 args::Flag argVolumeExport(group, "Volume export", "Concetration volume export", { "volExport" });
 args::Flag argVerbose(group, "v", "Verbose", { 'v', "verbose" });
+
+args::Flag argRad(parser, "r", "Reactive Area Density", { 'r', "rad" });
 
 
 /*
@@ -194,7 +198,12 @@ bool tortuosity() {
 
 	//Get area density
 	c.getCurrentPtr().createTexture();
-	T areaDensity = getReactiveAreaDensity<T>(c, c.dim(), 0.1f, 1.0f);
+	//T areaDensity = getReactiveAreaDensity<T>(c, c.dim(), 0.1f, 1.0f);
+	std::array<T, 6> radTensor;
+	if (argRad.Get()) {
+		auto ccl = blib::getVolumeCCL(c, 255);
+		radTensor = getReactiveAreaDensityTensor<T>(ccl);
+	}
 	
 
 	for (auto i = 0; i < dirs.size(); i++) {
@@ -264,9 +273,17 @@ bool tortuosity() {
 		//Choose output stream
 		std::ostream & os = (outFile.is_open()) ? outFile : std::cout;
 
+		
+
 		//Header 
 		if(isNewFile){
-			os << "path,porosity,dir,tau,alpha,t,dimx,dimy,dimz,solver" << '\n';
+			os << "path,porosity,dir,tau,";
+			if (argRad.Get()) {
+				os << "rad_X_POS,rad_X_NEG,";
+				os << "rad_Y_POS,rad_Y_NEG,";
+				os << "rad_Z_POS,rad_Z_NEG,";
+			}
+			os<< "t, dimx, dimy, dimz, solver" << '\n';
 		}
 
 		for(auto i =0 ; i < taus.size(); i++){
@@ -278,8 +295,10 @@ bool tortuosity() {
 			
 			os << taus[i] << ",\t";
 
-			os << areaDensity << ",\t";
-			
+			if (argRad.Get()) {
+				for (auto i = 0; i < 6; i++)
+					os << radTensor[i] << ",\t";
+			}						
 
 			//double avgTime = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
 			os << times[i] << ",\t";

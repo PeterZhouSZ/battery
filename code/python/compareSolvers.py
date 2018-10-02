@@ -12,9 +12,9 @@ from scipy import stats
 from scipy.optimize import curve_fit
 
 parser = argparse.ArgumentParser(description='Compare solvers.')
+parser.add_argument('input', nargs='*', type=str,help='Dataset directory')
 parser.add_argument('s',nargs='?', type=int,default=0, help='Start offset')
 parser.add_argument('n',nargs='?', type=int,default=None, help='Number of dirs')
-parser.add_argument('input', nargs='*', type=str,help='Dataset directory')
 parser.add_argument('-o', dest='output',type=str, default='out.csv', help='Output file')
 parser.add_argument('--plot',dest='plot', action='store_true')
 
@@ -22,20 +22,22 @@ args = parser.parse_args()
 
 
 
-solvers = ['BICGSTABGPU','MGGPU','BICGSTABCPU']
-solverLabels = ['BiCGStab-GPU','MultiGrid-GPU','BiCGStab-CPU',]
+solvers = ['BICGSTABGPU']#,'MGGPU','BICGSTABCPU']
+solverLabels = ['BiCGStab-GPU']#,'MultiGrid-GPU','BiCGStab-CPU',]
 #sub = None
 #direction = 'neg'
 directions = ['x','y','z','xneg','yneg','zneg']
 verbose = True
 solver = 'MGGPU'
 volExport = False
-
+rad = True
 outputToSameFile = False
 
 #subs = [296, 320, 380, 420]
 #solvers = ['BICGSTABGPU']
-subs = [16]
+subs = [128]
+
+
 
 
 
@@ -187,7 +189,8 @@ for solver in solvers:
 
         
 
-        
+        if(rad):
+            targ += ['--rad']
 
         #if(sub):
             #targ += ['--sub', str(sub)]
@@ -196,24 +199,26 @@ for solver in solvers:
             targ += ['--volExport']
         
         
+        if(outputToSameFile):
+            targ += ['-o', args.output]
+        else:
+            targ += ['-o', solver + "_" + args.output]
 
-
-        #targ += ['--solver', solver]
+        targ += ['--solver', solver]
         #targ += ['-o', solver + "_" + args.output]
         
         for direction in directions:       
+            finalArgs = targ + [ '-d' + direction]
+
             for sub in subs:     
-
-                finalArgs = targ + ['--solver', solver]  +[ '-d' + direction] + ['--sub', str(sub)]
-
-                if(outputToSameFile):
-                    finalArgs += ['-o', args.output]
-                else:
-                    finalArgs += ['-o', solver + "_" + args.output]
-
-        
+                finalArgs = targ + [ '-d' + direction] + ['--sub', str(sub)]        
                 print (" ".join(finalArgs))
+                subprocess.call(
+                    finalArgs
+                )
 
+            if(len(subs) == 0):
+                print (" ".join(finalArgs))
                 subprocess.call(
                     finalArgs
                 )
