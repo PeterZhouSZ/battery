@@ -800,7 +800,9 @@ void _Volume_Reduce_Op(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType out
 	*/
 	{
 		uint3 numBlocks = make_uint3(
-			uint((n / block.x) / 2), 1, 1
+			//uint((n / block.x) / 2)
+			roundDiv(roundDiv(n, block.x), 2)
+			, 1, 1
 		);
 		if (numBlocks.x == 0)
 			numBlocks.x = 1;
@@ -818,8 +820,10 @@ void _Volume_Reduce_Op(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType out
 		const uint blockSize = VOLUME_REDUCTION_BLOCKSIZE;
 		const uint3 block = make_uint3(blockSize, 1, 1);
 		uint3 numBlocks = make_uint3(
-			uint((n / block.x) / 2), 1, 1
+			roundDiv(roundDiv(n,block.x),2),//(n / block.x) / 2)			
+			 1, 1
 		);
+		
 
 		reduceBuffer<Out, blockSize, _op> << <numBlocks, block, sharedSize >> > ((Out*)auxBufferGPU, n);
 		n = numBlocks.x;
