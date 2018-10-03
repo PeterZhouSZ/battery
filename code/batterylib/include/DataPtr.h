@@ -202,7 +202,9 @@ namespace blib {
 		cudaChannelFormatDesc _desc;
 		cudaExtent _extent;
 		uint _glID;
-		PrimitiveType _type;		
+		PrimitiveType _type;	
+
+		bool _usesOpenGL;
 		
 	};
 

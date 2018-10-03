@@ -222,6 +222,8 @@ bool blib::Texture3DPtr::alloc(PrimitiveType type, ivec3 dim, bool alsoOnCPU)
 	if (!_CUDA(cudaMalloc3DArray(&_gpu, &_desc, _extent, 0)))
 		return false;
 
+	_usesOpenGL = false;
+
 	
 	createSurface();
 
@@ -262,6 +264,7 @@ bool blib::Texture3DPtr::allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnC
 	_extent = make_cudaExtent(dim.x, dim.y, dim.z);
 	
 	//Set channel descriptor (elements, sizes)
+	
 	setDesc(type);
 	
 	
@@ -332,6 +335,7 @@ bool blib::Texture3DPtr::allocOpenGL(PrimitiveType type, ivec3 dim, bool alsoOnC
 	//Unmap resource
 	_CUDA(cudaGraphicsUnmapResources(1, &_gpuRes, 0));	
 
+	_usesOpenGL = true;
 	
 	
 	return true;
@@ -526,10 +530,13 @@ void blib::Texture3DPtr::_free()
 
 	if (_gpu) {
 		_CUDA(cudaDestroySurfaceObject(_surface));
-		if (_glID != 0) {
+		if (_usesOpenGL) {
 			_CUDA(cudaGraphicsUnregisterResource(_gpuRes));
 			GL(glBindTexture(GL_TEXTURE_3D, _glID));
 			GL(glDeleteTextures(1, &_glID));
+		}
+		else {
+			cudaFreeArray(_gpu);
 		}
 	}
 
