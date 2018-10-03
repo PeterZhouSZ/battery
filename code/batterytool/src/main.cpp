@@ -5,6 +5,7 @@
 #include <batterylib/include/VolumeMeasures.h>
 #include <batterylib/include/VolumeSegmentation.h>
 #include <batterylib/include/VolumeIO.h>
+#include <batterylib/include/VolumeGenerator.h>
 
 #include <batterylib/src/cuda/CudaUtility.h>
 
@@ -12,6 +13,7 @@
 
 #include <chrono>
 #include <numeric>
+#include <iomanip>
 
 #if defined(__GNUC__)
     #include <experimental/filesystem>
@@ -20,6 +22,7 @@
 #endif
 
 #include <fstream>
+
 
 namespace fs = std::experimental::filesystem;
 
@@ -47,7 +50,7 @@ args::ValueFlag<std::string> argOutput(parser, "output", "Output file", { 'o', "
 args::ValueFlag<uint> argSubvolume(parser, "subvolume", "Sub Volume", { "sub" }, 0);
 args::ValueFlag<std::string> argPrecision(parser, "precision", "Precision (float|double)", { 'p', "prec" }, "double");
 
-args::Group group(parser, "Tortuosity:", args::Group::Validators::AtLeastOne);
+args::Group group(parser, "Tortuosity:", args::Group::Validators::DontCare);
 
 args::Flag argTau(group, "t", "Tortuosity", { 't', "tau" });
 args::ValueFlag<std::string> argTauDir(group, "string", "Direction (x|y|z)|all|pos|neg", { 'd', "dir" }, "x-");
@@ -59,6 +62,7 @@ args::Flag argVolumeExport(group, "Volume export", "Concetration volume export",
 args::Flag argVerbose(group, "v", "Verbose", { 'v', "verbose" });
 
 args::Flag argRad(parser, "r", "Reactive Area Density", { 'r', "rad" });
+args::Flag argSphereTest(parser, "spheretest", "Sphere Test", { "spheretest" });
 
 
 /*
@@ -319,6 +323,97 @@ bool tortuosity() {
 }
 
 
+bool sphereTest() {
+
+
+	/*blib::ivec3 res = blib::ivec3(256);
+	if (argSubvolume.Get() != 0) {		
+		res = blib::ivec3(argSubvolume.Get());		
+	}
+
+	bool res = true;*/
+	blib::GeneratorSphereParams p;
+
+	int dirNum = 1;
+	const char* dirNames[6] = { "x","xneg","y","yneg","z","zneg" };
+
+	
+	auto & out = std::cout;
+	out << "dim,N,rmin,rmax,analytic,";
+
+	for (auto i = 0; i < dirNum; i++) {
+		out << dirNames[i];
+		if (i < dirNum - 1)
+			out << ",\t";
+	}
+	out << "\n";
+
+	out << std::setprecision(7);
+
+	for (int dimx = 32; dimx < 12*32;  dimx += 32) {
+
+		
+		p.overlapping = false;
+		p.maxTries = 10000000;
+		/*p.rmin = 0.05f;	
+		p.rmax = 0.05f;
+		p.N = 500;*/
+		/*p.rmin = 0.075f;
+		p.rmax = 0.075f;
+		p.N = 170;*/
+		p.rmin = 0.04f;
+		p.rmax = 0.04f;
+		p.N = 1100;
+		p.withinBounds = false;
+
+		blib::ivec3 res(dimx);
+
+		auto spheres = blib::generateSpheres(p);
+		double TauAnalytic = spheresAnalyticTortuosity(p, spheres);
+
+		
+
+		auto c = rasterizeSpheres(res, spheres);
+
+		if (p.withinBounds == false) {
+			TauAnalytic = glm::pow(blib::getPorosity<double>(c), -0.5);
+		}
+
+		TortuosityParams tp;
+		tp.verbose = argVerbose.Get();
+		tp.coeffs = { 1.0, 0.001 };
+		tp.maxIter = argMaxIterations.Get();
+		tp.tolerance = double(pow(10.0, -argTol.Get()));
+
+		tp.porosity = getPorosity<double>(c);
+		tp.porosityPrecomputed = true;
+
+
+		out << dimx << ",\t";
+		out << p.N << ",\t";
+		out << p.rmin << ",\t";
+		out << p.rmax << ",\t";
+		out << TauAnalytic << ",\t";
+		
+		
+		
+		for (auto i = 0; i < dirNum; i++) {
+			tp.dir = Dir(i);
+			double tau = getTortuosity<double>(c, tp);
+			out << tau;
+			if(i < 5)
+				out << ",\t";
+		}
+		
+		out << "\n";
+
+		
+	}
+
+	return true;
+
+}
+
 
 int main(int argc, char **argv){
 
@@ -336,7 +431,7 @@ int main(int argc, char **argv){
 		return 1;
 	}	
 
-	
+	std::cout << "Starting batterytool ..." << std::endl;
 
 	bool res = true;
 
@@ -348,7 +443,11 @@ int main(int argc, char **argv){
 
 	//cudaVerify();
 
-	res &= tortuosity<double>();
+	if(argTau.Get())
+		res &= tortuosity<double>();
+
+	if (argSphereTest.Get())
+		res &= sphereTest();
 
 
 	

@@ -2,6 +2,7 @@
 
 
 #include "Volume.h"
+#include <vector>
 
 namespace blib {
 
@@ -16,7 +17,20 @@ namespace blib {
 	};
 
 
-	BLIB_EXPORT VolumeChannel generateSpheres(ivec3 res, const GeneratorSphereParams & p, bool * sucess);
+	struct Sphere {
+		vec3 pos;
+		float r;
+		float r2;
+	};
+
+
+	BLIB_EXPORT std::vector<Sphere> generateSpheres(const GeneratorSphereParams & p);
+
+	BLIB_EXPORT double spheresAnalyticTortuosity(const GeneratorSphereParams & p, const std::vector<Sphere> & spheres);
+
+	BLIB_EXPORT VolumeChannel rasterizeSpheres(ivec3 res, const std::vector<Sphere> & spheres);
+
+	BLIB_EXPORT VolumeChannel generateFilledVolume(ivec3 res, uchar value);
 
 
 

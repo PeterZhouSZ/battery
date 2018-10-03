@@ -44,32 +44,18 @@ namespace blib {
 			static_cast<float>(discretePos.z) / dim.z,
 		};
 	}
-	
 
-	BLIB_EXPORT VolumeChannel generateSpheres(ivec3 res, const GeneratorSphereParams & p, bool * success)
+
+
+	BLIB_EXPORT std::vector<Sphere> generateSpheres(const GeneratorSphereParams & p)
 	{
-		VolumeChannel c(res, TYPE_UCHAR, false, "Spheres");
-
-
+		
+		
 		if (p.withinBounds) {
 			assert(p.rmin < 0.5f);
 		}
-
-		auto & ptr = c.getCurrentPtr();
-		ptr.allocCPU();
-		
-		
-		
-		const uchar OCCUPIED = 255;
-		const uchar EMPTY = 0;
-		uchar * data = static_cast<uchar *>(ptr.getCPU());
-		memset(data, EMPTY, res.x*res.y*res.z * sizeof(uchar));
-		
-
-
-		
-		int tries = 0;
-		
+				
+		int tries = 0;		
 
 		float rrange = p.rmax - p.rmin;
 		if (rrange < 0.0f) rrange = -rrange;
@@ -86,12 +72,7 @@ namespace blib {
 		vec3 posRange = posMax - posMin;
 
 		
-		struct Sphere {
-			vec3 pos;
-			float r;
-			float r2;
-		};
-
+		
 		auto collision = [](const Sphere & a, const Sphere & b) -> bool{
 			return glm::length2(a.pos - b.pos) < (a.r + b.r) * (a.r + b.r);
 
@@ -134,23 +115,75 @@ namespace blib {
 		}
 
 		if (tries >= p.maxTries) {
-
-			*success = false;
-			return c;
+			
+			return std::vector<Sphere>();
 		}
 
+		return spheres;
+
 		
+
+		
+
+	
+
+		
+		
+
+	}
+
+	
+	BLIB_EXPORT double spheresAnalyticTortuosity(const GeneratorSphereParams & p, const std::vector<Sphere> & spheres)
+	{
+		
+		const double alpha = 0.5;
+		double totalArea = 0.0;
+		double totalVolume = 0.0f;
+		for (auto & s : spheres) {
+			totalArea += 4.0f * glm::pi<double>() * s.r2;
+			totalVolume += (4.0f / 3.0f) * glm::pi<double>() * s.r2 * s.r;
+		}
+
+		if (!p.withinBounds) {
+			assert("Not implemented");
+			return 0;
+		}
+			
+		return glm::pow(1.0 - totalVolume, -alpha);
+
+		
+
+		/*if (p.withinBounds) {
+			std::cout << "[ANALYTIC] Total surface area: " << totalArea << ", volume: " << totalVolume << " porosity: " << 1.0 - totalVolume << std::endl;
+			std::cout << "[ANALYTIC] Shape Factor: " << getShapeFactor(totalArea / spheres.size(), totalVolume / spheres.size()) << std::endl;
+			std::cout << "[ANALYTIC] Tortuosity: " << glm::pow(1.0-totalVolume, -alpha) << std::endl;
+		}*/
+
+		/*double porosity = getPorosity<double>(c);
+		std::cout << "[ANALYTIC/DISCRETE EPS] Tortuosity: " << glm::pow(porosity, -alpha) << std::endl;*/
+
+		
+	}
+
+	BLIB_EXPORT VolumeChannel rasterizeSpheres(ivec3 res, const std::vector<Sphere> & spheres)
+	{
+
+		VolumeChannel c(res, TYPE_UCHAR, false, "Spheres");
+
+		auto & ptr = c.getCurrentPtr();
+		ptr.allocCPU();
+
+		const uchar OCCUPIED = 255;
+		const uchar EMPTY = 0;
+		uchar * data = static_cast<uchar *>(ptr.getCPU());
+		memset(data, EMPTY, res.x*res.y*res.z * sizeof(uchar));
+
 
 		//Rasterize
 		for (auto & s : spheres) {
 			ivec3 boundMin = normToDiscrete<true>(res, s.pos - vec3(s.r));
 			ivec3 boundMax = normToDiscrete<true>(res, s.pos + vec3(s.r));
-
-			if (p.withinBounds) {
-				assert(boundMin.x >= 0 && boundMin.y >= 0 && boundMin.z >= 0);
-				assert(boundMax.x <= res.x && boundMax.y <= res.y && boundMin.z <= res.z);
-			}
-
+			
 			boundMin = glm::clamp(boundMin, ivec3(0), res - ivec3(1));
 			boundMax = glm::clamp(boundMax, ivec3(0), res - ivec3(1));
 
@@ -167,31 +200,21 @@ namespace blib {
 				}
 			}
 
-		
+
 		}
-
-		
-		float totalArea = 0.0;
-		float totalVolume = 0.0f;
-		for (auto & s : spheres) {
-			totalArea += 4.0f * glm::pi<float>() * s.r2;
-			totalVolume += (4.0f / 3.0f) * glm::pi<float>() * s.r2 * s.r;		
-		}
-
-		if (p.withinBounds) {
-			std::cout << "[ANALYTIC] Total surface area: " << totalArea << ", volume: " << totalVolume << " porosity: " << 1.0 - totalVolume << std::endl;
-			std::cout << "[ANALYTIC] Shape Factor: " << getShapeFactor(totalArea / spheres.size(), totalVolume / spheres.size()) << std::endl;
-			float alpha = 0.5f;
-			std::cout << "[ANALYTIC] Tortuosity: " << glm::pow((1.0f - totalVolume), -alpha) << std::endl;
-		}
-
-
 
 		ptr.commit();
 
-		*success = true;
 		return c;
 
+	}
+
+	BLIB_EXPORT VolumeChannel generateFilledVolume(ivec3 res, uchar value)
+	{
+		VolumeChannel c(res, TYPE_UCHAR, false, "Spheres");
+		c.getCurrentPtr().clear(value);
+
+		return c;
 	}
 
 }

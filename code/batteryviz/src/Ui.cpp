@@ -589,7 +589,7 @@ void Ui::update(double dt)
 		
 		bool result;
 		_app.loadFromMask(
-			blib::generateSpheres(genRes, p, &result)
+			blib::rasterizeSpheres(genRes, blib::generateSpheres(p))
 		);
 
 		if (!result) {
@@ -614,7 +614,7 @@ void Ui::update(double dt)
 
 			bool result;
 			_app.loadFromMask(
-				blib::generateSpheres(genRes, p, &result)
+				blib::rasterizeSpheres(genRes, blib::generateSpheres(p))
 			);
 
 			if (!result) break;
@@ -624,6 +624,13 @@ void Ui::update(double dt)
 		
 		std::cerr << "Max N " << p.N << std::endl;
 		
+	}
+
+	if (ImGui::Button("Filled")) {
+		auto & opt = _app._options["Generator"]["Filled"];		
+		_app.loadFromMask(
+			blib::generateFilledVolume(genRes, uchar(opt.get<int>("value")))
+		);
 	}
 
 

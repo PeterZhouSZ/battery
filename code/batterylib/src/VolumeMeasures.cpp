@@ -39,8 +39,7 @@ namespace blib {
 			return T(0);
 		}	
 
-
-		
+				
 		T tau = 0.0;
 		auto maxDim = std::max(mask.dim().x, std::max(mask.dim().y, mask.dim().z));
 		auto minDim = std::min(mask.dim().x, std::min(mask.dim().y, mask.dim().z));
@@ -202,6 +201,12 @@ namespace blib {
 			const int secondaryDims[2] = { (primaryDim + 1) % 3, (primaryDim + 2) % 3 };
 			const T cellDim = T(1) / static_cast<T>(maxDim);
 
+			ivec3 dirVec = ivec3(0);
+			dirVec[primaryDim] = getDirSgn(params.dir); // direction from high to low conc
+
+			const T conc0 = (getDirSgn(params.dir) == -1) ? 0.0 : 1.0;
+			const T conc1 = (getDirSgn(params.dir) == -1) ? 1.0 : 0.0;
+
 			//Number of elems in plane
 			const int n = dim[secondaryDims[0]] * dim[secondaryDims[1]];
 
@@ -228,7 +233,9 @@ namespace blib {
 				isums[i] = jsum;
 			}
 			sum = std::accumulate(isums.begin(), isums.end(), T(0));*/
-			T sumGradient = 0;
+			
+
+			
 
 			for (auto i = 0; i < dim[secondaryDims[0]]; i++) {
 				for (auto j = 0; j < dim[secondaryDims[1]]; j++) {
@@ -238,40 +245,114 @@ namespace blib {
 					pos[secondaryDims[1]] = j;
 
 					size_t index = linearIndex(dim, pos);
-					if (maskData[index] == 0) {
-						sumConcetration += concetration[index];
-						sumPore++;
-						
+					T concHere = concetration[index];
+					if (maskData[index] == 0) {						
+						sumConcetration += concHere;
+						sumPore++;						
 					}
-
-					T g = (concetration[index] / ((1.0 / dim[primaryDim]) / 2.0));
-					if (maskData[index] == 0) {
-						g *= params.coeffs[0];
-					}
-					else {
-						g *= params.coeffs[1];
-					}
-					sumGradient += g;
+					
 				}
 			}
 
 			
-			T Aeff = (dim[secondaryDims[0]] * dim[secondaryDims[1]]);
-
-			T Apore = T(sumPore) / (dim[secondaryDims[0]] * dim[secondaryDims[1]]);
-			Apore = T(sumPore);
 			
-			T x = (T(1) / T(dim[primaryDim])) / T(2);
-			T ceff = (x - 0) / T(dim[primaryDim] - 0);
 			//T mdot = Aeff
 
-			T mdot = sumGradient * Apore;
-			tau = (porosity * Aeff) / (mdot * dim[primaryDim]);
+			
 
 			//tau /= 2;
 			T dc = sumConcetration / n;
 			tau = porosity / (dc * dim[primaryDim] * 2);		
+/*
+
+			T tau0 = tau;
+
+			T avgGradient = 0;
+			T poreTotal = 0;
+			//std::cout << "Avg gradient in plane: " << std::endl;
+
+			for (auto k = 0; k < dim[primaryDim]; k++) {
+				T sumGradient = 0;
+				size_t poreCount = 0;
+				for (auto i = 0; i < dim[secondaryDims[0]]; i++) {
+					for (auto j = 0; j < dim[secondaryDims[1]]; j++) {					
+						ivec3 pos;
+						pos[primaryDim] = k;
+						pos[secondaryDims[0]] = i;
+						pos[secondaryDims[1]] = j;
+						size_t index = linearIndex(dim, pos);
+						T concHere = concetration[index];
+						if (maskData[index] == 0) {
+							poreCount++;
+							poreTotal++;
+						}
+
 						
+
+						T f = concetration[linearIndex(dim, pos)];
+
+						//if(getDirSgn(params.dir) == -1)
+						T fprev;
+						if ((pos - dirVec)[primaryDim] < 0)
+							fprev = conc0;
+						else if((pos - dirVec)[primaryDim] >= dim[primaryDim])
+							fprev = conc1;
+						else
+							fprev = concetration[linearIndex(dim, pos - dirVec)];												
+						/ *if (isValidPos(dim, pos + dirVec)) {
+							fhplus = (concetration[linearIndex(dim, pos + dirVec)] + concetration[linearIndex(dim, pos)]) * 0.5;
+						}
+						else {
+							if(getDirSgn(params.dir) == 1)
+								fhplus = (0.0 + concetration[linearIndex(dim, pos)]) * 0.5;
+							else
+								fhplus = (1.0 + concetration[linearIndex(dim, pos)]) * 0.5;
+						}
+
+						if (isValidPos(dim, pos - dirVec)) {
+							fhneg = (concetration[linearIndex(dim, pos - dirVec)] + concetration[linearIndex(dim, pos)]) * 0.5;
+						}
+						else {
+							if (getDirSgn(params.dir) == 1)
+								fhneg = (1.0 + concetration[linearIndex(dim, pos)]) * 0.5;
+							else
+								fhneg = (0.0 + concetration[linearIndex(dim, pos)]) * 0.5;
+						}					* /
+						
+						
+						//T fhplus = (concetration[linearIndex(dim, pos - dirVec)] + concetration[linearIndex(dim, pos)]) * 0.5;
+						//T fhneg = (concetration[linearIndex(dim, pos)] + 0.0) * 0.5;
+						T g = f - fprev;
+						sumGradient += g;
+					}
+				}
+
+				//sumGradient /= poreCount;
+				sumGradient *= -1;
+				sumGradient /= poreCount;
+				
+				//std::cout << "k: " << k << ", g: " << sumGradient << std::endl;
+				char b;
+				b = 0;
+
+				avgGradient += sumGradient;
+			}
+			avgGradient /= dim[primaryDim];
+
+
+			T Aeff = (dim[secondaryDims[0]] * dim[secondaryDims[1]]);
+
+			T Apore = T(sumPore) / (dim[secondaryDims[0]] * dim[secondaryDims[1]]);
+			Apore = T(sumPore);
+
+			T x = (T(1) / T(dim[primaryDim])) / T(2);
+			T ceff = (x - 0) / T(dim[primaryDim] - 0);
+
+			T mdot = avgGradient * poreTotal / dim[primaryDim];
+			tau = (porosity * Aeff) / (mdot * dim[primaryDim]);
+
+			*/
+		
 		}
 
 
