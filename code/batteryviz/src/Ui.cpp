@@ -19,6 +19,7 @@
 #include <chrono>
 #include <iostream>
 #include <fstream>
+#include <batterylib/include/Timer.h>
 
 void mayaStyle() {
 	ImGuiStyle& style = ImGui::GetStyle();
@@ -432,6 +433,8 @@ void Ui::update(double dt)
 
 		auto & mask = _app._volume->getChannel(CHANNEL_MASK);					
 
+		blib::Timer tt(true);
+
 		if (enableMGGPU) {
 			auto tau = blib::getTortuosity<double>(mask, tp, blib::DiffusionSolverType::DSOLVER_MGGPU, &_app._volume->getChannel(CHANNEL_CONCETRATION));
 			std::cout << "MGGPU\t\t" << tau << std::endl;
@@ -449,6 +452,8 @@ void Ui::update(double dt)
 			auto tau = blib::getTortuosity<double>(mask, tp, blib::DiffusionSolverType::DSOLVER_EIGEN, &_app._volume->getChannel(CHANNEL_CONCETRATION));
 			std::cout << "BiCGCPU\t\t" << tau << std::endl;
 		}
+
+		std::cout << "Tau time: " << tt.time() << std::endl;
 	}
 
 	ImGui::SameLine();

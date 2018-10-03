@@ -75,7 +75,7 @@ namespace blib{
 		BLIB_EXPORT void setName(const std::string & name);
 		BLIB_EXPORT std::string getName() const;
 		
-		BLIB_EXPORT void normalize();
+		
 
 		BLIB_EXPORT std::shared_ptr<CUDA_Volume> getCUDAVolume() const;
 

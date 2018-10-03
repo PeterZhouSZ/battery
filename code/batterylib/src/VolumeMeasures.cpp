@@ -191,6 +191,8 @@ namespace blib {
 
 		const auto & maskPtr = mask.getCurrentPtr();
 
+		
+
 		{
 			T * concetration = static_cast<T*>(concPtr.getCPU());
 			const uchar * maskData = static_cast<const uchar*>(maskPtr.getCPU());
@@ -205,9 +207,12 @@ namespace blib {
 
 			//Index in primary dim
 			const int k = (getDirSgn(params.dir) == -1) ? 0 : dim[primaryDim] - 1;
+			//const int k = (getDirSgn(params.dir) == -1) ? 1 : dim[primaryDim] - 2;
 			
-			std::vector<T> isums(dim[secondaryDims[0]], T(0));
+			T sumConcetration = T(0);
+			uint sumPore = 0;
 
+			/*std::vector<T> isums(dim[secondaryDims[0]], T(0));			
 			#pragma omp parallel for
 			for (auto i = 0; i < dim[secondaryDims[0]]; i++) {
 				T jsum = T(0);
@@ -218,15 +223,55 @@ namespace blib {
 					pos[secondaryDims[1]] = j;
 
 					if (maskData[linearIndex(dim, pos)] == 0)
-						jsum += concetration[linearIndex(dim, pos)];
+						jsum += concetration[linearIndex(dim, pos)];					
 				}
 				isums[i] = jsum;
 			}
+			sum = std::accumulate(isums.begin(), isums.end(), T(0));*/
+			T sumGradient = 0;
 
-			T sum = std::accumulate(isums.begin(), isums.end(), T(0));			
-			T dc = sum / n;			
+			for (auto i = 0; i < dim[secondaryDims[0]]; i++) {
+				for (auto j = 0; j < dim[secondaryDims[1]]; j++) {
+					ivec3 pos;
+					pos[primaryDim] = k;
+					pos[secondaryDims[0]] = i;
+					pos[secondaryDims[1]] = j;
 
+					size_t index = linearIndex(dim, pos);
+					if (maskData[index] == 0) {
+						sumConcetration += concetration[index];
+						sumPore++;
+						
+					}
+
+					T g = (concetration[index] / ((1.0 / dim[primaryDim]) / 2.0));
+					if (maskData[index] == 0) {
+						g *= params.coeffs[0];
+					}
+					else {
+						g *= params.coeffs[1];
+					}
+					sumGradient += g;
+				}
+			}
+
+			
+			T Aeff = (dim[secondaryDims[0]] * dim[secondaryDims[1]]);
+
+			T Apore = T(sumPore) / (dim[secondaryDims[0]] * dim[secondaryDims[1]]);
+			Apore = T(sumPore);
+			
+			T x = (T(1) / T(dim[primaryDim])) / T(2);
+			T ceff = (x - 0) / T(dim[primaryDim] - 0);
+			//T mdot = Aeff
+
+			T mdot = sumGradient * Apore;
+			tau = (porosity * Aeff) / (mdot * dim[primaryDim]);
+
+			//tau /= 2;
+			T dc = sumConcetration / n;
 			tau = porosity / (dc * dim[primaryDim] * 2);		
+						
 		}
 
 

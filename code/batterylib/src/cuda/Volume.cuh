@@ -56,7 +56,7 @@ enum ReduceOpType {
 };
 
 #define VOLUME_REDUCTION_BLOCKSIZE 512
-void launchReduceKernel(
+/*void launchReduceKernel(
 	PrimitiveType type,
 	ReduceOpType opType,
 	uint3 res,
@@ -64,7 +64,7 @@ void launchReduceKernel(
 	void * auxBufferGPU,
 	void * auxBufferCPU,
 	void * result
-);
+);*/
 
 
 void Volume_Reduce(

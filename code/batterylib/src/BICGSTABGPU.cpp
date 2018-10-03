@@ -50,8 +50,10 @@ namespace blib {
 		{			
 			_domain = v.getCUDAVolume(v.addChannel(dim, primitiveTypeof<T>(), false, "domain"));
 			_f = v.getCUDAVolume(v.addChannel(dim, primitiveTypeof<T>(), false, "f"));							
-
 			_x = params.output->getCUDAVolume();			 
+
+			T zero = T(0);
+			launchClearKernel(TYPE_DOUBLE, _x->surf, _x->res, &zero);
 
 			if (_verbose)
 				std::cout << "Allocated _domain, _f & _x" << std::endl;

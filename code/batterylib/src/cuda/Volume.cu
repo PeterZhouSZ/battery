@@ -926,6 +926,7 @@ void Volume_Reduce(CUDA_Volume & vol, ReduceOpType opType, PrimitiveType outputT
 
 
 //AuxBuffer -> surf total n / 512
+/*
 void launchReduceKernel(	
 	PrimitiveType type, 
 	ReduceOpType opType,
@@ -948,9 +949,9 @@ void launchReduceKernel(
 	
 	size_t n = initialN;
 		
-	/*
+	/ *
 		Reduce from surface to auxiliar buffer
-	*/
+	* /
 	{		
 		uint3 numBlocks = make_uint3(
 			uint((n / block.x) / 2), 1, 1
@@ -1007,9 +1008,9 @@ void launchReduceKernel(
 	}
 
 
-	/*
+	/ *
 		Further reduce in buffer
-	*/
+	* /
 	while (n > finalSizeMax) {
 		const uint blockSize = VOLUME_REDUCTION_BLOCKSIZE;
 		const uint3 block = make_uint3(blockSize, 1, 1);
@@ -1046,9 +1047,9 @@ void launchReduceKernel(
 	
 	cudaMemcpy(auxBufferCPU, auxBufferGPU, primitiveSizeof(type) * n, cudaMemcpyDeviceToHost);
 
-	/*
+	/ *
 		Sum last array on CPU
-	*/
+	* /
 	if (type == TYPE_FLOAT) {	
 		*((float*)result) = 0.0f;
 		
@@ -1071,7 +1072,7 @@ void launchReduceKernel(
 
 
 
-}
+}*/
 
 
 
@@ -1162,7 +1163,7 @@ void Volume_DotProduct(
 	assert(A.res.x == B.res.x && A.res.y == B.res.y && A.res.z == B.res.z && A.type == B.type);
 	assert(A.res.x == C.res.x && A.res.y == C.res.y && A.res.z == C.res.z && A.type == C.type);
 	launchMultiplyKernel(A.type, A.res, A.surf, B.surf, C.surf);
-	launchReduceKernel(C.type, REDUCE_OP_SUM, C.res, C.surf, auxBufferGPU, auxBufferCPU, result);
+	Volume_Reduce(C, REDUCE_OP_SUM, C.type, auxBufferGPU, auxBufferCPU, result);	
 }
 
 
@@ -1271,7 +1272,8 @@ double Volume_SquareNorm(
 
 	double result = 0.0;
 
-	launchReduceKernel(
+	Volume_Reduce(x, REDUCE_OP_SQUARESUM, x.type, auxGPU, auxCPU, &result);
+	/*launchReduceKernel(
 		TYPE_DOUBLE,
 		REDUCE_OP_SQUARESUM,
 		res,
@@ -1280,7 +1282,7 @@ double Volume_SquareNorm(
 		auxCPU,
 		&result
 	);
-
+	*/
 	return result;
 
 }
