@@ -557,7 +557,7 @@ uint VolumeCCL_Label(const CUDA_Volume & input, CUDA_Volume & output, uchar back
 				numLabels += 1; //Include 0 label -> not labeled
 			}
 
-			printf("Label count: %u\n", numLabels);			
+			//printf("Label count: %u\n", numLabels);			
 			
 			//reindex
 			{

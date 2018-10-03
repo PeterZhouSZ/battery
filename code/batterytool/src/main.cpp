@@ -203,6 +203,8 @@ bool tortuosity() {
 	//Get area density
 	c.getCurrentPtr().createTexture();
 	//T areaDensity = getReactiveAreaDensity<T>(c, c.dim(), 0.1f, 1.0f);
+
+
 	std::array<T, 6> radTensor;
 	if (argRad.Get()) {
 		auto ccl = blib::getVolumeCCL(c, 255);
@@ -281,13 +283,14 @@ bool tortuosity() {
 
 		//Header 
 		if(isNewFile){
-			os << "path,porosity,dir,tau,";
+			os << "path,porosity,dir,tolerance,tau,";
 			if (argRad.Get()) {
-				os << "rad_X_POS,rad_X_NEG,";
+				os << "rad,";
+				/*os << "rad_X_POS,rad_X_NEG,";
 				os << "rad_Y_POS,rad_Y_NEG,";
-				os << "rad_Z_POS,rad_Z_NEG,";
+				os << "rad_Z_POS,rad_Z_NEG,";*/
 			}
-			os<< "t, dimx, dimy, dimz, solver" << '\n';
+			os<< "t,dimx,dimy,dimz,solver" << '\n';
 		}
 
 		for(auto i =0 ; i < taus.size(); i++){
@@ -296,12 +299,14 @@ bool tortuosity() {
 			os << tp.porosity << ",\t";
 
 			os << dirString(dirs[i]) << ",\t";
+
+			os << tp.tolerance << ",\t";
 			
 			os << taus[i] << ",\t";
 
 			if (argRad.Get()) {
-				for (auto i = 0; i < 6; i++)
-					os << radTensor[i] << ",\t";
+				//for (auto i = 0; i < 6; i++)
+				os << radTensor[i] << ",\t";
 			}						
 
 			//double avgTime = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
@@ -431,7 +436,7 @@ int main(int argc, char **argv){
 		return 1;
 	}	
 
-	std::cout << "Starting batterytool ..." << std::endl;
+	//std::cout << "Starting batterytool ..." << std::endl;
 
 	bool res = true;
 
