@@ -55,7 +55,7 @@ namespace blib {
 		BLIB_EXPORT bool isPointInGlobal(const Eigen::Vector3f & pt) const;
 
 			
-		BLIB_EXPORT AABB aabb() const;
+		BLIB_EXPORT EigenAABB aabb() const;
 
 	};
 

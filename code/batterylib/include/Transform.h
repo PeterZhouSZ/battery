@@ -32,6 +32,9 @@ namespace blib {
 			if (std::is_same<T, mat3>::value)
 				return glm::mat3_cast(glm::inverse(rotation));
 		}
+
+		BLIB_EXPORT vec3 transformPoint(const vec3 & pt) const;
+		BLIB_EXPORT vec3 transformVector(const vec3 & vec) const;
 		
 
 

@@ -344,7 +344,7 @@ bool sphereTest() {
 
 	
 	auto & out = std::cout;
-	out << "dim,N,rmin,rmax,analytic,";
+	out << "dim,N,rmin,rmax,porosity,analytic,";
 
 	for (auto i = 0; i < dirNum; i++) {
 		out << dirNames[i];
@@ -359,16 +359,16 @@ bool sphereTest() {
 
 		
 		p.overlapping = false;
-		p.maxTries = 10000000;
-		/*p.rmin = 0.05f;	
+		p.maxTries = 100000000;
+		p.rmin = 0.04f;	
 		p.rmax = 0.05f;
-		p.N = 500;*/
+		p.N = 1000;
 		/*p.rmin = 0.075f;
 		p.rmax = 0.075f;
 		p.N = 170;*/
-		p.rmin = 0.04f;
+		/*p.rmin = 0.04f;
 		p.rmax = 0.04f;
-		p.N = 1100;
+		p.N = 1100;*/
 		p.withinBounds = false;
 
 		blib::ivec3 res(dimx);
@@ -380,7 +380,9 @@ bool sphereTest() {
 
 		auto c = rasterizeSpheres(res, spheres);
 
+		double porosity = blib::getPorosity<double>(c);
 		if (p.withinBounds == false) {
+			
 			TauAnalytic = glm::pow(blib::getPorosity<double>(c), -0.5);
 		}
 
@@ -398,6 +400,7 @@ bool sphereTest() {
 		out << p.N << ",\t";
 		out << p.rmin << ",\t";
 		out << p.rmax << ",\t";
+		out << porosity << ",\t";
 		out << TauAnalytic << ",\t";
 		
 		

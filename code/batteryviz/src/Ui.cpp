@@ -593,6 +593,8 @@ void Ui::update(double dt)
 			blib::rasterizeSpheres(genRes, blib::generateSpheres(p))
 		);
 
+		std::cout << blib::getPorosity<double>(_app._volume->getChannel(0)) << std::endl;
+
 		if (!result) {
 			std::cerr << "Failed to generate spheres" << std::endl;
 		}

@@ -18,6 +18,16 @@ namespace blib {
 	}
 
 	
+	BLIB_EXPORT vec3 Transform::transformPoint(const vec3 & pt) const
+	{
+		return vec3(getAffine() * vec4(pt, 1.0f));
+	}
+
+	BLIB_EXPORT vec3 Transform::transformVector(const vec3 & vec) const
+	{
+		return vec3(getAffine() * vec4(vec, 0.0f));
+	}
+
 }
 
 

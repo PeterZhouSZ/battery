@@ -19,6 +19,8 @@
 #include <batterylib/include/MGGPU.h>
 #include <batterylib/include/BICGSTABGPU.h>
 
+#include <batterylib/include/ParticlePacking.h>
+
 #include <batterylib/include/ConvexPolyhedron.h>
 
 #include "Ui.h"
@@ -82,9 +84,13 @@ protected:
 	
 	std::unique_ptr<blib::Volume> _volume;
 	
-	std::vector<blib::Transform> _particleTransforms;
-	blib::ConvexPolyhedron _particle;
-	VertexBuffer<VertexData> _particleVBO;
+	/*std::vector<blib::Transform> _particleTransforms;
+	blib::ConvexPolyhedron _particle;*/
+	//VertexBuffer<VertexData> _particleVBO;
+
+	blib::ParticlePacking _particlePacking;
+	std::map<void*, VertexBuffer<VertexData>> _particleVBOs;
+
 
 	bool _autoUpdate;
 

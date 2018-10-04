@@ -90,7 +90,7 @@ bool blib::Ellipsoid::isPointInGlobal(const Eigen::Vector3f &pt) const {
 
 
 
-blib::AABB blib::Ellipsoid::aabb() const
+blib::EigenAABB blib::Ellipsoid::aabb() const
 {
 	//https://tavianator.com/exact-bounding-boxes-for-spheres-ellipsoids/
 

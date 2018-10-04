@@ -53,55 +53,6 @@ RNGUniformInt uniformDistInt(0, INT_MAX);
 
 
 
-void generateSpheresVolume(blib::Volume & volume, uint sphereCount, float sphereRadius) {
-
-	{
-		auto & c = volume.getChannel(CHANNEL_MASK);
-		
-		uchar * arr = (uchar *)c.getCurrentPtr().getCPU();
-
-		srand(0);
-
-
-		std::vector<vec3> pos;
-		std::vector<float> rad;
-
-		for (auto i = 0; i < sphereCount; i++) {
-			pos.push_back({ (rand() % 1024) / 1024.0f, (rand() % 1024) / 1024.0f, (rand() % 1024) / 1024.0f });
-
-			rad.push_back({ (rand() % 1024) / 1024.0f * sphereRadius });
-
-			//pos.push_back({ uniformDist.next(),uniformDist.next(),uniformDist.next() });
-			//rad.push_back({ uniformDist.next()  * sphereRadius });
-		}
-
-		#pragma omp parallel for
-		for (auto i = 0; i < c.dim().x; i++) {
-			for (auto j = 0; j < c.dim().y; j++) {
-				for (auto k = 0; k < c.dim().z; k++) {
-
-					arr[i + j*c.dim().x + k*c.dim().y*c.dim().x] = 0;
-
-					for (auto x = 0; x < pos.size(); x++) {
-						if (glm::length(vec3(i / float(c.dim().x), j / float(c.dim().y), k / float(c.dim().z)) - pos[x]) < rad[x]) {
-							arr[i + j*c.dim().x + k*c.dim().y*c.dim().x] = 255;
-							break;
-						}
-					}
-
-
-				}
-			}
-		}
-
-		c.getCurrentPtr().commit();
-
-	}
-
-	volume.binarize(CHANNEL_MASK, 1.0f);
-}
-
-
 BatteryApp::BatteryApp()
 	: App("BatteryViz"),
 	_camera(Camera::defaultCamera(_window.width, _window.height)),	
@@ -193,6 +144,7 @@ void BatteryApp::update(double dt)
 
 
 	}
+
 	
 	
 	
@@ -226,17 +178,26 @@ void BatteryApp::render(double dt)
 		RenderList rl;
 
 		
-		for (auto & t : _particleTransforms) {
+		for (auto & p : _particlePacking.particles) {
 			
+			Transform volumeTransform;
+			volumeTransform.scale = vec3(2);
+			volumeTransform.translation = vec3(-1);
 
-			t.rotation = glm::rotate(t.rotation, 0.05f, { 1,0,0 });						
-			{
-				mat4 M = t.getAffine();
-				mat4 NM = mat4(glm::transpose(glm::inverse(mat3(M))));
 
-				ShaderOptions so = { { "M", M },{ "NM", NM },{ "PV", _camera.getPV() },{ "viewPos", _camera.getPosition() } };
-				RenderList::RenderItem item = { _particleVBO, so, GL_FILL};
-				rl.add(_shaders[SHADER_PHONG], item);
+			if (p->getTemplateShapeAddress() != nullptr) {
+
+				auto & vbo = _particleVBOs[p->getTemplateShapeAddress()];
+
+				auto t = p->getTransform();
+				{
+					mat4 M = volumeTransform.getAffine() * t.getAffine();
+					mat4 NM = mat4(glm::transpose(glm::inverse(mat3(M))));
+
+					ShaderOptions so = { { "M", M },{ "NM", NM },{ "PV", _camera.getPV() },{ "viewPos", _camera.getPosition() } };
+					RenderList::RenderItem item = { vbo, so, GL_FILL };
+					rl.add(_shaders[SHADER_PHONG], item);
+				}
 			}
 		}
 
@@ -603,20 +564,39 @@ void BatteryApp::reset()
 	_volumeMC = std::move(VertexBuffer<VertexData>());
 
 
+	//Setup template particle
 	const std::string path = "../../data/particles/C3.txt";
-	_particle = blib::ConvexPolyhedron::loadFromFile(path);
-	_particleVBO = getConvexPolyhedronVBO(_particle, vec4(0.5f,0.5f,0.5f,1.0f));
+	std::shared_ptr<ConvexPolyhedron> templateParticle = std::make_shared<ConvexPolyhedron>();
+	*templateParticle = blib::ConvexPolyhedron::loadFromFile(path).normalized();
+		
+	_particleVBOs[templateParticle.get()] = getConvexPolyhedronVBO(*templateParticle, vec4(0.5f, 0.5f, 0.5f, 1.0f));
 
-	blib::Transform T0;
+
+	/*blib::Transform T0;
 	blib::Transform T1;
-	T1.translation = { 0.0f,10.0f,0.0f };	
+	T1.translation = { 0.0f,10.0f,0.0f };	*/
 
-	_particleTransforms.push_back(T0);
-	_particleTransforms.push_back(T1);
+	_particlePacking.particles.clear();
+
+	for (auto i = 0; i < 64; i++) {
+		blib::Transform T0;
+		T0.translation = { uniformDist.next(),uniformDist.next(), uniformDist.next() };
+		T0.scale = vec3(uniformDist.next() * 0.5 + 0.5f);
+		T0.rotation = glm::rotate(glm::quat(), uniformDist.next() * 2.0f * glm::pi<float>(), { uniformDist.next(),uniformDist.next(), uniformDist.next() });
+
+		_particlePacking.particles.push_back(
+			std::make_shared<ConvexPolyhedronParticle>(templateParticle, T0)
+		);
+
+	}
+		
 
 	
 
 
+	/*_particlePacking.particles.push_back(
+		std::make_shared<ConvexPolyhedronParticle>(templateParticle, T1)
+	);*/
 
 	
 	/*{
