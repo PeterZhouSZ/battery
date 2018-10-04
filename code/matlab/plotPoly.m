@@ -62,6 +62,7 @@ b = [b;b]
 plotregion(A,b,[],[],[1.0,0.0,0.0]);
 
 hold on
+axis equal
 
 %%
 addpath('polytopes_2017_10_04_v1.9')
@@ -72,7 +73,42 @@ addpath('polytopes_2017_10_04_v1.9')
 scatter3(V(:,1),V(:,2),V(:,3),'filled')
 axis equal
 %%
-shape = alphaShape(V(:,1),V(:,2),V(:,3))
+shape = alphaShape(V(:,1),V(:,2),V(:,3));
 shape.Alpha = 800.25;
 plot(shape)
+
 axis equal
+
+%%
+%K = convhulln(V,{'Qt',})
+K = convhull(V(:,1),V(:,2),V(:,3),'simplify',true)
+
+
+
+%%
+nv = int32(size(V,1))
+nk = int32(size(K,1))
+
+%conver to zero based
+K = int32(K) -1
+
+fid = fopen('particle.txt', 'w');
+fprintf(fid,'%d\n',nv);
+fclose(fid);
+
+save('particle.txt','V','-ascii','-append')
+
+fid = fopen('particle.txt', 'a');
+fprintf(fid,'%d\n',nk);
+
+for i=1:size(K,1)
+    fprintf(fid,'%d %d %d %d\n',3, K(i,1),K(i,2),K(i,3));
+end
+
+fclose(fid)
+
+%save('particle.txt','K','-ascii','-append')
+
+
+
+

@@ -7,7 +7,7 @@
 namespace blib {
 
 	struct Transform {
-		Eigen::Vector3f translation;
+		Eigen::Vector3f translation = {0,0,0};
 		Eigen::Quaternionf rotation = { 0,0,0,1.0f };
 		Eigen::Vector3f scale = { 1.0f, 1.0f, 1.0f };
 

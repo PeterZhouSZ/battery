@@ -142,7 +142,7 @@ BatteryApp::BatteryApp()
 
 	
 	//INIT
-	//reset();
+	reset();
 
 	bool res = loadFromFile(_options["Input"].get<std::string>("DefaultPath"));
 	if (!res)
@@ -222,7 +222,32 @@ void BatteryApp::render(double dt)
 	
 
 	
+	if (_options["Render"].get<bool>("particles")) {
+		RenderList rl;
 
+		
+		for (auto & t : _particleTransforms) {
+			
+
+			t.rotation *= Eigen::Quaternionf(Eigen::AngleAxis<float>(0.02, Eigen::Vector3f::UnitX()));
+
+			auto T = t.getAffine();
+			
+			{
+				mat4 M = *reinterpret_cast<const mat4*>(T.data());
+				mat4 NM = mat4(glm::transpose(glm::inverse(mat3(M))));
+
+				ShaderOptions so = { { "M", M },{ "NM", NM },{ "PV", _camera.getPV() },{ "viewPos", _camera.getPosition() } };
+				RenderList::RenderItem item = { _particleVBO, so, GL_FILL};
+				rl.add(_shaders[SHADER_PHONG], item);
+			}
+		}
+
+		
+
+		rl.render();
+
+	}
 
 
 
@@ -579,6 +604,22 @@ void BatteryApp::reset()
 {	
 	_volume = make_unique<blib::Volume>();	
 	_volumeMC = std::move(VertexBuffer<VertexData>());
+
+
+	const std::string path = "../../data/particles/C3.txt";
+	_particle = blib::ConvexPolyhedron::loadFromFile(path);
+	_particleVBO = getConvexPolyhedronVBO(_particle, vec4(0.5f,0.5f,0.5f,1.0f));
+
+	blib::Transform T0;
+	blib::Transform T1;
+	T1.translation = { 0.0f,10.0f,0.0f };	
+
+	_particleTransforms.push_back(T0);
+	_particleTransforms.push_back(T1);
+
+	
+
+
 
 	
 	/*{

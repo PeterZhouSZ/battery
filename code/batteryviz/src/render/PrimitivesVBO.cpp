@@ -1,6 +1,7 @@
 #include "PrimitivesVBO.h"
 
 #include <batterylib/include/TriangleMesh.h>
+#include <batterylib/include/ConvexPolyhedron.h>
 
 VertexBuffer<VertexData> getQuadVBO()
 {
@@ -101,5 +102,53 @@ VertexBuffer<VertexData> getSphereVBO()
 
 	return vbo;
 
+}
+
+VertexBuffer<VertexData> getConvexPolyhedronVBO(const blib::ConvexPolyhedron & cp, vec4 color)
+{
+	VertexBuffer<VertexData> vbo;
+
+	
+
+	std::vector<vec3> normals(cp.vertices.size());
+
+	std::vector<uint> indices;
+	for (auto & f : cp.faces) {
+		for (auto ind : f.vertices) {
+			indices.push_back(ind);
+			normals[ind] += f.normal;
+		}
+	}
+
+	for (auto & n : normals) {
+		n = glm::normalize(n);
+	}
+
+
+	{
+		std::vector<VertexData> data;
+		for(auto i=0; i < cp.vertices.size(); i++){
+			const vec3 & v = cp.vertices[i];
+			const vec3 & n = normals[i];
+			VertexData vd;
+			memcpy(vd.pos, &v, sizeof(vec3));
+			memcpy(vd.normal, &n, sizeof(vec3));			
+			memcpy(vd.color, &color, sizeof(vec4));			
+			vd.uv[0] = 0.0f;
+			vd.uv[1] = 0.0f;
+			data.push_back(vd);
+		}
+		vbo.setData(data.begin(), data.end());
+	}
+
+
+	
+
+	vbo.setIndices(indices.data(), indices.size(), GL_UNSIGNED_INT);
+	vbo.setPrimitiveType(GL_TRIANGLES);
+
+
+
+	return vbo;
 }
 
