@@ -40,18 +40,39 @@ b = bC1
 
 %%
 Arx = A; Arx(:,1) = Arx(:,1) .* -1
-Arxy = Arx; Arxy(:,2) = Arxy(:,2) .* -1
 Ary = A; Ary(:,2) = Ary(:,2) .* -1
-Aryz = Ary; Aryz(:,3) = Aryz(:,3) .* -1
 Arz = A; Arz(:,3) = Arz(:,3) .* -1
-Arzx = Arz; Arzx(:,1) = Arzx(:,1 ) * -1
 
-A = [ A; Arx; Arxy; Arz; Arzx]
-b = [b;b;b;b; b]
+%Arxy = Arx; Arxy(:,2) = Arxy(:,2) .* -1
+%Aryz = Ary; Aryz(:,3) = Aryz(:,3) .* -1
+%Arzx = Arz; Arzx(:,1) = Arzx(:,1 ) * -1
+Arxz = Arx; Arxz(:,3) = Arxz(:,3) .* -1
+Arxy = Arx; Arxy(:,2) = Arxy(:,2) .* -1
+
+
+
+A = [ A; Arx; Ary; Arxy ]
+b = [b;b ;b; b]
+
+Arz = A; Arz(:,3) = Arz(:,3) .* -1
+A = [A;Arz]
+b = [b;b]
 
 %%
-
-
 plotregion(A,b,[],[],[1.0,0.0,0.0]);
 
+hold on
+
+%%
+addpath('polytopes_2017_10_04_v1.9')
+
+
+[V,nr,nre]=lcon2vert(A,-b) 
+
+scatter3(V(:,1),V(:,2),V(:,3),'filled')
+axis equal
+%%
+shape = alphaShape(V(:,1),V(:,2),V(:,3))
+shape.Alpha = 800.25;
+plot(shape)
 axis equal
