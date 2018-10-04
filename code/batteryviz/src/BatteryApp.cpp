@@ -229,12 +229,9 @@ void BatteryApp::render(double dt)
 		for (auto & t : _particleTransforms) {
 			
 
-			t.rotation *= Eigen::Quaternionf(Eigen::AngleAxis<float>(0.02, Eigen::Vector3f::UnitX()));
-
-			auto T = t.getAffine();
-			
+			t.rotation = glm::rotate(t.rotation, 0.05f, { 1,0,0 });						
 			{
-				mat4 M = *reinterpret_cast<const mat4*>(T.data());
+				mat4 M = t.getAffine();
 				mat4 NM = mat4(glm::transpose(glm::inverse(mat3(M))));
 
 				ShaderOptions so = { { "M", M },{ "NM", NM },{ "PV", _camera.getPV() },{ "viewPos", _camera.getPosition() } };
@@ -289,7 +286,7 @@ void BatteryApp::render(double dt)
 		for (auto & e : _saEllipsoid.state) {
 			auto bounds = e.aabb();
 			
-			Transform boxT;
+			EigenTransform boxT;
 			//Cube VBO is from -1 to 1
 			boxT.scale = (bounds.max - bounds.min);
 			boxT.translation = (bounds.max + bounds.min) * 0.5f;

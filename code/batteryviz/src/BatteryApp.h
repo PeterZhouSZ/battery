@@ -89,7 +89,7 @@ protected:
 	bool _autoUpdate;
 
 	blib::SimulatedAnnealing<
-		std::vector<blib::Transform>
+		std::vector<blib::EigenTransform>
 	> _sa;
 
 

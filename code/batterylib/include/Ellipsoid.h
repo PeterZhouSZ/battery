@@ -25,7 +25,7 @@ namespace blib {
 		static const float phi_max;
 		static const float phi_range;
 		
-		Transform transform;
+		EigenTransform transform;
 
 		BLIB_EXPORT float & a();
 		BLIB_EXPORT float & b();

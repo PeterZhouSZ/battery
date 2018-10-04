@@ -659,9 +659,6 @@ void Ui::update(double dt)
 
 
 
-	if (ImGui::Button("Particle")){
-		
-	}
 
 
 	ImGui::End();
