@@ -38,8 +38,12 @@
         }
     },
     "Generator": {
+        "NumParticles": {
+            "data": 1,
+            "type": 2
+        },
         "Resolution": {
-            "data": 256,
+            "data": 64,
             "type": 2
         },
         "Spheres": {
@@ -75,11 +79,11 @@
             "type": 5
         },
         "DefaultPath": {
-            "data": "../../data/graphiteSections/SL43_C5_1c5bar_Data/SL43_C5_1c5bar_section001/",
+            "data": "../../data/Generated_Distributions/Generated_Distributions/test_vf/N100VF01/ratio_R1R2_0.20_MDR_0.00/",
             "type": 0
         },
         "GenResolution": {
-            "data": 16,
+            "data": 81,
             "type": 2
         },
         "Sphere": {
@@ -191,6 +195,10 @@
         "opacityWhite": {
             "data": 0.100000001490116,
             "type": 3
+        },
+        "particles": {
+            "data": true,
+            "type": 5
         },
         "preserveAspectRatio": {
             "data": true,

@@ -41,6 +41,8 @@ namespace blib {
 
 		BLIB_EXPORT ConvexPolyhedron normalized(bool keepAspectRatio = true) const;
 
+		BLIB_EXPORT std::vector<vec3> flattenedTriangles() const;
+
 	};
 
 }

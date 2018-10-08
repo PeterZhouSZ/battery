@@ -49,6 +49,7 @@ RNGUniformInt uniformDistInt(0, INT_MAX);
 #include "batterylib/include/Timer.h"
 
 #include "batterylib/include/VolumeMeasures.h"
+#include "batterylib/include/VolumeRasterization.h"
 
 
 
@@ -92,14 +93,17 @@ BatteryApp::BatteryApp()
 	_autoUpdate = false;
 
 	
-	//INIT
-	reset();
-
-	bool res = loadFromFile(_options["Input"].get<std::string>("DefaultPath"));
-	if (!res)
-		std::cerr << "Failed to load default path" << std::endl;
 	
 
+	/*bool res = loadFromFile(_options["Input"].get<std::string>("DefaultPath"));
+	if (!res)
+		std::cerr << "Failed to load default path" << std::endl;*/
+	
+
+	
+
+	//INIT
+	reset();
 
 	/*
 		Scene init
@@ -564,6 +568,11 @@ void BatteryApp::reset()
 	_volumeMC = std::move(VertexBuffer<VertexData>());
 
 
+	int genResX = _options["Generator"].get<int>("Resolution");
+	ivec3 genRes = ivec3(genResX);
+
+	_volume->addChannel(genRes, TYPE_UCHAR, false, "rasterized");
+
 	//Setup template particle
 	const std::string path = "../../data/particles/C3.txt";
 	std::shared_ptr<ConvexPolyhedron> templateParticle = std::make_shared<ConvexPolyhedron>();
@@ -578,17 +587,32 @@ void BatteryApp::reset()
 
 	_particlePacking.particles.clear();
 
-	for (auto i = 0; i < 64; i++) {
+	std::vector<mat4> matrixTransforms;
+
+	int N = _options["Generator"].get<int>("NumParticles");
+
+	for (auto i = 0; i < N; i++) {
 		blib::Transform T0;
 		T0.translation = { uniformDist.next(),uniformDist.next(), uniformDist.next() };
 		T0.scale = vec3(uniformDist.next() * 0.5 + 0.5f);
 		T0.rotation = glm::rotate(glm::quat(), uniformDist.next() * 2.0f * glm::pi<float>(), { uniformDist.next(),uniformDist.next(), uniformDist.next() });
+
+		matrixTransforms.push_back(T0.getAffine());
 
 		_particlePacking.particles.push_back(
 			std::make_shared<ConvexPolyhedronParticle>(templateParticle, T0)
 		);
 
 	}
+
+	
+	rasterize(
+		(float*)templateParticle->flattenedTriangles().data(),
+		templateParticle->faces.size(),
+		(float*)matrixTransforms.data(),
+		matrixTransforms.size(),
+		_volume->getChannel(CHANNEL_MASK)
+	);
 		
 
 	

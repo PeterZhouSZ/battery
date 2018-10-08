@@ -206,4 +206,19 @@ namespace blib {
 		return transformed(t);
 	}
 
+	BLIB_EXPORT std::vector<vec3> ConvexPolyhedron::flattenedTriangles() const
+	{
+		std::vector<vec3> result(faces.size() * 3);
+
+		for (auto i = 0; i < faces.size(); i++) {
+			auto & f = faces[i];
+			assert(f.vertices.size() == 3);
+			result[i * 3 + 0] = vertices[f.vertices[0]];
+			result[i * 3 + 1] = vertices[f.vertices[1]];
+			result[i * 3 + 2] = vertices[f.vertices[2]];		
+		}
+
+		return result;
+	}
+
 }

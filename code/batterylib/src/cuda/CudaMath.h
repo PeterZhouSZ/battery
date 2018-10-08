@@ -1446,4 +1446,408 @@ inline __device__ __host__ float4 smoothstep(float4 a, float4 b, float4 x)
     return (y*y*(make_float4(3.0f) - (make_float4(2.0f)*y)));
 }
 
+
+
+
+
+
+
+
+
+
+
+
+//----------
+// mat3x3
+template<class T>
+class tensor3x3
+{
+public:
+	__host__ __device__
+		tensor3x3()
+	{
+		clear();
+	}
+
+	__host__ __device__
+		void make_identity()
+	{
+		for (int r = 0; r < 3; r++)
+			for (int c = 0; c < 3; c++)
+				element(r, c) = (r == c) ? 1.0 : 0.0f;
+	}
+
+	__host__ __device__
+		void clear()
+	{
+		for (int r = 0; r < 3; r++)
+			for (int c = 0; c < 3; c++)
+				element(r, c) = 0.0f;
+	}
+
+	__host__ __device__
+		float frobeniusNorm()
+	{
+		float f = 0.0f;
+
+		for (int r = 0; r < 3; r++)
+		{
+			for (int c = 0; c < 3; c++)
+			{
+				f += pow(element(r, c), 2.0f);
+			}
+		}
+
+		return sqrtf(f);
+	}
+
+	__host__ __device__
+		float magnitude()
+	{
+		return frobeniusNorm();
+	}
+
+	__host__ __device__
+		float trace()
+	{
+		float t = 0.0f;
+
+		for (int i = 0; i < 3; i++)
+		{
+			t += _array[i][i];
+		}
+
+		return t;
+	}
+
+	__host__ __device__
+		tensor3x3<T> getTraceless()
+	{
+		float mean = trace() / 3.0;
+
+		tensor3x3<T> tl;
+		for (int r = 0; r < 3; r++)
+		{
+			for (int c = 0; c < 3; c++)
+			{
+				tl.element(r, c) = element(r, c);
+
+				if (r == c)
+				{
+					tl.element(c, c) -= mean;
+				}
+			}
+		}
+
+		return tl;
+	}
+
+	__host__ __device__
+		tensor3x3<T> transpose()
+	{
+		tensor3x3<T> transposed;
+
+		for (int r = 0; r < 3; r++)
+		{
+			for (int c = 0; c < 3; c++)
+			{
+				transposed._array[c][r] += _array[r][c];
+			}
+		}
+
+		return transposed;
+	}
+
+	__host__ __device__
+		T &operator()(int row, int col)
+	{
+		return element(row, col);
+	}
+
+	__host__ __device__
+		const T &operator()(int row, int col) const
+	{
+		return element(row, col);
+	}
+
+	__host__ __device__
+		T &element(int row, int col)
+	{
+		return _array[row][col];
+	}
+
+	__host__ __device__
+		const T &element(int row, int col) const
+	{
+		return _array[row][col];
+	}
+
+	// operators
+	__host__ __device__
+		tensor3x3<T> operator*(const float &s)
+	{
+		tensor3x3<T> t;
+
+		for (int r = 0; r < 3; r++)
+			for (int c = 0; c < 3; c++)
+				t._array[r][c] = _array[r][c] * s;
+
+		return t;
+	}
+
+	__host__ __device__
+		tensor3x3<T> operator/(const float &s)
+	{
+		tensor3x3<T> t;
+
+		for (int r = 0; r < 3; r++)
+		{
+			for (int c = 0; c < 3; c++)
+			{
+				if (s != 0.0f) t._array[r][c] = _array[r][c] / s;
+			}
+		}
+		return t;
+	}
+
+	__host__ __device__
+		tensor3x3<T> operator/(const tensor3x3<T> &t)
+	{
+		tensor3x3<T> t_result;
+
+		for (int r = 0; r < 3; r++)
+		{
+			for (int c = 0; c < 3; c++)
+			{
+				if (t._array[r][c] != 0.0f) t_result._array[r][c] = _array[r][c] / t._array[r][c];
+			}
+		}
+		return t_result;
+	}
+
+	__host__ __device__
+		tensor3x3<T> operator-(const float &s)
+	{
+		tensor3x3<T> t;
+
+		for (int r = 0; r < 3; r++)
+			for (int c = 0; c < 3; c++)
+				t._array[r][c] = _array[r][c] - s;
+
+		return t;
+	}
+
+	__host__ __device__
+		tensor3x3<T> operator+(tensor3x3<T> &t_in)
+	{
+		tensor3x3<T> t;
+
+		for (int r = 0; r < 3; r++)
+			for (int c = 0; c < 3; c++)
+				t._array[r][c] = _array[r][c] + t_in._array[r][c];
+
+		return t;
+	}
+
+	__host__ __device__
+		tensor3x3<T> operator-(tensor3x3<T> &t_in)
+	{
+		tensor3x3<T> t;
+
+		for (int r = 0; r < 3; r++)
+			for (int c = 0; c < 3; c++)
+				t._array[r][c] = _array[r][c] - t_in._array[r][c];
+
+		return t;
+	}
+
+	__host__ __device__
+		float3 operator*(const float3 &v)
+	{
+		float3 r = make_float3(0.0f);
+
+		r.x = _array[0][0] * v.x + _array[0][1] * v.y + _array[0][2] * v.z;
+		r.y = _array[1][0] * v.x + _array[1][1] * v.y + _array[1][2] * v.z;
+		r.z = _array[2][0] * v.x + _array[2][1] * v.y + _array[2][2] * v.z;
+
+		return r;
+	}
+
+	// data
+	T _array[3][3];
+};
+
+
+
+
+
+// MATRIX
+class matrix4x4
+{
+public:
+	__host__ __device__
+		matrix4x4()
+	{
+		make_identity();
+	}
+
+	__host__ __device__
+		matrix4x4(float v)
+	{
+		for (int r = 0; r < 4; r++)
+		{
+			for (int c = 0; c < 4; c++)
+			{
+				if (r == c) element(r, c) = v;
+				else element(r, c) = 0.0f;
+			}
+		}
+	}
+
+	__host__ __device__
+		void make_identity()
+	{
+		for (int r = 0; r < 4; r++)
+		{
+			for (int c = 0; c < 4; c++)
+			{
+				if (r == c) element(r, c) = 1.0f;
+				else element(r, c) = 0.0f;
+			}
+		}
+	}
+
+	__host__ __device__
+		void clear()
+	{
+		for (int r = 0; r < 4; r++)
+		{
+			for (int c = 0; c < 4; c++)
+			{
+				element(r, c) = 0.0f;
+			}
+		}
+	}
+
+	__host__ __device__
+		void rotationFromAxis(float3 axis, float degRad)
+	{
+		make_identity();
+
+		element(0, 0) = cos(degRad) + axis.x*axis.x * (1.0f - cos(degRad));
+		element(1, 0) = axis.y*axis.x * (1.0f - cos(degRad)) + axis.z * sin(degRad);
+		element(2, 0) = axis.z*axis.x * (1.0f - cos(degRad)) - axis.y * sin(degRad);
+
+		element(0, 1) = axis.x*axis.y * (1.0f - cos(degRad)) - axis.z * sin(degRad);
+		element(1, 1) = cos(degRad) + axis.y*axis.y * (1.0f - cos(degRad));
+		element(2, 1) = axis.z*axis.y * (1.0f - cos(degRad)) + axis.x * sin(degRad);
+
+		element(0, 2) = axis.x*axis.z * (1.0f - cos(degRad)) + axis.y * sin(degRad);
+		element(1, 2) = axis.y*axis.z * (1.0f - cos(degRad)) - axis.x * sin(degRad);
+		element(2, 2) = cos(degRad) + axis.z*axis.z * (1.0f - cos(degRad));
+	}
+
+	__host__ __device__
+		float &element(int row, int col)
+	{
+		return _array[row | (col << 2)];
+	}
+
+	__host__ __device__
+		const float &element(int row, int col) const
+	{
+		return _array[row | (col << 2)];
+	}
+
+	__host__ __device__
+		const float &operator()(int row, int col) const
+	{
+		return element(row, col);
+	}
+
+	__host__ __device__
+		friend matrix4x4 operator*(const matrix4x4 &lhs, const matrix4x4 &rhs)
+	{
+		matrix4x4 r;
+		r.clear();
+
+		for (int i = 0; i < 4; i++)
+			for (int j = 0; j < 4; j++)
+				for (int c = 0; c < 4; c++)
+				{
+					r.element(i, j) += lhs(i, c) * rhs(c, j);
+				}
+
+		return r;
+	}
+
+	__host__ __device__
+		void transpose()
+	{
+		matrix4x4 mcopy;
+		for (int i = 0; i < 4; i++)
+			for (int j = 0; j < 4; j++)
+			{
+				mcopy.element(i, j) = element(i, j);
+			}
+
+		for (int i = 0; i < 4; i++)
+			for (int j = 0; j < 4; j++)
+			{
+				element(i, j) = mcopy.element(j, i);
+			}
+	}
+
+	__host__ __device__
+		float4 operator *(const float4 &in) const
+	{
+		float src[] = { in.x, in.y, in.z, in.w };
+		float r[4];
+
+		for (int i = 0; i < 4; i++)
+			r[i] = (src[0] * element(i, 0) + src[1] * element(i, 1) + src[2] * element(i, 2) + src[3] * element(i, 3));
+
+		return make_float4(r[0], r[1], r[2], r[3]);
+	}
+
+	__host__ __device__
+		float3 mulVec(const float3 & in) const
+	{
+		float src[] = { in.x, in.y, in.z, 0.0f };
+		float r[3];
+
+		for (int i = 0; i < 3; i++)
+			r[i] = (src[0] * element(i, 0) + src[1] * element(i, 1) + src[2] * element(i, 2) + src[3] * element(i, 3));
+
+		return make_float3(r[0], r[1], r[2]);
+	}
+
+	__host__ __device__
+		float3 mulPt(const float3 & in) const
+	{
+		float src[] = { in.x, in.y, in.z, 1.0f };
+		float r[3];
+
+		for (int i = 0; i < 3; i++)
+			r[i] = (src[0] * element(i, 0) + src[1] * element(i, 1) + src[2] * element(i, 2) + src[3] * element(i, 3));
+
+		return make_float3(r[0], r[1], r[2]);
+	}
+
+
+	union
+	{
+		struct
+		{
+			float _11, _12, _13, _14;
+			float _21, _22, _23, _24;
+			float _31, _32, _33, _34;
+			float _41, _42, _43, _44;
+		};
+		float _array[16];
+	};
+};
+
+
+
 #endif
