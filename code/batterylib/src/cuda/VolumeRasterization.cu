@@ -88,16 +88,13 @@ __global__ void ___rasterizeKernel(
 	CUDA_Volume output
 ){
 	VOLUME_VOX_GUARD(resPlane);
-	//vox += begin;
-	
+
 	uint3 dirVox = begin;
 	_at<uint>(dirVox, (dir + 1) % 3) += vox.x;
-	_at<uint>(dirVox, (dir + 2) % 3) += vox.y;	
+	_at<uint>(dirVox, (dir + 2) % 3) += vox.y;		
+	
 
-	//printf("vox: %u %u %u -> dirvox: %u %u %u\n", vox.x, vox.y, vox.z, dirVox.x, dirVox.y, dirVox.z);
-	int counter = 0;
-
-	float3 rayOrigin = make_float3(dirVox.x / float(res.x), dirVox.y / float(res.y), dirVox.z / float(res.z))
+	const float3 rayOrigin = make_float3(dirVox.x / float(res.x), dirVox.y / float(res.y), dirVox.z / float(res.z))
 		+ make_float3(0.5f / float(res.x), 0.5f / float(res.y), 0.5f / float(res.z));
 
 	float3 rayDir = make_float3(0);
@@ -106,6 +103,7 @@ __global__ void ___rasterizeKernel(
 	//Assumes convex mesh
 	bool isects[2] = { false, false };
 	float isectsD[2] = { 0, 0 };	
+	int cntIsect = 0;
 	for (auto i = 0; i < triangleN; i++) {
 		float d = 0;
 		bool isect = rayTriangleIntersects(triangles[i].v[0], triangles[i].v[1], triangles[i].v[2], rayOrigin, rayDir, d);
@@ -119,9 +117,9 @@ __global__ void ___rasterizeKernel(
 				isectsD[1] = d;
 			}
 			else {
-				printf("More than tow itnersections\n");
+				
 			}
-			 
+			cntIsect++;
 		}
 	}
 
@@ -129,16 +127,10 @@ __global__ void ___rasterizeKernel(
 	if (!isects[0] && !isects[1])
 		return;
 
-	//float minIsect = 0;
-	//float maxIsect = 0;
-	//int dimInDir = _at<uint>(end, dir) - _at<uint>(begin, dir);
-	//float DinDir = float(dimInDir) / _at<uint>(res, dir);
 
 	uint3 beginRaster = dirVox;
 	uint3 endRaster = dirVox;
-	_at<uint>(endRaster, dir) = _at<uint>(end, dir);
-
-	
+	_at<uint>(endRaster, dir) = _at<uint>(end, dir);	
 
 	if (isects[0] && isects[1]) {
 		float minIsect = fminf(isectsD[0], isectsD[1]) + _at<float>(rayOrigin, dir);
@@ -150,15 +142,6 @@ __global__ void ___rasterizeKernel(
 		_at<uint>(beginRaster, dir) = min(_at<uint>(beginRaster, dir), _at<uint>(end, dir));
 		_at<uint>(endRaster, dir) = min(_at<uint>(endRaster, dir), _at<uint>(end, dir));
 
-		
-
-		uint3 rasterVox = beginRaster;
-		while (_at<uint>(rasterVox, dir) < _at<uint>(endRaster, dir)) {
-			//printf("raster %f -> %f | %u -> %u | %u %u %u \n", minIsect, maxIsect, _at<uint>(beginRaster, dir), _at<uint>(endRaster, dir), rasterVox.x, rasterVox.y, rasterVox.z);
-			write<uchar>(output.surf, rasterVox, 255);
-			_at<uint>(rasterVox, dir)++;
-		}
-
 	}
 	else if (!isects[0]) {
 		float minIsect = isects[1];
@@ -169,19 +152,11 @@ __global__ void ___rasterizeKernel(
 		_at<uint>(beginRaster, dir) = uint((_at<float>(rayOrigin, dir) + minIsect) * _at<uint>(res, dir));
 	}
 
-	
-		
-
-
-	
-
-	/*if ((isects[0] && !isects[1]) || (isects[1] && !isects[0])) {
-		printf("dirvox: %u %u %u, isect: %d %d, d: %f %f \n", dirVox.x, dirVox.y, dirVox.z, bool(isects[0]), bool(isects[1]), isectsD[0], isectsD[1]);
-	}*/
-
-	
-
-
+	uint3 rasterVox = beginRaster;
+	while (_at<uint>(rasterVox, dir) < _at<uint>(endRaster, dir)) {
+		write<uchar>(output.surf, rasterVox, 255);
+		_at<uint>(rasterVox, dir)++;
+	}	
 
 };
 
@@ -198,6 +173,7 @@ void Volume_Rasterize(
 	thrust::device_vector<Triangle> triangles_d(templateTriangleN);
 	thrust::host_vector<Triangle> triangles_h;
 
+	int totalRows = 0;
 	for (int ii = 0; ii < instanceN; ii++) {
 		const matrix4x4 & M = ((matrix4x4*)transformMatrices4x4)[ii];
 		bbs[ii].minBB = make_float3(FLT_MAX);
@@ -230,6 +206,8 @@ void Volume_Rasterize(
 		ImaxBB = clamp(ImaxBB, make_int3(0), make_int3(res));
 
 		int3 bbdim = ImaxBB - IminBB;
+		if (bbdim.x == 0 || bbdim.y == 0 || bbdim.z == 0)
+			continue;
 
 		int maxDim = min(bbdim.x, min(bbdim.y, bbdim.z));
 		int minDimIndex = 0;
@@ -242,14 +220,11 @@ void Volume_Rasterize(
 			((int*)&bbdim)[(minDimIndex + 2) % 3],
 			1
 		);
+			
+
 		BLOCKS3D_INT3(8, 8, 1, resPlane);
 
-		
-		char b;
-		b = 0;
-
-		//printf("numthreads: %d\n", resPlane.x * resPlane.y);
-		//printf("bbdim: %d %d %d, min: %d %d %d, max: %d %d %d\n", bbdim.x, bbdim.y, bbdim.z, IminBB.x, IminBB.y, IminBB.z, ImaxBB.x, ImaxBB.y,ImaxBB.z);
+		totalRows += resPlane.x * resPlane.y;
 
 		___rasterizeKernel << <numBlocks, block >> > (
 			res,
@@ -262,25 +237,12 @@ void Volume_Rasterize(
 			output
 		);
 
-		//return;
+		
 	}	
 
-	
+
 
 	
-	//Determine bounding boxes
-	/*int perBlock = 512;
-	dim3 grid = dim3(roundDiv(triangleN, perBlock), 1, 1);
-	while (grid.x > 65535) {
-		grid.x /= 2;
-		grid.y *= 2;
-	}
-
-	___triangleToVoxelCount << <grid, perBlock >> > (
-		res,
-		thrust::raw_pointer_cast(&triTemplate.front()),
-	}*/
-
 
 
 }

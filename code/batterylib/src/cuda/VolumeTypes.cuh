@@ -65,6 +65,10 @@ int3 blockIvox = make_int3(			\
 		printf("Block too big %d > %d", a*b*c, 1024);	\
 		exit(1);								\
 	}											\
+	if(a*b*c == 0){	\
+		printf("Zero dim");	\
+		exit(1);								\
+	}											\
 	uint3 block = make_uint3(a,b,c);		\
 	uint3 numBlocks = make_uint3(				\
 		((res.x + (block.x-1)) / block.x),		\
