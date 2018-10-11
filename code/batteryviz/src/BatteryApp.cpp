@@ -12,7 +12,7 @@
 
 #include <batterylib/include/VolumeIO.h>
 #include <batterylib/include/RandomGenerator.h>
-
+#include <batterylib/include/GeometryIO.h>
 
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -601,8 +601,8 @@ bool BatteryApp::loadFromMask(blib::VolumeChannel && mask)
 }
 
 void BatteryApp::reset()
-{	
-	_volume = make_unique<blib::Volume>();	
+{
+	_volume = make_unique<blib::Volume>();
 	_volumeMC = std::move(VertexBuffer<VertexData>());
 
 
@@ -611,15 +611,21 @@ void BatteryApp::reset()
 
 	_volume->addChannel(genRes, TYPE_UCHAR, false, "rasterized");
 
-	//Setup template particle
-	const std::string path = "../../data/particles/C3.txt";	
-	std::shared_ptr<blib::Geometry> templateParticle = std::move(blib::loadParticleMesh(path).normalized(true));	
 
-		
-	_geometryVBOs[templateParticle] = getTriangleMeshVBO(
-		*static_pointer_cast<blib::TriangleMesh>(templateParticle), 
-		vec4(0.5f, 0.5f, 0.5f, 1.0f)
-	);
+
+
+	//Setup template particle
+	if(false)
+	{
+		const std::string path = "../../data/particles/C3.txt";
+		std::shared_ptr<blib::Geometry> templateParticle = std::move(blib::loadParticleMesh(path).normalized(true));
+
+
+		_geometryVBOs[templateParticle] = getTriangleMeshVBO(
+			*static_pointer_cast<blib::TriangleMesh>(templateParticle),
+			vec4(0.5f, 0.5f, 0.5f, 1.0f)
+		);
+	}
 
 
 
@@ -630,7 +636,7 @@ void BatteryApp::reset()
 	_sceneGeometry.clear();
 	Timer tgen(true);
 
-	for (auto i = 0; i < N; i++) {
+	/*for (auto i = 0; i < N; i++) {
 		blib::Transform T0;
 		
 		T0.scale = vec3(uniformDist.next() * 0.5 + 0.5f);
@@ -647,28 +653,48 @@ void BatteryApp::reset()
 		_sceneGeometry.push_back(std::move(obj));
 
 
+	}*/
+
+	std::ifstream f("../../data/shapes/AcuteGoldenRhombohedron/log_shape1.pf49.s1.pos");
+	_sceneGeometry = blib::readPosFile(f);
+
+	std::shared_ptr<blib::Geometry> templateParticle;
+
+	for(auto obj : _sceneGeometry){
+		matrixTransforms.push_back(obj->getTransform().getAffine());
+
+		auto vboIt = _geometryVBOs.find(obj->getTemplateGeometry());
+		if (vboIt == _geometryVBOs.end()) {
+			_geometryVBOs[obj->getTemplateGeometry()] = getTriangleMeshVBO(
+				*static_pointer_cast<blib::TriangleMesh>(obj->getTemplateGeometry()),
+				vec4(0.5f, 0.5f, 0.5f, 1.0f)
+			);
+			templateParticle = obj->getTemplateGeometry();
+		}
 	}
+	f.close();
 	
 	std::cout << "Generating " << tgen.timeMs() << "ms" << std::endl;
 
 
-	Timer tbuild(true);
-	blib::SAP sap;
-	sap.build(_sceneGeometry);			
-	std::cout << "Building structure " << tbuild.timeMs() << "ms" << std::endl;
+	/*{
+		Timer tbuild(true);
+		blib::SAP sap;
+		sap.build(_sceneGeometry);
+		std::cout << "Building structure " << tbuild.timeMs() << "ms" << std::endl;
 
-	Timer tcollision(true);
-	auto pairs = std::move(sap.getCollisionPairs());
+		Timer tcollision(true);
+		auto pairs = std::move(sap.getCollisionPairs());
 
-	size_t intersectionCount = 0;
-	for (auto p : pairs) {
-		bool res = isectTest(*p.first->getGeometry(), *p.second->getGeometry());
-		if (res) intersectionCount++;
-	}
+		size_t intersectionCount = 0;
+		for (auto p : pairs) {
+			bool res = isectTest(*p.first->getGeometry(), *p.second->getGeometry());
+			if (res) intersectionCount++;
+		}
 
-	tcollision.stop();
-	std::cout << "Test pairs: " << pairs.size() << ", collisions: " << intersectionCount << ", time: " << tcollision.timeMs() << "ms" << std::endl;
-
+		tcollision.stop();
+		std::cout << "Test pairs: " << pairs.size() << ", collisions: " << intersectionCount << ", time: " << tcollision.timeMs() << "ms" << std::endl;
+	}*/
 
 	blib::TriangleMesh & templateMesh = *static_pointer_cast<blib::TriangleMesh>(templateParticle);
 	

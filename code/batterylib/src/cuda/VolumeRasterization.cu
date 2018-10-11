@@ -136,7 +136,7 @@ __global__ void ___rasterizeKernel(
 		float minIsect = fminf(isectsD[0], isectsD[1]) + _at<float>(rayOrigin, dir);
 		float maxIsect = fmaxf(isectsD[0], isectsD[1]) + _at<float>(rayOrigin, dir);
 		_at<uint>(beginRaster, dir) = uint(minIsect * _at<uint>(res, dir));
-		_at<uint>(endRaster, dir) =  uint(maxIsect * _at<uint>(res, dir));
+		_at<uint>(endRaster, dir) =  uint(ceilf(maxIsect * _at<uint>(res, dir)));
 
 
 		_at<uint>(beginRaster, dir) = min(_at<uint>(beginRaster, dir), _at<uint>(end, dir));

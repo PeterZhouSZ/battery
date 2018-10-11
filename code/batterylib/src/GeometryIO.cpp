@@ -1,8 +1,17 @@
 #include "GeometryIO.h"
 
+
+#include "GeometryObject.h"
+#include "quickhull/QuickHull.hpp"
+
 #include <fstream>
 #include <set>
 #include <algorithm>
+
+
+
+#include <iostream>
+#include <sstream>
 
 namespace blib {
 
@@ -18,14 +27,14 @@ namespace blib {
 		std::ifstream f(path);
 
 		if (!f.good())
-			throw "ConvexPolyhedron::loadFromFile invalid file";		
+			throw "loadParticleMesh invalid file";		
 
 
 		int nv, nf;
 		f >> nv;
 
 		if (nv <= 0)
-			throw "ConvexPolyhedron::loadFromFile invalid number of vertices";
+			throw "loadParticleMesh invalid number of vertices";
 
 		m.vertices.resize(nv);
 
@@ -36,7 +45,7 @@ namespace blib {
 		f >> nf;
 
 		if (nf <= 0)
-			throw "ConvexPolyhedron::loadFromFile invalid number of faces";
+			throw "loadParticleMesh invalid number of faces";
 
 		m.faces.resize(nf);
 
@@ -77,13 +86,7 @@ namespace blib {
 				Edge e = { face.vertices[k], face.vertices[(k + 1) % nfv] };
 				edgeSet.insert(e);
 			}
-
-
-
 		}
-
-
-
 		m.edges.resize(edgeSet.size());
 		std::copy(edgeSet.begin(), edgeSet.end(), m.edges.begin());
 
@@ -91,5 +94,201 @@ namespace blib {
 
 		return m;
 	}
+
+	TriangleMesh halfEdgeMeshToTriangleMesh(const quickhull::HalfEdgeMesh<float, size_t> & hemesh) {
+
+		using namespace quickhull;
+
+		TriangleMesh tm;
+		tm.vertices.resize(hemesh.m_vertices.size());
+		memcpy(tm.vertices.data(), hemesh.m_vertices.data(), hemesh.m_vertices.size() * sizeof(vec3));
+
+		auto cmpEdge = [](const TriangleMesh::Edge & a, const TriangleMesh::Edge & b) {
+			TriangleMesh::Edge as = a;
+			if (as.x > as.y) std::swap(as.x, as.y);
+			TriangleMesh::Edge bs = b;
+			if (bs.x > bs.y) std::swap(bs.x, bs.y);
+
+			if (as.x < bs.x)
+				return true;
+			if (as.x > bs.x)
+				return false;
+			return (as.y < bs.y);
+		};
+
+		std::set<TriangleMesh::Edge, decltype(cmpEdge)> edgeSet(cmpEdge);
+
+		for(auto i=0; i < hemesh.m_faces.size(); i++){
+
+
+			
+			auto heIndexStart = hemesh.m_faces[i].m_halfEdgeIndex;
+			auto he = hemesh.m_halfEdges[heIndexStart];
+			auto heIndexNext = he.m_next;
+
+			TriangleMesh::Face newF;
+			
+			newF.vertices.push_back(int(he.m_endVertex));
+
+			while (heIndexNext != heIndexStart) {				
+				he = hemesh.m_halfEdges[heIndexNext];
+				newF.vertices.push_back(int(he.m_endVertex));
+				heIndexNext = he.m_next;
+			}
+
+			tm.faces.push_back(newF);
+			
+
+			for (auto k = 0; k < newF.vertices.size(); k++) {
+				TriangleMesh::Edge e = { newF.vertices[k], newF.vertices[(k + 1) % newF.vertices.size()] };
+				edgeSet.insert(e);
+			}
+
+			
+
+
+			char b;
+			b = 0;
+
+
+		
+		}
+
+		tm.edges.resize(edgeSet.size());
+		std::copy(edgeSet.begin(), edgeSet.end(), tm.edges.begin());
+		tm.recomputeNormals();
+
+		return tm;
+
+
+	
+	}
+
+	TriangleMesh hullCoordsToMesh(const std::vector<vec3> & pts) {	
+		using namespace quickhull;
+
+		QuickHull<float> qh;
+		HalfEdgeMesh<float, size_t> hullMesh = qh.getConvexHullAsMesh(
+			reinterpret_cast<const float*>(pts.data()), pts.size(), false
+		);
+
+		return halfEdgeMeshToTriangleMesh(hullMesh);
+
+		
+	}
+
+
+	BLIB_EXPORT std::vector<std::shared_ptr<GeometryObject>> readPosFile(std::ifstream & stream)
+	{
+
+		std::vector<std::shared_ptr<GeometryObject>> res;
+		#define CMP_MATCH 0
+
+		enum ShapeType {
+			SHAPE_SPHERE,
+			SHAPE_POLY
+		};
+		
+		const std::string boxS = "boxMatrix";
+		const std::string defS = "def";
+		const std::string eofS = "eof";
+		std::string defName = "";		
+		char line[1024];
+
+		ShapeType shapeType;
+
+		AABB bb;
+		vec3 scale;
+		std::vector<vec3> coords;
+
+		std::shared_ptr<Geometry> templateParticle;
+
+		while (stream.good()) {
+			size_t pos = stream.tellg();
+			stream.getline(line, 1024);
+			//auto s = std::string(line);			
+
+			if (eofS.compare(0, eofS.length(), line, 0, eofS.length()) == CMP_MATCH) {
+				break;
+			}
+			
+			if (boxS.compare(0, boxS.length(), line, 0, boxS.length()) == CMP_MATCH) {
+				std::stringstream ss;
+				ss << (line + boxS.length());
+
+				float tmp;
+				bb.min = vec3(0);
+				ss >> bb.max.x >> tmp >> tmp;
+				ss >> tmp >> bb.max.y >> tmp;
+				ss >> tmp >> tmp >> bb.max.z;
+
+				scale = vec3(1.0f / bb.range().x, 1.0f / bb.range().y, 1.0f / bb.range().z);
+
+				std::cout << line << std::endl;
+				std::cout << bb.max.x << ", " << bb.max.y << ", " << bb.max.z << std::endl;				
+			}
+
+			if (defS.compare(0, defS.length(), line, 0, defS.length()) == CMP_MATCH) {
+				std::stringstream ss;
+				ss << (line + defS.length() + 1);
+				
+				getline(ss, defName, ' ');
+				
+				std::string tmp;
+				getline(ss, tmp, '"');				
+				getline(ss, tmp, ' ');
+				if (tmp == "poly3d")
+					shapeType = SHAPE_POLY;
+				else
+					shapeType = SHAPE_SPHERE;
+
+				int n;
+				ss >> n;
+
+				coords.resize(n);
+				for (int i = 0; i < n; i++) {
+					ss >> coords[i].x >> coords[i].y >> coords[i].z;
+				}				
+
+
+				Transform t;
+				
+				templateParticle = std::move(hullCoordsToMesh(coords).transformed(t));
+				//todo coords to conv hull mesh (fproc?)
+
+			}
+
+			//Instances
+			if (defName.length() > 0 && defName.compare(0, defName.length(), line, 0, defName.length()) == CMP_MATCH) {
+				std::stringstream ss;
+				ss << (line + defName.length() + 1);
+
+				if (shapeType == SHAPE_POLY) {
+
+					int tmp;
+					ss >> tmp;
+
+					Transform t;					
+					ss >> t.translation.x >> t.translation.y >> t.translation.z;
+					ss >> t.rotation[0] >> t.rotation[1] >> t.rotation[2] >> t.rotation[3];
+
+					t.translation *= scale;
+
+					char b;
+					b = 0;
+
+					auto instance = std::make_shared<GeometryObject>(templateParticle);
+					instance->setTransform(t);					
+
+					res.push_back(instance);
+				}				
+
+			}
+		}
+
+		return res;
+
+	}
+
 }
 
