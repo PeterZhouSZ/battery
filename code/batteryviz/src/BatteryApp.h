@@ -59,6 +59,7 @@ protected:
 	void runAreaDensity();
 
 	bool loadFromFile(const std::string & folder);
+	bool loadFromPosFile(const std::string & path, ivec3 resolution);
 	bool loadFromMask(blib::VolumeChannel && mask);
 
 	OptionSet _options;

@@ -143,13 +143,7 @@ namespace blib {
 				TriangleMesh::Edge e = { newF.vertices[k], newF.vertices[(k + 1) % newF.vertices.size()] };
 				edgeSet.insert(e);
 			}
-
-			
-
-
-			char b;
-			b = 0;
-
+				
 
 		
 		}
@@ -218,9 +212,12 @@ namespace blib {
 
 				float tmp;
 				bb.min = vec3(0);
-				ss >> bb.max.x >> tmp >> tmp;
-				ss >> tmp >> bb.max.y >> tmp;
-				ss >> tmp >> tmp >> bb.max.z;
+				vec3 v[3];
+				ss >> v[0].x >> v[0].y >> v[0].z;
+				ss >> v[1].x >> v[1].y >> v[1].z;
+				ss >> v[2].x >> v[2].y >> v[2].z;				
+
+				bb.max = vec3(v[0].x, v[1].y, v[2].z);
 
 				scale = vec3(1.0f / bb.range().x, 1.0f / bb.range().y, 1.0f / bb.range().z);
 
@@ -252,7 +249,8 @@ namespace blib {
 
 
 				Transform t;
-				
+				t.scale = scale;
+
 				templateParticle = std::move(hullCoordsToMesh(coords).transformed(t));
 				//todo coords to conv hull mesh (fproc?)
 
@@ -268,11 +266,18 @@ namespace blib {
 					int tmp;
 					ss >> tmp;
 
-					Transform t;					
+					Transform t;			
 					ss >> t.translation.x >> t.translation.y >> t.translation.z;
 					ss >> t.rotation[0] >> t.rotation[1] >> t.rotation[2] >> t.rotation[3];
 
+
 					t.translation *= scale;
+					t.translation += vec3(0.5f);					
+
+					/*Transform volumeTransform;
+					volumeTransform.scale = vec3(2);
+					volumeTransform.translation = vec3(-1);*/
+
 
 					char b;
 					b = 0;

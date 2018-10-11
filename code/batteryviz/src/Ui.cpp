@@ -539,16 +539,6 @@ void Ui::update(double dt)
 	}
 
 	ImGui::Separator();
-	ImGui::Text("Load .TIFF");
-	ImGui::Separator();
-	{
-		static std::string curDir = "../../data";
-		std::string filename;
-		std::tie(curDir, filename) = imguiFileExplorer(curDir, ".tiff", true);
-		if (filename != "") {
-			_app.loadFromFile(curDir);
-		}
-	}
 
 	{
 		if (ImGui::Button("Load Default")) {
@@ -559,6 +549,29 @@ void Ui::update(double dt)
 
 		if (ImGui::Button("Reset")) {
 			_app.reset();
+		}
+
+	}
+
+	if (ImGui::CollapsingHeader("Load .TIFF")) {		
+
+		static std::string curDir = "../../data";
+		std::string filename;
+		std::tie(curDir, filename) = imguiFileExplorer(curDir, ".tiff", true);
+		if (filename != "") {
+			_app.loadFromFile(curDir);
+		}
+
+
+		
+	}
+
+	if (ImGui::CollapsingHeader("Load .pos")) {
+		static std::string curDir = "../../data/shapes/";
+		std::string filename;
+		std::tie(curDir, filename) = imguiFileExplorer(curDir, ".pos", true);
+		if (filename != "") {			
+			_app.loadFromPosFile(filename, ivec3(_app._options["Generator"].get<int>("Resolution")));
 		}
 
 	}

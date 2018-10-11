@@ -576,6 +576,63 @@ bool BatteryApp::loadFromFile(const std::string & folder)
 }
 
 
+bool BatteryApp::loadFromPosFile(const std::string & path, ivec3 resolution)
+{
+
+	reset();
+	
+	_volume->addChannel(resolution, TYPE_UCHAR, false, "posFileRasterized");
+	auto concetrationID = _volume->addChannel(
+		_volume->getChannel(CHANNEL_MASK).dim(),
+		TYPE_DOUBLE
+	);
+	_volume->getChannel(CHANNEL_CONCETRATION).clear();
+
+
+	std::ifstream f(path);
+	_sceneGeometry = blib::readPosFile(f);
+	
+	if (_sceneGeometry.size() == 0)
+		return false;
+
+	std::shared_ptr<blib::Geometry> templateParticle;
+	std::vector<mat4> matrixTransforms;
+	
+
+	for (auto obj : _sceneGeometry) {
+		matrixTransforms.push_back(obj->getTransform().getAffine());
+
+		//Generate vbos of template particles
+		auto vboIt = _geometryVBOs.find(obj->getTemplateGeometry());
+
+		if (vboIt == _geometryVBOs.end()) {
+			_geometryVBOs[obj->getTemplateGeometry()] = getTriangleMeshVBO(
+				*static_pointer_cast<blib::TriangleMesh>(obj->getTemplateGeometry()),
+				vec4(0.5f, 0.5f, 0.5f, 1.0f)
+			);
+			templateParticle = obj->getTemplateGeometry();
+		}
+
+	}
+	f.close();
+
+
+	blib::TriangleMesh & templateMesh = *static_pointer_cast<blib::TriangleMesh>(templateParticle);
+
+	/*
+		TODO heterogenous particles -> map templates to transforms
+	*/
+	rasterize(
+		(float*)templateMesh.getTriangleArray().data(),
+		templateMesh.faces.size(),
+		(float*)matrixTransforms.data(),
+		matrixTransforms.size(),
+		_volume->getChannel(CHANNEL_MASK)
+	);
+
+	return true;
+}
+
 bool BatteryApp::loadFromMask(blib::VolumeChannel && mask)
 {
 
@@ -605,6 +662,10 @@ void BatteryApp::reset()
 	_volume = make_unique<blib::Volume>();
 	_volumeMC = std::move(VertexBuffer<VertexData>());
 
+
+	
+
+	return;
 
 	int genResX = _options["Generator"].get<int>("Resolution");
 	ivec3 genRes = ivec3(genResX);
@@ -657,6 +718,9 @@ void BatteryApp::reset()
 
 	std::ifstream f("../../data/shapes/AcuteGoldenRhombohedron/log_shape1.pf49.s1.pos");
 	_sceneGeometry = blib::readPosFile(f);
+
+	if (_sceneGeometry.size() == 0)
+		return;
 
 	std::shared_ptr<blib::Geometry> templateParticle;
 
