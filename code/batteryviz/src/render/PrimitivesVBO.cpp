@@ -2,6 +2,7 @@
 
 #include <batterylib/include/TriangleMesh.h>
 #include <batterylib/include/ConvexPolyhedron.h>
+#include <glm\gtc\type_ptr.hpp>
 
 VertexBuffer<VertexData> getQuadVBO()
 {
@@ -88,10 +89,10 @@ VertexBuffer<VertexData> getSphereVBO()
 
 	for (auto t : mesh) {
 		const auto N = t.normal();
-		memcpy(&vd.normal, N.data(), N.SizeAtCompileTime * sizeof(float));
+		memcpy(&vd.normal, glm::value_ptr(N), 3 * sizeof(float));
 
 		for (auto v : t.v) {
-			memcpy(&vd.pos, v.data(), v.SizeAtCompileTime * sizeof(float));
+			memcpy(&vd.pos, glm::value_ptr(v), 3 * sizeof(float));
 			data.push_back(vd);
 		}
 	}
@@ -104,7 +105,7 @@ VertexBuffer<VertexData> getSphereVBO()
 
 }
 
-VertexBuffer<VertexData> getConvexPolyhedronVBO(const blib::ConvexPolyhedron & cp, vec4 color)
+VertexBuffer<VertexData> getTriangleMeshVBO(const blib::TriangleMesh & cp, vec4 color)
 {
 	VertexBuffer<VertexData> vbo;
 

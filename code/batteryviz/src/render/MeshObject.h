@@ -12,12 +12,12 @@ public:
 	MeshObject() = default;
 	~MeshObject() = default;
 
-	MeshObject(blib::TriangleMesh && mesh) : _mesh(mesh), SceneObject() {		
+	MeshObject(blib::TriangleArray && mesh) : _mesh(mesh), SceneObject() {		
 	}
 
-	const blib::TriangleMesh & getMesh() const;
+	const blib::TriangleArray & getMesh() const;
 
-	blib::TriangleMesh getMesh();	
+	blib::TriangleArray getMesh();
 
 	virtual ShaderOptions getShaderOptions(
 		ShaderType shaderType,
@@ -26,7 +26,7 @@ public:
 	) const override;
 
 protected:
-	blib::TriangleMesh _mesh;
+	blib::TriangleArray _mesh;
 
 	virtual bool _updateBuffer() const override;
 

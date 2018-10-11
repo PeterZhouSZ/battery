@@ -39,7 +39,7 @@
     },
     "Generator": {
         "NumParticles": {
-            "data": 1,
+            "data": 2,
             "type": 2
         },
         "Resolution": {
@@ -167,6 +167,16 @@
         "MarchingCubesWire": {
             "data": false,
             "type": 5
+        },
+        "SceneGeometry": {
+            "BoundingBoxes": {
+                "data": true,
+                "type": 5
+            },
+            "Enabled": {
+                "data": true,
+                "type": 5
+            }
         },
         "channel": {
             "data": 0,

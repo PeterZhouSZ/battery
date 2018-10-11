@@ -1,6 +1,7 @@
 #include "MeshObject.h"
 
 #include "Camera.h"
+#include <glm\gtc\type_ptr.hpp>
 
 bool MeshObject::_updateBuffer() const {
   std::vector<VertexData> data;
@@ -16,10 +17,10 @@ bool MeshObject::_updateBuffer() const {
 
   for (auto t : _mesh) {
     const auto N = t.normal();
-    memcpy(&vd.normal, N.data(), N.SizeAtCompileTime * sizeof(float));
+    memcpy(&vd.normal, glm::value_ptr(N), 3 * sizeof(float));
 
     for (auto v : t.v) {
-      memcpy(&vd.pos, v.data(), v.SizeAtCompileTime * sizeof(float));
+      memcpy(&vd.pos, glm::value_ptr(v), 3 * sizeof(float));
       data.push_back(vd);
     }
   }
@@ -29,9 +30,9 @@ bool MeshObject::_updateBuffer() const {
   return _buffer.setData(data.begin(), data.end());
 }
 
-const blib::TriangleMesh &MeshObject::getMesh() const { return _mesh; }
+const blib::TriangleArray &MeshObject::getMesh() const { return _mesh; }
 
-blib::TriangleMesh MeshObject::getMesh() {
+blib::TriangleArray MeshObject::getMesh() {
   _invalidate();
   return _mesh;
 }

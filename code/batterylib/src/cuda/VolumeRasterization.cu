@@ -247,6 +247,92 @@ void Volume_Rasterize(
 
 }
 
+/************************************************************************/
+
+
+void __global__ ___AABBRasterizeKernel(
+	const BB * bbs, 
+	const size_t N, 
+	const uint3 res,
+	uint * counts,
+	uint * indices
+){
+	
+	uint blockId = blockIdx.y * gridDim.x + blockIdx.x;
+	uint i = blockId * blockDim.x + threadIdx.x;
+	if (i > N) return;
+
+	const BB bb = bbs[i];
+
+	int3 IminBB = make_int3(int(bb.minBB.x * res.x), int(bb.minBB.y * res.y), int(bb.minBB.z * res.z));
+	int3 ImaxBB = make_int3(int(ceilf(bb.maxBB.x * res.x)), int(ceilf(bb.maxBB.y * res.y)), int(ceilf(bb.maxBB.z * res.z)));
+	IminBB = clamp(IminBB, make_int3(0), make_int3(res));
+	ImaxBB = clamp(ImaxBB, make_int3(0), make_int3(res));
+
+	/*if (i < 2) {
+		printf("%u: %d %d %d, %d %d %d\n", i, IminBB.x, IminBB.y, IminBB.z, ImaxBB.x, ImaxBB.y, ImaxBB.z);
+	}*/
+	
+	
+
+	for (int z = IminBB.x; z < ImaxBB.x; z++) {
+		for (int y = IminBB.x; y < ImaxBB.x; y++) {
+			for (int x = IminBB.x; x < ImaxBB.x; x++) {
+				int3 pos = make_int3(x, y, z);
+				size_t k = _linearIndex(res, pos);
+				//printf("%d %d %d", pos.x, pos.y, pos.z);
+				//uint index = atomicAdd(counts + k, 1);
+				atomicAdd(counts + k, 1);
+
+			}
+		}
+	}
+
+
+}
+
+std::vector<Volume_CollisionPair> Volume_AABB_Collisions(float * aabbs, size_t N, uint3 res)
+{
+	
+	size_t gridN = res.x * res.y * res.z;
+	thrust::device_vector<uint> counts_d(gridN,0);
+	
+	
+	thrust::device_vector<BB> bb_d(N);
+	cudaMemcpy(thrust::raw_pointer_cast(&bb_d.front()), aabbs, N * sizeof(BB), cudaMemcpyHostToDevice);
+	thrust::device_vector<uint> indices_d(N);
+
+
+	std::vector<Volume_CollisionPair> result;
+
+	int perBlock = 4;
+	dim3 grid = dim3((N + perBlock - 1) / perBlock, 1, 1);
+	while (grid.x > 65535) {
+		grid.x /= 2;
+		grid.y *= 2;
+	}
+
+	___AABBRasterizeKernel << <grid, perBlock>> > (		
+		thrust::raw_pointer_cast(&bb_d.front()),
+		N, 
+		res,
+		thrust::raw_pointer_cast(&counts_d.front()),
+		thrust::raw_pointer_cast(&indices_d.front())
+		);
+
+	thrust::host_vector<uint> counts_h = counts_d;
+	uint * counts_ptr = counts_h.data();
+
+
+	uint totalCount = thrust::reduce(counts_d.begin(), counts_d.end(), 0);
+	
+	printf("res: %u, count: %u\n", res.x, totalCount);
+
+	return result;
+}
+
+
+
 /*__global__ void ___triangleToVoxelCount(
 	uint3 res,
 	const Triangle * triTemplate, 	

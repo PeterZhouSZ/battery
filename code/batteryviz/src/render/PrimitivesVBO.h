@@ -11,6 +11,7 @@ VertexBuffer<VertexData> getSphereVBO();
 
 namespace blib {
 	struct ConvexPolyhedron;
+	struct TriangleMesh;
 }
 
-VertexBuffer<VertexData> getConvexPolyhedronVBO(const blib::ConvexPolyhedron & cp, vec4 color);
+VertexBuffer<VertexData> getTriangleMeshVBO(const blib::TriangleMesh & cp, vec4 color);

@@ -6,93 +6,11 @@
 
 namespace blib {
 
-	BLIB_EXPORT blib::ConvexPolyhedron blib::ConvexPolyhedron::loadFromFile(const std::string & path)
-	{
-
-		std::ifstream f(path);
-
-		if (!f.good())
-			throw "ConvexPolyhedron::loadFromFile invalid file";
-
-		ConvexPolyhedron cp;
-		
-
-		int nv, nf;
-		f >> nv;
-
-		if(nv <= 0)
-			throw "ConvexPolyhedron::loadFromFile invalid number of vertices";
-
-		cp.vertices.resize(nv);
-
-		for (auto i = 0; i < nv; i++) {
-			f >> cp.vertices[i].x >> cp.vertices[i].y >> cp.vertices[i].z;
-		}
-
-		f >> nf;
-
-		if (nf <= 0)
-			throw "ConvexPolyhedron::loadFromFile invalid number of faces";
-
-		cp.faces.resize(nf);
-
-		auto cmpEdge = [](const Edge & a, const Edge & b) {
-			Edge as = a;
-			if (as.x > as.y) std::swap(as.x, as.y);
-			Edge bs = b;
-			if (bs.x > bs.y) std::swap(bs.x, bs.y);
-
-			if (as.x < bs.x)
-				return true;
-			if (as.x > bs.x)
-				return false;
-			return (as.y < bs.y);
-		};
-
-		std::set<Edge, decltype(cmpEdge)> edgeSet(cmpEdge);
-
-		
-		for (auto i = 0; i < nf; i++) {
-			
-			Face & face = cp.faces[i];	
-
-			//Read number of vertices in this face
-			int nfv;
-			f >> nfv;
-
-			assert(nfv >= 3);
-
-			//Load vertex indices
-			face.vertices.resize(nfv);
-			for (auto k = 0; k < nfv; k++) {
-				f >> face.vertices[k];
-			}
-
-			//Save edges
-			for (auto k = 0; k < nfv; k++) {
-				Edge e = { face.vertices[k], face.vertices[(k + 1) % nfv] };
-				edgeSet.insert(e);				
-			}
-
-			
-			
-		}
-
-		
-
-		cp.edges.resize(edgeSet.size());
-		std::copy(edgeSet.begin(), edgeSet.end(), cp.edges.begin());
-
-		cp.recomputeNormals();
-
-		return cp;
-
-
-	}
+	
 
 
 
-	BLIB_EXPORT void ConvexPolyhedron::recomputeNormals()
+	/*BLIB_EXPORT void ConvexPolyhedron::recomputeNormals()
 	{
 		for (auto & f : faces) {
 			Edge edgeA = { f.vertices[0], f.vertices[1] };
@@ -101,8 +19,8 @@ namespace blib {
 			vec3 edgeBvec = vertices[edgeB.x] - vertices[edgeB.y];
 			f.normal = glm::normalize(glm::cross(edgeAvec, edgeBvec));
 		}
-	}
-
+	}*/
+/*
 	BLIB_EXPORT int ConvexPolyhedron::whichSide(const std::vector<vec3> & vertices, const vec3 & D, const vec3 & P) const
 	{
 		int positive = 0;
@@ -164,7 +82,8 @@ namespace blib {
 		return true;
 
 	}
-
+	*/
+/*
 	BLIB_EXPORT ConvexPolyhedron ConvexPolyhedron::transformed(const Transform & t) const
 	{
 		ConvexPolyhedron newcp = *this;
@@ -176,9 +95,9 @@ namespace blib {
 		newcp.recomputeNormals();
 
 		return newcp;
-	}
+	}*/
 
-	BLIB_EXPORT AABB ConvexPolyhedron::bounds() const
+	/*BLIB_EXPORT AABB ConvexPolyhedron::bounds() const
 	{		
 		AABB b;		
 		for (auto & v : vertices) {
@@ -187,9 +106,9 @@ namespace blib {
 		}
 
 		return b;		
-	}
+	}*/
 
-	BLIB_EXPORT ConvexPolyhedron ConvexPolyhedron::normalized(bool keepAspectRatio) const
+	/*BLIB_EXPORT ConvexPolyhedron ConvexPolyhedron::normalized(bool keepAspectRatio) const
 	{
 		auto b = bounds();
 
@@ -204,9 +123,9 @@ namespace blib {
 		t.translation = -(b.min * t.scale);
 		
 		return transformed(t);
-	}
+	}*/
 
-	BLIB_EXPORT std::vector<vec3> ConvexPolyhedron::flattenedTriangles() const
+	/*BLIB_EXPORT std::vector<vec3> ConvexPolyhedron::flattenedTriangles() const
 	{
 		std::vector<vec3> result(faces.size() * 3);
 
@@ -220,5 +139,6 @@ namespace blib {
 
 		return result;
 	}
+*/
 
 }

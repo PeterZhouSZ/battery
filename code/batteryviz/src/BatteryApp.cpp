@@ -50,6 +50,10 @@ RNGUniformInt uniformDistInt(0, INT_MAX);
 
 #include "batterylib/include/VolumeMeasures.h"
 #include "batterylib/include/VolumeRasterization.h"
+#include "batterylib/include/GeometryIO.h"
+#include "batterylib/include/GeometryObject.h"
+#include "batterylib/include/SAP.h"
+#include "batterylib/include/Intersection.h"
 
 
 
@@ -92,6 +96,7 @@ BatteryApp::BatteryApp()
 	
 	_autoUpdate = false;
 
+	_aabbVBO = getCubeVBO();
 	
 	
 
@@ -150,6 +155,8 @@ void BatteryApp::update(double dt)
 	}
 
 	
+
+	
 	
 	
 	if (!_autoUpdate) return;
@@ -178,20 +185,25 @@ void BatteryApp::render(double dt)
 	
 
 	
-	if (_options["Render"].get<bool>("particles")) {
+	if (_options["Render"]["SceneGeometry"].get<bool>("Enabled")) {
+
 		RenderList rl;
 
+		bool bboxes = _options["Render"]["SceneGeometry"].get<bool>("BoundingBoxes");
 		
-		for (auto & p : _particlePacking.particles) {
+
+		
+		for (auto & p : _sceneGeometry) {
 			
 			Transform volumeTransform;
 			volumeTransform.scale = vec3(2);
 			volumeTransform.translation = vec3(-1);
 
+			auto templateGeometry = p->getTemplateGeometry();
+			auto vboIt = _geometryVBOs.find(templateGeometry);
+			if (vboIt != _geometryVBOs.end()) {
 
-			if (p->getTemplateShapeAddress() != nullptr) {
-
-				auto & vbo = _particleVBOs[p->getTemplateShapeAddress()];
+				auto & vbo = vboIt->second;
 
 				auto t = p->getTransform();
 				{
@@ -203,6 +215,32 @@ void BatteryApp::render(double dt)
 					rl.add(_shaders[SHADER_PHONG], item);
 				}
 			}
+
+			if (bboxes) {
+				//auto t = p->getTransform();
+				auto bb = p->bounds();
+
+				Transform tbb;
+				tbb.scale = vec3(0.5f) * bb.range();
+				tbb.translation = bb.centroid();
+				
+				{
+					mat4 M = volumeTransform.getAffine() * tbb.getAffine();
+					mat4 NM = mat4(glm::transpose(glm::inverse(mat3(M))));
+
+					ShaderOptions so = { 
+						{ "M", M },
+						{ "NM", NM },
+						{ "PV", _camera.getPV() },
+						{ "useUniformColor", true},
+						{ "uniformColor", vec4(1.0f,0,0,1.0f) }
+					};
+					RenderList::RenderItem item = { _aabbVBO, so, GL_LINE };
+					rl.add(_shaders[SHADER_FLAT], item);
+				}
+			
+			}
+
 		}
 
 		
@@ -574,41 +612,69 @@ void BatteryApp::reset()
 	_volume->addChannel(genRes, TYPE_UCHAR, false, "rasterized");
 
 	//Setup template particle
-	const std::string path = "../../data/particles/C3.txt";
-	std::shared_ptr<ConvexPolyhedron> templateParticle = std::make_shared<ConvexPolyhedron>();
-	*templateParticle = blib::ConvexPolyhedron::loadFromFile(path).normalized();
+	const std::string path = "../../data/particles/C3.txt";	
+	std::shared_ptr<blib::Geometry> templateParticle = std::move(blib::loadParticleMesh(path).normalized(true));	
+
 		
-	_particleVBOs[templateParticle.get()] = getConvexPolyhedronVBO(*templateParticle, vec4(0.5f, 0.5f, 0.5f, 1.0f));
+	_geometryVBOs[templateParticle] = getTriangleMeshVBO(
+		*static_pointer_cast<blib::TriangleMesh>(templateParticle), 
+		vec4(0.5f, 0.5f, 0.5f, 1.0f)
+	);
 
 
-	/*blib::Transform T0;
-	blib::Transform T1;
-	T1.translation = { 0.0f,10.0f,0.0f };	*/
 
-	_particlePacking.particles.clear();
 
 	std::vector<mat4> matrixTransforms;
-
 	int N = _options["Generator"].get<int>("NumParticles");
+	
+	_sceneGeometry.clear();
+	Timer tgen(true);
 
 	for (auto i = 0; i < N; i++) {
 		blib::Transform T0;
-		T0.translation = { uniformDist.next(),uniformDist.next(), uniformDist.next() };
+		
 		T0.scale = vec3(uniformDist.next() * 0.5 + 0.5f);
+		T0.scale *= 0.25f;
 		T0.rotation = glm::rotate(glm::quat(), uniformDist.next() * 2.0f * glm::pi<float>(), { uniformDist.next(),uniformDist.next(), uniformDist.next() });
+		T0.translation = vec3(uniformDist.next(), uniformDist.next(), uniformDist.next());
 
-		matrixTransforms.push_back(T0.getAffine());
+		matrixTransforms.push_back(T0.getAffine());	
 
-		_particlePacking.particles.push_back(
-			std::make_shared<ConvexPolyhedronParticle>(templateParticle, T0)
-		);
+		std::shared_ptr<blib::GeometryObject> obj = std::make_shared<blib::GeometryObject>(
+			templateParticle
+			);
+		obj->setTransform(T0);
+		_sceneGeometry.push_back(std::move(obj));
+
 
 	}
+	
+	std::cout << "Generating " << tgen.timeMs() << "ms" << std::endl;
 
+
+	Timer tbuild(true);
+	blib::SAP sap;
+	sap.build(_sceneGeometry);			
+	std::cout << "Building structure " << tbuild.timeMs() << "ms" << std::endl;
+
+	Timer tcollision(true);
+	auto pairs = std::move(sap.getCollisionPairs());
+
+	size_t intersectionCount = 0;
+	for (auto p : pairs) {
+		bool res = isectTest(*p.first->getGeometry(), *p.second->getGeometry());
+		if (res) intersectionCount++;
+	}
+
+	tcollision.stop();
+	std::cout << "Test pairs: " << pairs.size() << ", collisions: " << intersectionCount << ", time: " << tcollision.timeMs() << "ms" << std::endl;
+
+
+	blib::TriangleMesh & templateMesh = *static_pointer_cast<blib::TriangleMesh>(templateParticle);
 	
 	rasterize(
-		(float*)templateParticle->flattenedTriangles().data(),
-		templateParticle->faces.size(),
+		(float*)templateMesh.getTriangleArray().data(),
+		templateMesh.faces.size(),
 		(float*)matrixTransforms.data(),
 		matrixTransforms.size(),
 		_volume->getChannel(CHANNEL_MASK)
@@ -618,83 +684,6 @@ void BatteryApp::reset()
 	
 
 
-	/*_particlePacking.particles.push_back(
-		std::make_shared<ConvexPolyhedronParticle>(templateParticle, T1)
-	);*/
-
-	
-	/*{
-		int res = _options["Input"].get<int>("GenResolution");
-		if (res == 0) {
-			res = 32;
-			_options["Input"].get<int>("GenResolution") = res;
-		}				
-		ivec3 d = ivec3(res, res, res);
-
-		std::cout << "Resolution: " << d.x << " x " << d.y << " x " << d.z <<
-			" = " << d.x*d.y*d.z << " voxels (" << (d.x*d.y*d.z) / (1024 * 1024.0f) << "M)" << std::endl;
-		
-		auto batteryID = _volume->addChannel(d, TYPE_UCHAR);
-
-		//Add concetration channel
-		auto concetrationID = _volume->addChannel(
-			_volume->getChannel(CHANNEL_MASK).dim(),
-			TYPE_DOUBLE
-		);
-		assert(concetrationID == CHANNEL_CONCETRATION);
-
-		bool genSphere = _options["Input"].get<bool>("Sphere");
-		if (genSphere) {
-
-			bool hollow = _options["Input"].get<bool>("SphereHollow");
-		
-			auto & c = _volume->getChannel(batteryID);
-			uchar* data = (uchar*)c.getCurrentPtr().getCPU();
-
-			for (auto i = 0; i < d[0] - 0; i++) {
-				for (auto j = 0; j < d[1] - 0; j++) {
-					for (auto k = 0; k < d[2] - 0; k++) {
-
-						auto index = linearIndex(c.dim(), { i,j,k });
-
-
-
-						/ *if (i > d[0] / 2)
-							data[index] = 255;
-						else
-							data[index] = 0;
-						* /
-						vec3 normPos = { i / float(d[0] - 1),j / float(d[1] - 1), k / float(d[2] - 1), };
-
-						
-
-						float distC = glm::length(normPos - vec3(0.5f));		
-
-						if (hollow) {
-							if (distC < 0.45f && distC > 0.35f)
-								data[index] = 255;
-							else
-								data[index] = 0;
-						}
-						else {
-							if (distC < 0.5f)
-								data[index] = 255;
-							else
-								data[index] = 0;
-
-						}
-
-
-					}
-				}
-			}
-
-			c.getCurrentPtr().commit();
-
-			
-		}		
-
-	}*/
 	
 	
 

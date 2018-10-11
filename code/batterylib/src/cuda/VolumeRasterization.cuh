@@ -6,9 +6,21 @@
 
 #include "Volume.cuh"
 
+#include <vector>
+
 
 void Volume_Rasterize(
 	float * meshTriangles, size_t triangleN,
 	float * transformMatrices4x4, size_t instanceN,
 	CUDA_Volume & output
+);
+
+struct Volume_CollisionPair {
+	size_t i,j;
+};
+
+std::vector<Volume_CollisionPair> Volume_AABB_Collisions(
+	float * aabbs,
+	size_t N,
+	uint3 res
 );
