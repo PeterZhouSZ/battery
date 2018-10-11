@@ -172,7 +172,7 @@ namespace blib {
 	}
 
 
-	BLIB_EXPORT std::vector<std::shared_ptr<GeometryObject>> readPosFile(std::ifstream & stream)
+	BLIB_EXPORT std::vector<std::shared_ptr<GeometryObject>> readPosFile(std::ifstream & stream, size_t index)
 	{
 
 		std::vector<std::shared_ptr<GeometryObject>> res;
@@ -197,16 +197,19 @@ namespace blib {
 
 		std::shared_ptr<Geometry> templateParticle;
 
+		size_t curCount = 0;
+
 		while (stream.good()) {
 			size_t pos = stream.tellg();
 			stream.getline(line, 1024);
-			//auto s = std::string(line);			
-
-			if (eofS.compare(0, eofS.length(), line, 0, eofS.length()) == CMP_MATCH) {
-				break;
-			}
+			//auto s = std::string(line);						
 			
 			if (boxS.compare(0, boxS.length(), line, 0, boxS.length()) == CMP_MATCH) {
+				if (index != curCount) {
+					curCount++;
+					continue;
+				}
+
 				std::stringstream ss;
 				ss << (line + boxS.length());
 
@@ -225,7 +228,11 @@ namespace blib {
 				std::cout << bb.max.x << ", " << bb.max.y << ", " << bb.max.z << std::endl;				
 			}
 
-			if (defS.compare(0, defS.length(), line, 0, defS.length()) == CMP_MATCH) {
+			if (index == curCount && eofS.compare(0, eofS.length(), line, 0, eofS.length()) == CMP_MATCH) {
+				break;
+			}
+
+			if (index == curCount && defS.compare(0, defS.length(), line, 0, defS.length()) == CMP_MATCH) {
 				std::stringstream ss;
 				ss << (line + defS.length() + 1);
 				
@@ -251,13 +258,12 @@ namespace blib {
 				Transform t;
 				t.scale = scale;
 
-				templateParticle = std::move(hullCoordsToMesh(coords).transformed(t));
-				//todo coords to conv hull mesh (fproc?)
+				templateParticle = std::move(hullCoordsToMesh(coords).transformed(t));				
 
 			}
 
 			//Instances
-			if (defName.length() > 0 && defName.compare(0, defName.length(), line, 0, defName.length()) == CMP_MATCH) {
+			if (index == curCount && defName.length() > 0 && defName.compare(0, defName.length(), line, 0, defName.length()) == CMP_MATCH) {
 				std::stringstream ss;
 				ss << (line + defName.length() + 1);
 
@@ -274,11 +280,6 @@ namespace blib {
 					t.translation *= scale;
 					t.translation += vec3(0.5f);					
 
-					/*Transform volumeTransform;
-					volumeTransform.scale = vec3(2);
-					volumeTransform.translation = vec3(-1);*/
-
-
 					char b;
 					b = 0;
 
@@ -292,6 +293,30 @@ namespace blib {
 		}
 
 		return res;
+
+	}
+
+	BLIB_EXPORT size_t getPosFileCount(std::ifstream & stream)
+	{
+		size_t count = 0;
+
+		size_t pos = stream.tellg();
+
+		const std::string boxS = "boxMatrix";
+		char line[1024];
+		while (stream.good()) {			
+			stream.getline(line, 1024);
+			if (boxS.compare(0, boxS.length(), line, 0, boxS.length()) == CMP_MATCH) {
+				count++;
+			}
+		}
+
+		//Reset stream to where it was
+		stream.clear();
+		stream.seekg(pos);
+		
+
+		return count;
 
 	}
 

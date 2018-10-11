@@ -568,12 +568,13 @@ void Ui::update(double dt)
 
 	if (ImGui::CollapsingHeader("Load .pos")) {
 		static std::string curDir = "../../data/shapes/";
+		static int currentIndex = 0;
 		std::string filename;
 		std::tie(curDir, filename) = imguiFileExplorer(curDir, ".pos", true);
 		if (filename != "") {			
-			_app.loadFromPosFile(filename, ivec3(_app._options["Generator"].get<int>("Resolution")));
+			_app.loadFromPosFile(filename, ivec3(_app._options["Generator"].get<int>("Resolution")), currentIndex);
 		}
-
+		ImGui::InputInt("Index in .pos", &currentIndex);
 	}
 
 	ImGui::Separator();

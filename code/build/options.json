@@ -43,7 +43,7 @@
             "type": 2
         },
         "Resolution": {
-            "data": 64,
+            "data": 256,
             "type": 2
         },
         "Spheres": {
@@ -255,7 +255,7 @@
             "type": 5
         },
         "volumeFiltering": {
-            "data": false,
+            "data": true,
             "type": 5
         },
         "volumeGrid": {

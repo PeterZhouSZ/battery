@@ -15,4 +15,9 @@ namespace blib {
 
 	BLIB_EXPORT bool saveVolumeBinary(const char * path, const VolumeChannel & channel);
 	BLIB_EXPORT VolumeChannel loadVolumeBinary(const char * path);
+
+
+
+
+
 }

@@ -161,8 +161,8 @@ __global__ void ___rasterizeKernel(
 };
 
 void Volume_Rasterize(
-	float * templateTriangles, size_t templateTriangleN,
-	float * transformMatrices4x4, size_t instanceN,
+	const float * templateTriangles, size_t templateTriangleN,
+	const float * transformMatrices4x4, size_t instanceN,
 	CUDA_Volume & output
 )
 {

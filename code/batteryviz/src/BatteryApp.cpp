@@ -576,7 +576,7 @@ bool BatteryApp::loadFromFile(const std::string & folder)
 }
 
 
-bool BatteryApp::loadFromPosFile(const std::string & path, ivec3 resolution)
+bool BatteryApp::loadFromPosFile(const std::string & path, ivec3 resolution, size_t index)
 {
 
 	reset();
@@ -590,45 +590,74 @@ bool BatteryApp::loadFromPosFile(const std::string & path, ivec3 resolution)
 
 
 	std::ifstream f(path);
-	_sceneGeometry = blib::readPosFile(f);
+	size_t count = blib::getPosFileCount(f);
+	std::cout << count << " distributions in " << path << std::endl;
+	index = index % count;	
+	_sceneGeometry = blib::readPosFile(f, index);
+	f.close();
 	
 	if (_sceneGeometry.size() == 0)
 		return false;
 
-	std::shared_ptr<blib::Geometry> templateParticle;
-	std::vector<mat4> matrixTransforms;
+	rasterize(_sceneGeometry, _volume->getChannel(CHANNEL_MASK));
+
 	
+	/*
+		Generate colord VBO for rendering
+	*/
+	const int colorN = 26;
+	const uchar3 colors[colorN] = {		
+		{ 0,117,220 }, //blue
+		{ 43,206,72 }, //green
+		{ 255,0,16 }, //red
+		{ 240,163,255 },
+		{ 153,63,0 },
+		{ 76,0,92 },
+		{ 25,25,25 },
+		{ 0,92,49 },
+		{ 255,204,153 },
+		{ 128,128,128 },
+		{ 148,255,181 },
+		{ 143,124,0 },
+		{ 157,204,0 },
+		{ 194,0,136 },
+		{ 0,51,128 },
+		{ 255,164,5 },
+		{ 255,168,187 },
+		{ 66,102,0 },
+		{ 94,241,242 },
+		{ 0,153,143 },
+		{ 224,255,102 },
+		{ 116,10,255 },
+		{ 153,0,0 },
+		{ 255,255,128 },
+		{ 255,255,0 },
+		{ 255,80,5 }
+	};
 
 	for (auto obj : _sceneGeometry) {
-		matrixTransforms.push_back(obj->getTransform().getAffine());
+		
+		const auto & tmpGeom = obj->getTemplateGeometry();
 
 		//Generate vbos of template particles
-		auto vboIt = _geometryVBOs.find(obj->getTemplateGeometry());
+		auto vboIt = _geometryVBOs.find(tmpGeom);
 
 		if (vboIt == _geometryVBOs.end()) {
-			_geometryVBOs[obj->getTemplateGeometry()] = getTriangleMeshVBO(
-				*static_pointer_cast<blib::TriangleMesh>(obj->getTemplateGeometry()),
-				vec4(0.5f, 0.5f, 0.5f, 1.0f)
-			);
-			templateParticle = obj->getTemplateGeometry();
+
+			auto tm = std::dynamic_pointer_cast<blib::TriangleMesh>(tmpGeom);
+
+			if (tm) {
+				uchar3 color = colors[_geometryVBOs.size() % colorN];
+
+				_geometryVBOs[tmpGeom] = getTriangleMeshVBO(
+					*tm, vec4(color.x / 255.0f, color.y / 255.0f, color.z / 255.0f, 1.0f)
+				);
+			}
 		}
-
 	}
-	f.close();
+	
 
 
-	blib::TriangleMesh & templateMesh = *static_pointer_cast<blib::TriangleMesh>(templateParticle);
-
-	/*
-		TODO heterogenous particles -> map templates to transforms
-	*/
-	rasterize(
-		(float*)templateMesh.getTriangleArray().data(),
-		templateMesh.faces.size(),
-		(float*)matrixTransforms.data(),
-		matrixTransforms.size(),
-		_volume->getChannel(CHANNEL_MASK)
-	);
 
 	return true;
 }

@@ -10,8 +10,8 @@
 
 
 void Volume_Rasterize(
-	float * meshTriangles, size_t triangleN,
-	float * transformMatrices4x4, size_t instanceN,
+	const float * meshTriangles, size_t triangleN,
+	const float * transformMatrices4x4, size_t instanceN,
 	CUDA_Volume & output
 );
 
