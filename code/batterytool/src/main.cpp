@@ -22,6 +22,8 @@
 #endif
 
 #include <fstream>
+#include "batterylib/include/VolumeRasterization.h"
+#include "batterylib/include/GeometryIO.h"
 
 
 namespace fs = std::experimental::filesystem;
@@ -118,58 +120,26 @@ std::string dirString(Dir d){
 	return "Undefined direction";
 }
 
+uint IDMask = 0;
+uint IDConc = 1;
+
 template <typename T>
-bool tortuosity() {
-
-	blib::VolumeChannel::enableOpenGLInterop = false;
-	
-
-	if (argVerbose) {
-		std::cout << "Precision: " << argPrecision.Get() << std::endl;
-		std::cout << "Tolerance: " << argTol.Get() << std::endl;
-		std::cout << "MaxIterations: " << argMaxIterations.Get() << " intermediate steps: " << argStep.Get() << std::endl;
-	}
-
-
-	/*
-	Load input volume
-	*/
-	blib::Volume volume;
-	uint IDMask = 0;
-	uint IDConc = 1;
-	try {
-		IDMask = volume.emplaceChannel(
-			blib::loadTiffFolder(argInput.Get().c_str(), true)
-		);
-		volume.binarize(IDMask, 1.0f);
-
-		if(argVolumeExport.Get())
-			IDConc = volume.addChannel(volume.getChannel(IDMask).dim(), ((std::is_same<T, float>()) ? TYPE_FLOAT : TYPE_DOUBLE) );
-
-	}
-	catch (const char * ex) {
-		std::cerr << "Failed to load: ";
-		std::cerr << ex << std::endl;
-		return false;
-	}
+bool run(const std::string & name, blib::Volume & volume){
 
 	blib::VolumeChannel & c = volume.getChannel(IDMask);
 	c.getCurrentPtr().allocCPU();
 	c.getCurrentPtr().retrieve();
-
-
 	
 
 	//Resize volume if desired
 	if (argSubvolume.Get() != 0) {
 		auto dim = c.dim();
 		blib::ivec3 dd = glm::min(dim, blib::ivec3(argSubvolume.Get()));
-		c.resize({ 0,0,0 }, blib::ivec3(dd));
+		if (c.dim().x != dd.x && c.dim().y != dd.y && c.dim().z != dd.z)
+			c.resize({ 0,0,0 }, blib::ivec3(dd));
 	}
 
 	//Solution for export
-	
-
 	if (argVerbose) {
 		auto dim = c.dim();
 		std::cout << "Resolution: " << dim.x << " x " << dim.y << " x " << dim.z <<
@@ -179,11 +149,10 @@ bool tortuosity() {
 
 	}
 
-
 	std::vector<Dir> dirs = getDirs(argTauDir.Get());
 	std::vector<T> taus(dirs.size());
-	
-	std::vector<double> times(dirs.size());	
+
+	std::vector<double> times(dirs.size());
 
 	blib::DiffusionSolverType solverType = DSOLVER_BICGSTABGPU;
 	if (argSolver.Get() == "Eigen")
@@ -201,19 +170,17 @@ bool tortuosity() {
 	tp.porosityPrecomputed = true;
 
 	//Get area density
-	c.getCurrentPtr().createTexture();
-	//T areaDensity = getReactiveAreaDensity<T>(c, c.dim(), 0.1f, 1.0f);
-
+	c.getCurrentPtr().createTexture();	
 
 	std::array<T, 6> radTensor;
 	if (argRad.Get()) {
 		auto ccl = blib::getVolumeCCL(c, 255);
 		radTensor = getReactiveAreaDensityTensor<T>(ccl);
 	}
-	
+
 
 	for (auto i = 0; i < dirs.size(); i++) {
-		
+
 
 		tp.dir = dirs[i];
 
@@ -223,12 +190,12 @@ bool tortuosity() {
 
 		auto t0 = std::chrono::system_clock::now();
 
-		blib::VolumeChannel *outPtr = (argVolumeExport.Get()) ? &volume.getChannel(IDConc) : nullptr;		
-		T tau = getTortuosity<T>(c, tp, solverType, outPtr);		
+		blib::VolumeChannel *outPtr = (argVolumeExport.Get()) ? &volume.getChannel(IDConc) : nullptr;
+		T tau = getTortuosity<T>(c, tp, solverType, outPtr);
 
 		taus[i] = tau;
 
-		
+
 
 		//Calculate tortuosity and porosity				
 		auto t1 = std::chrono::system_clock::now();
@@ -244,9 +211,9 @@ bool tortuosity() {
 		//Export calculated concetration volume
 		if (argVolumeExport.Get()) {
 			const std::string exportPath = (argInput.Get() + std::string("/conc_dir_") + char(char(tp.dir) + '0')
-				+ std::string("_") + tmpstamp("%Y_%m_%d_%H_%M_%S") 
-				+ std::string(".vol"));			
-			
+				+ std::string("_") + tmpstamp("%Y_%m_%d_%H_%M_%S")
+				+ std::string(".vol"));
+
 			bool res = blib::saveVolumeBinary(exportPath.c_str(), volume.getChannel(IDConc));
 			if (argVerbose) {
 				std::cout << "export to" << (exportPath) << std::endl;
@@ -264,9 +231,9 @@ bool tortuosity() {
 		bool isNewFile = true;
 
 		//Check if output file exists
-		if(argOutput){
-			std::ifstream f(argOutput.Get());	
-			if(f.is_open())
+		if (argOutput) {
+			std::ifstream f(argOutput.Get());
+			if (f.is_open())
 				isNewFile = false;
 		}
 
@@ -279,10 +246,10 @@ bool tortuosity() {
 		//Choose output stream
 		std::ostream & os = (outFile.is_open()) ? outFile : std::cout;
 
-		
+
 
 		//Header 
-		if(isNewFile){
+		if (isNewFile) {
 			os << "path,porosity,dir,tolerance,tau,";
 			if (argRad.Get()) {
 				os << "rad,";
@@ -290,24 +257,24 @@ bool tortuosity() {
 				os << "rad_Y_POS,rad_Y_NEG,";
 				os << "rad_Z_POS,rad_Z_NEG,";*/
 			}
-			os<< "t,dimx,dimy,dimz,solver" << '\n';
+			os << "t,dimx,dimy,dimz,solver" << '\n';
 		}
 
-		for(auto i =0 ; i < taus.size(); i++){
-			os << "'" << fs::absolute(fs::path(argInput.Get())) << "'" << ",\t";
+		for (auto i = 0; i < taus.size(); i++) {
+			os << "'" << name << "'" << ",\t";
 
 			os << tp.porosity << ",\t";
 
 			os << dirString(dirs[i]) << ",\t";
 
 			os << tp.tolerance << ",\t";
-			
+
 			os << taus[i] << ",\t";
 
 			if (argRad.Get()) {
 				//for (auto i = 0; i < 6; i++)
 				os << radTensor[i] << ",\t";
-			}						
+			}
 
 			//double avgTime = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
 			os << times[i] << ",\t";
@@ -323,6 +290,85 @@ bool tortuosity() {
 		}
 	}
 
+	return true;
+
+}
+
+
+template <typename T>
+bool tortuosity() {
+
+	blib::VolumeChannel::enableOpenGLInterop = false;
+	
+
+	if (argVerbose) {
+		std::cout << "Precision: " << argPrecision.Get() << std::endl;
+		std::cout << "Tolerance: " << argTol.Get() << std::endl;
+		std::cout << "MaxIterations: " << argMaxIterations.Get() << " intermediate steps: " << argStep.Get() << std::endl;
+	}
+
+
+	/*
+	Load input volume
+	*/
+	
+
+	auto inputPath = fs::path(argInput.Get());
+	
+	if (fs::is_directory(inputPath)) {
+		try {
+			blib::Volume volume;
+			IDMask = volume.emplaceChannel(
+				blib::loadTiffFolder(argInput.Get().c_str(), true)
+			);
+			volume.binarize(IDMask, 1.0f);
+
+			if (argVolumeExport.Get())
+				IDConc = volume.addChannel(volume.getChannel(IDMask).dim(), ((std::is_same<T, float>()) ? TYPE_FLOAT : TYPE_DOUBLE));
+
+			run<T>(fs::absolute(fs::path(argInput.Get())).string(), volume);
+
+		}
+		catch (const char * ex) {
+			std::cerr << "Failed to load: ";
+			std::cerr << ex << std::endl;
+			return false;
+		}
+	}
+	else if (inputPath.extension() == ".pos") {
+
+		
+		std::ifstream f(inputPath);
+		size_t count = blib::getPosFileCount(f);		
+		f.close();
+
+
+		for (auto i = 0; i < count; i++) {
+			
+			blib::Volume volume;			
+			std::ifstream f(inputPath);
+			auto geometry = blib::readPosFile(f, i);
+			f.close();
+
+			const blib::ivec3 resolution = blib::ivec3((argSubvolume.Get() != 0) ? argSubvolume.Get() : 128);
+			IDMask = volume.addChannel(resolution, TYPE_UCHAR, false, "posFileRasterized");
+			rasterize(geometry, volume.getChannel(IDMask));			
+
+
+			char buf[64];			
+			sprintf(buf, "%d", i);
+
+			std::string name = fs::absolute(fs::path(argInput.Get())).string() + "_" + buf;
+			run<T>(name, volume);
+		}
+
+	
+	}
+
+
+	
+
+	
 	return true;
 
 }

@@ -199,40 +199,53 @@ namespace blib {
 
 		size_t curCount = 0;
 
+		//Seek to index
+		while (stream.good()) {
+			size_t pos = stream.tellg();
+			stream.getline(line, 1024);
+
+			if (boxS.compare(0, boxS.length(), line, 0, boxS.length()) == CMP_MATCH) {
+				if (curCount == index) {
+					std::stringstream ss;
+					ss << (line + boxS.length());
+
+					float tmp;
+					bb.min = vec3(0);
+					vec3 v[3];
+					ss >> v[0].x >> v[0].y >> v[0].z;
+					ss >> v[1].x >> v[1].y >> v[1].z;
+					ss >> v[2].x >> v[2].y >> v[2].z;
+
+					bb.max = vec3(v[0].x, v[1].y, v[2].z);
+
+					scale = vec3(1.0f / bb.range().x, 1.0f / bb.range().y, 1.0f / bb.range().z);
+
+					std::cout << line << std::endl;
+					std::cout << bb.max.x << ", " << bb.max.y << ", " << bb.max.z << std::endl;
+
+					break;
+				}
+				curCount++;
+			}			
+
+		}
+
+
 		while (stream.good()) {
 			size_t pos = stream.tellg();
 			stream.getline(line, 1024);
 			//auto s = std::string(line);						
 			
-			if (boxS.compare(0, boxS.length(), line, 0, boxS.length()) == CMP_MATCH) {
-				if (index != curCount) {
-					curCount++;
-					continue;
-				}
+			/*if (boxS.compare(0, boxS.length(), line, 0, boxS.length()) == CMP_MATCH) {
+				
+					
+			}*/
 
-				std::stringstream ss;
-				ss << (line + boxS.length());
-
-				float tmp;
-				bb.min = vec3(0);
-				vec3 v[3];
-				ss >> v[0].x >> v[0].y >> v[0].z;
-				ss >> v[1].x >> v[1].y >> v[1].z;
-				ss >> v[2].x >> v[2].y >> v[2].z;				
-
-				bb.max = vec3(v[0].x, v[1].y, v[2].z);
-
-				scale = vec3(1.0f / bb.range().x, 1.0f / bb.range().y, 1.0f / bb.range().z);
-
-				std::cout << line << std::endl;
-				std::cout << bb.max.x << ", " << bb.max.y << ", " << bb.max.z << std::endl;				
-			}
-
-			if (index == curCount && eofS.compare(0, eofS.length(), line, 0, eofS.length()) == CMP_MATCH) {
+			if (eofS.compare(0, eofS.length(), line, 0, eofS.length()) == CMP_MATCH) {
 				break;
 			}
 
-			if (index == curCount && defS.compare(0, defS.length(), line, 0, defS.length()) == CMP_MATCH) {
+			if (defS.compare(0, defS.length(), line, 0, defS.length()) == CMP_MATCH) {
 				std::stringstream ss;
 				ss << (line + defS.length() + 1);
 				
@@ -263,7 +276,7 @@ namespace blib {
 			}
 
 			//Instances
-			if (index == curCount && defName.length() > 0 && defName.compare(0, defName.length(), line, 0, defName.length()) == CMP_MATCH) {
+			if (defName.length() > 0 && defName.compare(0, defName.length(), line, 0, defName.length()) == CMP_MATCH) {
 				std::stringstream ss;
 				ss << (line + defName.length() + 1);
 
