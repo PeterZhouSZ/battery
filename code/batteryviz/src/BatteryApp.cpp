@@ -576,7 +576,7 @@ bool BatteryApp::loadFromFile(const std::string & folder)
 }
 
 
-bool BatteryApp::loadFromPosFile(const std::string & path, ivec3 resolution, size_t index)
+bool BatteryApp::loadFromPosFile(const std::string & path, ivec3 resolution, size_t index, const blib::AABB & trim)
 {
 
 	reset();
@@ -593,7 +593,7 @@ bool BatteryApp::loadFromPosFile(const std::string & path, ivec3 resolution, siz
 	size_t count = blib::getPosFileCount(f);
 	std::cout << count << " distributions in " << path << std::endl;
 	index = index % count;	
-	_sceneGeometry = blib::readPosFile(f, index);
+	_sceneGeometry = blib::readPosFile(f, index, trim);
 	f.close();
 	
 	if (_sceneGeometry.size() == 0)

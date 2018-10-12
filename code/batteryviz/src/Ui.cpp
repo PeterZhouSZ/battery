@@ -569,12 +569,18 @@ void Ui::update(double dt)
 	if (ImGui::CollapsingHeader("Load .pos")) {
 		static std::string curDir = "../../data/shapes/";
 		static int currentIndex = 0;
+		const float scale = 1.0f / glm::pow(3.0f, 1.0f / 3.0f);
+		static blib::AABB bb = { vec3(0), vec3(scale)};	
+			
+
 		std::string filename;
 		std::tie(curDir, filename) = imguiFileExplorer(curDir, ".pos", true);
 		if (filename != "") {			
-			_app.loadFromPosFile(filename, ivec3(_app._options["Generator"].get<int>("Resolution")), currentIndex);
+			_app.loadFromPosFile(filename, ivec3(_app._options["Generator"].get<int>("Resolution")), currentIndex, bb);
 		}
 		ImGui::InputInt("Index in .pos", &currentIndex);
+		ImGui::InputFloat3("Min BB", reinterpret_cast<float*>(&bb.min));		
+		ImGui::InputFloat3("Max BB", reinterpret_cast<float*>(&bb.max));
 	}
 
 	ImGui::Separator();

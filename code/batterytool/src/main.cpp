@@ -347,7 +347,10 @@ bool tortuosity() {
 			
 			blib::Volume volume;			
 			std::ifstream f(inputPath);
-			auto geometry = blib::readPosFile(f, i);
+			const float scale = 1.0f / glm::pow(3.0f, 1.0f / 3.0f);
+			const blib::AABB bb = { vec3(0), vec3(scale) };
+
+			auto geometry = blib::readPosFile(f, i, bb);
 			f.close();
 
 			const blib::ivec3 resolution = blib::ivec3((argSubvolume.Get() != 0) ? argSubvolume.Get() : 128);

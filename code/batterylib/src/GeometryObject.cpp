@@ -11,6 +11,8 @@ namespace blib {
 
 	void GeometryObject::setTransform(Transform & transform)
 	{
+		_geomDirty = true;
+		_boundsDirty = true;
 		_transform = transform;
 	}
 
@@ -21,7 +23,7 @@ namespace blib {
 
 	BLIB_EXPORT AABB GeometryObject::bounds() const
 	{
-		if (_boundsDirty) {
+		if (_boundsDirty || _geomDirty) {
 			_bounds = getGeometry()->bounds();
 			_boundsDirty = false;
 		}

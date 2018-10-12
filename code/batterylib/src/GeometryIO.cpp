@@ -172,7 +172,11 @@ namespace blib {
 	}
 
 
-	BLIB_EXPORT std::vector<std::shared_ptr<GeometryObject>> readPosFile(std::ifstream & stream, size_t index)
+	BLIB_EXPORT std::vector<std::shared_ptr<GeometryObject>> readPosFile(
+		std::ifstream & stream, 
+		size_t index,
+		AABB trim
+		)
 	{
 
 		std::vector<std::shared_ptr<GeometryObject>> res;
@@ -192,7 +196,11 @@ namespace blib {
 		ShapeType shapeType;
 
 		AABB bb;
+		
 		vec3 scale;
+		vec3 trimRange = trim.range();
+		
+
 		std::vector<vec3> coords;
 
 		std::shared_ptr<Geometry> templateParticle;
@@ -286,20 +294,29 @@ namespace blib {
 					ss >> tmp;
 
 					Transform t;			
-					ss >> t.translation.x >> t.translation.y >> t.translation.z;
+					vec3 pos;
+					ss >> pos.x >> pos.y >> pos.z;
 					ss >> t.rotation[0] >> t.rotation[1] >> t.rotation[2] >> t.rotation[3];
 
+					
+					t.translation = pos * scale + vec3(0.5f);
 
-					t.translation *= scale;
-					t.translation += vec3(0.5f);					
-
-					char b;
-					b = 0;
-
+					
 					auto instance = std::make_shared<GeometryObject>(templateParticle);
 					instance->setTransform(t);					
 
-					res.push_back(instance);
+					if (trim.contains(instance->bounds())) {
+
+						vec3 trimScale = vec3(1.0 / trimRange.x, 1.0 / trimRange.y, 1.0 / trimRange.z);
+						t.translation = pos * scale * trimScale + trimScale * vec3(0.5f);
+						t.scale = trimScale;
+
+						instance->setTransform(t);
+
+						res.push_back(instance);
+					}
+
+					
 				}				
 
 			}

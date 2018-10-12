@@ -13,11 +13,20 @@ namespace blib {
 		vec3 min = vec3(FLT_MAX);
 		vec3 max = vec3(-FLT_MAX);
 
+		static AABB unit() {
+			return { vec3(0), vec3(1)};
+		}
+
 		AABB getUnion(const AABB & b) {
 			AABB c;
 			c.min = glm::min(min, b.min);
 			c.max = glm::max(max, b.max);
 			return c;
+		}
+
+		bool contains(const AABB & b) {
+			return (min.x <= b.min.x && min.y <= b.min.y && min.z <= b.min.z
+					&& max.x >=  b.max.x && max.y >= b.max.y && max.z >= b.max.z);
 		}
 
 		vec3 range() const {
