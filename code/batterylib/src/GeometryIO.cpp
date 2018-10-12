@@ -191,7 +191,7 @@ namespace blib {
 		const std::string defS = "def";
 		const std::string eofS = "eof";
 		std::string defName = "";		
-		char line[1024];
+		char line[4096];
 
 		ShapeType shapeType;
 
@@ -210,7 +210,7 @@ namespace blib {
 		//Seek to index
 		while (stream.good()) {
 			size_t pos = stream.tellg();
-			stream.getline(line, 1024);
+			stream.getline(line, 4096);
 
 			if (boxS.compare(0, boxS.length(), line, 0, boxS.length()) == CMP_MATCH) {
 				if (curCount == index) {
@@ -241,7 +241,7 @@ namespace blib {
 
 		while (stream.good()) {
 			size_t pos = stream.tellg();
-			stream.getline(line, 1024);
+			stream.getline(line, 4096);
 			//auto s = std::string(line);						
 			
 			/*if (boxS.compare(0, boxS.length(), line, 0, boxS.length()) == CMP_MATCH) {
@@ -333,9 +333,9 @@ namespace blib {
 		size_t pos = stream.tellg();
 
 		const std::string boxS = "boxMatrix";
-		char line[1024];
+		char line[4096];
 		while (stream.good()) {			
-			stream.getline(line, 1024);
+			stream.getline(line, 4096);
 			if (boxS.compare(0, boxS.length(), line, 0, boxS.length()) == CMP_MATCH) {
 				count++;
 			}

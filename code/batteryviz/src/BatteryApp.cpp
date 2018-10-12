@@ -589,10 +589,19 @@ bool BatteryApp::loadFromPosFile(const std::string & path, ivec3 resolution, siz
 	_volume->getChannel(CHANNEL_CONCETRATION).clear();
 
 
-	std::ifstream f(path);
-	size_t count = blib::getPosFileCount(f);
+	size_t count = 0;
+	{
+		std::ifstream f(path);
+		count = blib::getPosFileCount(f);
+		f.close();
+	}
+	
+
 	std::cout << count << " distributions in " << path << std::endl;
+	if (count == 0) return false;
+
 	index = index % count;	
+	std::ifstream f(path);
 	_sceneGeometry = blib::readPosFile(f, index, trim);
 	f.close();
 	
