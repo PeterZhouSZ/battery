@@ -94,11 +94,10 @@ __global__ void ___rasterizeKernel(
 	_at<uint>(dirVox, (dir + 2) % 3) += vox.y;		
 	
 
-	const float3 rayOrigin = make_float3(dirVox.x / float(res.x), dirVox.y / float(res.y), dirVox.z / float(res.z))
-		+ make_float3(0.5f / float(res.x), 0.5f / float(res.y), 0.5f / float(res.z));
-
+	float3 rayOrigin = make_float3(dirVox.x / float(res.x), dirVox.y / float(res.y), dirVox.z / float(res.z));
 	float3 rayDir = make_float3(0);
 	_at<float>(rayDir, dir) = 1.0f;
+	_at<float>(rayOrigin, dir) = -1.0f; //make sure is far outside of the domain
 
 	//Assumes convex mesh
 	bool isects[2] = { false, false };
