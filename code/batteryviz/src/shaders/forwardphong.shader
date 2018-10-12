@@ -108,7 +108,7 @@ void main(){
 	Material mat;
 	mat.diffuse = vec3(0.4) * fs_in.color.xyz;
 	mat.ambient = vec3(0.1);
-	mat.specular = vec3(0.1);
+	mat.specular = vec3(0.1) * fs_in.color.xyz;
 	mat.shininess = 0.8;
 
 	Light light[2];
