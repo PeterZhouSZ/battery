@@ -305,7 +305,7 @@ namespace blib {
 					auto instance = std::make_shared<GeometryObject>(templateParticle);
 					instance->setTransform(t);					
 
-					if (trim.contains(instance->bounds())) {
+					if (trim.testIntersection(instance->bounds())) {
 
 						vec3 trimScale = vec3(1.0 / trimRange.x, 1.0 / trimRange.y, 1.0 / trimRange.z);
 						t.translation = pos * scale * trimScale + trimScale * vec3(0.5f);
